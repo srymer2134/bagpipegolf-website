@@ -1,0 +1,317 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Bagpipe Golf — Play games. Settle scores.">
+  <main>
+    <!-- ───────── Hero ───────── -->
+    <section class="hero">
+      <div class="hero__inner">
+        <img
+          src="/bagpipe-golf-logo.jpg"
+          alt="Bagpipe Golf — the green bagpiper, with the wordmark Bagpipe Golf"
+          class="hero__logo"
+          width="260"
+          height="260"
+        />
+        <h1 class="hero__title">Play games. Settle scores.</h1>
+        <p class="hero__tagline">
+          The on-course caddie, scorecard, and side-bet engine for golfers
+          and tournament directors. 30 side games, full settlement math,
+          flighted tournaments, a clubhouse-TV kiosk view — built by golfers
+          who got tired of doing skins on a napkin.
+        </p>
+        <div class="hero__ctas">
+          <a class="btn btn--primary" href="#features">See what's inside</a>
+          <a class="btn btn--ghost" href="#directors">Run a tournament</a>
+        </div>
+        <p class="hero__sub">
+          iOS + Android · early access · contact
+          <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>
+        </p>
+      </div>
+    </section>
+
+    <!-- ───────── Feature triad ───────── -->
+    <section class="features" id="features">
+      <div class="features__inner">
+        <h2 class="section__title">Three apps, one round.</h2>
+        <div class="grid grid--3">
+          <article class="card">
+            <div class="card__icon" aria-hidden="true">🏌️</div>
+            <h3>Smart scorecard</h3>
+            <p>
+              GHIN-style notation, per-hole stats, course handicap math
+              done for you. Tap a cell, enter a score, done. No
+              spreadsheet, no math on the cart path.
+            </p>
+          </article>
+          <article class="card">
+            <div class="card__icon" aria-hidden="true">💰</div>
+            <h3>30 side games</h3>
+            <p>
+              Skins, Nassau, Wolf, Vegas, Stableford, Wolf, Bingo Bango
+              Bongo — full settlement math, hole-by-hole, zero-sum
+              guaranteed. Add a press at the 9th, the engine still
+              balances.
+            </p>
+          </article>
+          <article class="card">
+            <div class="card__icon" aria-hidden="true">🏆</div>
+            <h3>Tournament mode</h3>
+            <p>
+              Flighted gross / net / skins, Calcutta lots, closest-to-pin
+              + longest-drive pools, placing-payout curves, a TV kiosk
+              for the clubhouse. Run your member-guest from a phone.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── For directors ───────── -->
+    <section class="directors" id="directors">
+      <div class="directors__inner">
+        <div class="directors__text">
+          <h2 class="section__title">Built for tournament directors.</h2>
+          <p>
+            Roster, tee sheet, flights, pairings, leaderboards, the kiosk
+            wall — generated from one wizard. Players score themselves
+            on their phones; you watch the leaderboard update live on
+            the clubhouse TV. Sponsor logos, branded scorecards, cart
+            signs, bag tags — exported as a one-tap print pack.
+          </p>
+          <ul class="bullets">
+            <li>Wizard-driven setup — flights, side pools, payouts</li>
+            <li>Live kiosk leaderboard for the clubhouse TV</li>
+            <li>Sponsor placement on leaderboard, kiosk, and print pack</li>
+            <li>Director-controlled payout distribution with a balance guard</li>
+            <li>Coming soon: SMS/email blasts to the field on event day</li>
+          </ul>
+          <a class="btn btn--primary" href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf%20for%20my%20event">
+            Pitch your event →
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── Coming soon strip ───────── -->
+    <section class="comingsoon">
+      <div class="comingsoon__inner">
+        <span class="comingsoon__chip">In flight</span>
+        <p>
+          Sign in with Apple + Google · AI-assisted tournament comms
+          (push, email, SMS) · League / season standings · GHIN sync ·
+          Director portal on this site.
+        </p>
+      </div>
+    </section>
+
+    <!-- ───────── Footer ───────── -->
+    <footer class="footer">
+      <div class="footer__inner">
+        <span>© {new Date().getFullYear()} Bagpipe Golf</span>
+        <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>
+      </div>
+    </footer>
+  </main>
+</BaseLayout>
+
+<style>
+  /* ── Layout primitives ─────────────────────────────── */
+  main { display: block; }
+  .grid { display: grid; gap: 24px; }
+  .grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 880px) {
+    .grid--3 { grid-template-columns: 1fr; }
+  }
+
+  /* ── Buttons ───────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 22px;
+    font-size: 16px;
+    font-weight: 700;
+    border-radius: 999px;
+    text-decoration: none;
+    transition: transform 0.06s ease, box-shadow 0.12s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn--primary {
+    background: var(--brand-green);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(26, 92, 56, 0.28);
+  }
+  .btn--primary:hover { background: var(--brand-green-dark); color: #fff; }
+  .btn--ghost {
+    background: transparent;
+    color: var(--brand-green);
+    border: 2px solid var(--brand-green);
+  }
+  .btn--ghost:hover { background: var(--brand-green); color: #fff; }
+
+  /* ── Hero ──────────────────────────────────────────── */
+  .hero {
+    background: linear-gradient(180deg, var(--brand-yellow) 0%, #F5E9B8 100%);
+    padding: 72px 24px 96px;
+    text-align: center;
+  }
+  .hero__inner {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .hero__logo {
+    width: 260px;
+    height: 260px;
+    margin: 0 auto 28px;
+    border-radius: 32px;
+    object-fit: contain;
+    box-shadow: 0 18px 50px rgba(26, 92, 56, 0.18);
+  }
+  .hero__title {
+    font-size: clamp(40px, 6vw, 64px);
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin-bottom: 16px;
+    line-height: 1.05;
+  }
+  .hero__tagline {
+    font-size: 19px;
+    color: var(--ink);
+    margin: 0 auto 28px;
+    max-width: 580px;
+  }
+  .hero__ctas {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .hero__sub {
+    margin-top: 24px;
+    color: var(--ink-muted);
+    font-size: 14px;
+  }
+
+  /* ── Features ──────────────────────────────────────── */
+  .features { padding: 80px 24px; }
+  .features__inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .section__title {
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin-bottom: 36px;
+    text-align: center;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 26px 22px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+  .card__icon { font-size: 30px; margin-bottom: 12px; }
+  .card h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    margin: 0 0 8px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); }
+
+  /* ── Directors ─────────────────────────────────────── */
+  .directors {
+    background: var(--brand-green);
+    color: #fff;
+    padding: 80px 24px;
+  }
+  .directors__inner {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .directors .section__title { color: #fff; }
+  .directors p { color: rgba(255, 255, 255, 0.92); }
+  .bullets {
+    list-style: none;
+    padding: 0;
+    margin: 24px 0;
+    display: grid;
+    gap: 10px;
+  }
+  .bullets li {
+    padding-left: 28px;
+    position: relative;
+    color: rgba(255, 255, 255, 0.92);
+  }
+  .bullets li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--brand-yellow);
+    font-weight: 800;
+  }
+  .directors .btn--primary {
+    background: var(--brand-yellow);
+    color: var(--brand-green-dark);
+    margin-top: 12px;
+  }
+  .directors .btn--primary:hover {
+    background: var(--brand-yellow-deep);
+    color: var(--brand-green-dark);
+  }
+
+  /* ── Coming soon ───────────────────────────────────── */
+  .comingsoon {
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 32px 24px;
+  }
+  .comingsoon__inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .comingsoon__chip {
+    background: var(--brand-green-dark);
+    color: var(--brand-yellow);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .comingsoon p {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: 15px;
+  }
+
+  /* ── Footer ────────────────────────────────────────── */
+  .footer {
+    padding: 28px 24px;
+    color: var(--ink-muted);
+    font-size: 14px;
+  }
+  .footer__inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+</style>

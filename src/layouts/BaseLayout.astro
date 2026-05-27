@@ -1,0 +1,71 @@
+---
+// Shared head + frame for every page on bagpipegolf.com.
+// Single-file marketing site for v1 — extract a nav bar + footer
+// component once the site grows past one route.
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = "Bagpipe Golf — the on-course caddie, scorecard, and side-bet engine for golfers and tournament directors.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <!-- Open Graph -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={Astro.site} />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <slot />
+    <style is:global>
+      /* Bagpipe Golf brand */
+      :root {
+        --brand-green: #1A5C38;
+        --brand-green-dark: #0F3D25;
+        --brand-yellow: #E2CD80;
+        --brand-yellow-deep: #C9B26C;
+        --ink: #1A1A1A;
+        --ink-muted: #4B5563;
+        --paper: #FAFAF7;
+        --line: #E5E0D2;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Segoe UI", system-ui, sans-serif;
+        background: var(--paper);
+        color: var(--ink);
+        font-size: 17px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      h1, h2, h3 {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+          "Segoe UI", system-ui, sans-serif;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+      a { color: var(--brand-green); }
+      a:hover { color: var(--brand-green-dark); }
+      img { max-width: 100%; height: auto; display: block; }
+    </style>
+  </body>
+</html>
