@@ -1,6 +1,8 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 
+import cloudflare from "@astrojs/cloudflare";
+
 // Bagpipe Golf marketing + director-portal site.
 //
 // Deploys to Cloudflare Pages — Astro builds a fully static `dist/`
@@ -15,4 +17,5 @@ import { defineConfig } from 'astro/config';
 // see fairwayiq-flutter/docs/DNS_MIGRATION_HANDOFF.md.
 export default defineConfig({
   site: 'https://bagpipegolf.com',
+  adapter: cloudflare()
 });
