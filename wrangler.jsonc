@@ -17,15 +17,13 @@
   // Keep the *.workers.dev URL alive alongside the custom domain
   // (handy for testing changes without touching the prod DNS path).
   "workers_dev": true,
-  "preview_urls": true
-  // Custom-domain routes will be re-enabled below once the apex DNS
-  // records carried over from GoDaddy are removed from the
-  // bagpipegolf.com Cloudflare zone. Wrangler refuses to overwrite
-  // pre-existing A/CNAME/AAAA records on the route hostnames
-  // (error 100117, 2026-05-27). After the cleanup, restore:
-  //
-  //   "routes": [
-  //     { "pattern": "bagpipegolf.com",     "custom_domain": true },
-  //     { "pattern": "www.bagpipegolf.com", "custom_domain": true }
-  //   ]
+  "preview_urls": true,
+  // Custom-domain routes. Both the bare apex + www variants serve
+  // the same Worker. Cloudflare auto-provisions the DNS records +
+  // SSL since the bagpipegolf.com zone lives on the same account
+  // (Casey DNS handoff completed 2026-05-26 evening).
+  "routes": [
+    { "pattern": "bagpipegolf.com", "custom_domain": true },
+    { "pattern": "www.bagpipegolf.com", "custom_domain": true }
+  ]
 }
