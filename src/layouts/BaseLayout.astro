@@ -34,16 +34,21 @@ const {
   <body>
     <slot />
     <style is:global>
-      /* Bagpipe Golf brand */
+      /* Bagpipe Golf brand — mirrors lib/core/constants/app_colors.dart
+         in the Flutter app so the marketing site reads as the same product. */
       :root {
-        --brand-green: #1A5C38;
-        --brand-green-dark: #0F3D25;
-        --brand-yellow: #E2CD80;
-        --brand-yellow-deep: #C9B26C;
-        --ink: #1A1A1A;
-        --ink-muted: #4B5563;
-        --paper: #FAFAF7;
-        --line: #E5E0D2;
+        --brand-green: #1A5C38;       /* AppColors.primary */
+        --brand-green-dark: #0F3D25;  /* AppColors.primaryDark */
+        --brand-green-pale: #E8F5EE;  /* AppColors.primaryLight */
+        --ink: #1A1A1A;               /* AppColors.textPrimary */
+        --ink-muted: #6B7280;         /* AppColors.textSecondary */
+        --ink-hint: #9CA3AF;          /* AppColors.textHint */
+        --paper: #FFFFFF;             /* AppColors.surface */
+        --paper-tint: #F5F5F5;        /* AppColors.surfaceVariant */
+        --line: #E5E7EB;              /* AppColors.divider */
+        --success: #16A34A;
+        --warning: #D97706;
+        --error: #DC2626;
       }
 
       * { box-sizing: border-box; }

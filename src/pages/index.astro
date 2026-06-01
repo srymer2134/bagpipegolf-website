@@ -26,8 +26,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <a class="btn btn--ghost" href="#directors">Run a tournament</a>
         </div>
         <p class="hero__sub">
-          iOS + Android · early access · contact
-          <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>
+          <span class="hero__chip">iOS TestFlight beta · live now</span>
+          Android coming soon · email
+          <a href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf%20TestFlight%20invite">hello@bagpipegolf.com</a>
+          for an invite.
         </p>
       </div>
     </section>
@@ -41,28 +43,31 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             <div class="card__icon" aria-hidden="true">🏌️</div>
             <h3>Smart scorecard</h3>
             <p>
-              GHIN-style notation, per-hole stats, course handicap math
-              done for you. Tap a cell, enter a score, done. No
-              spreadsheet, no math on the cart path.
+              GHIN-style notation, per-hole FIR / GIR / putts, course
+              handicap math done for you. Tap a cell, enter a score,
+              done. Career stats roll up automatically — no spreadsheet,
+              no math on the cart path.
             </p>
           </article>
           <article class="card">
             <div class="card__icon" aria-hidden="true">💰</div>
             <h3>30 side games</h3>
             <p>
-              Skins, Nassau, Wolf, Vegas, Stableford, Wolf, Bingo Bango
-              Bongo — full settlement math, hole-by-hole, zero-sum
-              guaranteed. Add a press at the 9th, the engine still
-              balances.
+              Skins, Nassau, Wolf, Vegas, Stableford, Hammer, Bingo Bango
+              Bongo, Scotch, Six-Six-Six and 21 more — full settlement
+              math, hole-by-hole, zero-sum guaranteed. Add a press at
+              the 9th and the engine still balances.
             </p>
           </article>
           <article class="card">
             <div class="card__icon" aria-hidden="true">🏆</div>
-            <h3>Tournament mode</h3>
+            <h3>Tournaments &amp; leagues</h3>
             <p>
-              Flighted gross / net / skins, Calcutta lots, closest-to-pin
-              + longest-drive pools, placing-payout curves, a TV kiosk
-              for the clubhouse. Run your member-guest from a phone.
+              Flighted gross / net / Stableford, Calcutta lots,
+              closest-to-pin + longest-drive pools, placing-payout
+              curves, shotgun pairings, a TV kiosk for the clubhouse,
+              and season-long league standings. Run your member-guest
+              from a phone.
             </p>
           </article>
         </div>
@@ -75,19 +80,21 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <div class="directors__text">
           <h2 class="section__title">Built for tournament directors.</h2>
           <p>
-            Roster, tee sheet, flights, pairings, leaderboards, the kiosk
-            wall — generated from one wizard. Players score themselves
-            on their phones; you watch the leaderboard update live on
-            the clubhouse TV. Sponsor logos, branded scorecards, cart
-            signs, bag tags — exported as a one-tap print pack.
+            Roster, tee sheet, flights, pairings, shotgun starts,
+            leaderboards, the kiosk wall — generated from one wizard.
+            Players score themselves on their phones; you watch the
+            leaderboard update live on the clubhouse TV. Sponsor logos,
+            branded scorecards, cart signs, bag tags — exported as a
+            one-tap print pack.
           </p>
           <ul class="bullets">
-            <li>Wizard-driven setup — flights, side pools, payouts</li>
+            <li>Wizard-driven setup — flights, side pools, payouts, shotgun</li>
             <li>Live kiosk leaderboard for the clubhouse TV</li>
             <li>Sponsor placement on leaderboard, kiosk, and print pack</li>
             <li>Director-controlled payout distribution with a balance guard</li>
+            <li>Real-time spectator share codes — friends &amp; family follow live</li>
             <li>GHIN Sync — coming soon</li>
-            <li>Coming soon: SMS/email blasts to the field on event day</li>
+            <li>AI-assisted tournament comms (push / email / SMS) — coming soon</li>
           </ul>
           <a class="btn btn--primary" href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf%20for%20my%20event">
             Pitch your event →
@@ -157,7 +164,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
   /* ── Hero ──────────────────────────────────────────── */
   .hero {
-    background: linear-gradient(180deg, var(--brand-yellow) 0%, #F5E9B8 100%);
+    background: linear-gradient(180deg, var(--brand-green-pale) 0%, var(--paper) 100%);
     padding: 72px 24px 96px;
     text-align: center;
   }
@@ -196,6 +203,21 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     margin-top: 24px;
     color: var(--ink-muted);
     font-size: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+  }
+  .hero__chip {
+    background: var(--brand-green-dark);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
   }
 
   /* ── Features ──────────────────────────────────────── */
@@ -256,16 +278,16 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     position: absolute;
     left: 0;
     top: 0;
-    color: var(--brand-yellow);
+    color: var(--brand-green-pale);
     font-weight: 800;
   }
   .directors .btn--primary {
-    background: var(--brand-yellow);
+    background: #fff;
     color: var(--brand-green-dark);
     margin-top: 12px;
   }
   .directors .btn--primary:hover {
-    background: var(--brand-yellow-deep);
+    background: var(--brand-green-pale);
     color: var(--brand-green-dark);
   }
 
@@ -286,7 +308,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   }
   .comingsoon__chip {
     background: var(--brand-green-dark);
-    color: var(--brand-yellow);
+    color: var(--brand-green-pale);
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.12em;
