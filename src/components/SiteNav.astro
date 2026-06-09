@@ -16,9 +16,10 @@ type NavGroup = { title: string; links: NavLink[] };
 const primaryLinks: NavLink[] = isSignedIn
   ? [
       { href: '/app', label: 'Dashboard' },
+      { href: '/app/history', label: 'Rounds' },
+      { href: '/app/side-games', label: 'Side games' },
       { href: '/app/tournaments', label: 'Tournaments' },
       { href: '/app/leagues', label: 'Leagues' },
-      { href: '/app/profile', label: 'Profile' },
     ]
   : [
       { href: '/features', label: 'Features' },
@@ -33,9 +34,10 @@ const menuGroups: NavGroup[] = isSignedIn
         title: 'Play',
         links: [
           { href: '/app', label: 'Dashboard' },
+          { href: '/app/history', label: 'Round history' },
+          { href: '/app/side-games', label: 'Side games' },
           { href: '/app/tournaments', label: 'My tournaments' },
           { href: '/app/leagues', label: 'My leagues' },
-          { href: '/app/history', label: 'Round history' },
         ],
       },
       {

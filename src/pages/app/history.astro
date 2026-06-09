@@ -1,5 +1,61 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../lib/supabase';
+import { listRounds, formatVsPar, type RoundRow } from '../../lib/queries';
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let rows: RoundRow[] = [];
+let loadError: string | null = null;
+try {
+  rows = await listRounds(supabase, { limit: 100 });
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load rounds.';
+}
+
+const completedRows = rows.filter((r) => r.completed === true);
+const inProgressRows = rows.filter((r) => r.completed !== true);
+
+const totalRounds = completedRows.length;
+const avgScore = totalRounds
+  ? Math.round(
+      completedRows.reduce((s, r) => s + (r.total_score ?? 0), 0) / totalRounds,
+    )
+  : null;
+const bestScore = totalRounds
+  ? completedRows.reduce(
+      (best, r) =>
+        r.total_score != null && (best == null || r.total_score < best)
+          ? r.total_score
+          : best,
+      null as number | null,
+    )
+  : null;
+const lowDifferential = totalRounds
+  ? completedRows.reduce(
+      (best, r) =>
+        r.score_differential != null &&
+        (best == null || r.score_differential < best)
+          ? r.score_differential
+          : best,
+      null as number | null,
+    )
+  : null;
+
+const fmtDate = (iso: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso + 'T12:00:00');
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
 ---
 
 <BaseLayout title="Round history · Bagpipe Golf">
@@ -7,34 +63,227 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     <p class="pagewrap__eyebrow">Round history</p>
     <h1 class="pagewrap__title">Your rounds.</h1>
     <p class="pagewrap__sub">
-      Career totals, recent rounds, scoring trends.
+      Career totals + the last 100 rounds. Tap a row for the per-hole scorecard.
     </p>
 
-    <section class="grid grid--3">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Career stats</h3>
-        <p>Rounds played, avg score, best score, vs-par, FIR / GIR / putts.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Recent rounds</h3>
-        <p>Last 25 rounds with course, tees, gross, net, money won.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Trends</h3>
-        <p>Scoring trend, FIR / GIR / putts trend, by course.</p>
-      </article>
+    {loadError && <div class="errorbar">⚠️ {loadError}</div>}
+
+    <section class="statgrid">
+      <div class="stat">
+        <span class="stat__label">Rounds</span>
+        <span class="stat__value">{totalRounds}</span>
+      </div>
+      <div class="stat">
+        <span class="stat__label">Avg score</span>
+        <span class="stat__value">{avgScore ?? '—'}</span>
+      </div>
+      <div class="stat">
+        <span class="stat__label">Best score</span>
+        <span class="stat__value">{bestScore ?? '—'}</span>
+      </div>
+      <div class="stat">
+        <span class="stat__label">Low differential</span>
+        <span class="stat__value">{lowDifferential != null ? lowDifferential.toFixed(1) : '—'}</span>
+      </div>
+    </section>
+
+    {inProgressRows.length > 0 && (
+      <section class="block">
+        <h2 class="block__title">In progress · <span class="block__count">{inProgressRows.length}</span></h2>
+        <div class="rounds">
+          {
+            inProgressRows.map((r) => (
+              <a class="round" href={`/app/round/${r.id}`}>
+                <div class="round__date">{fmtDate(r.date_played)}</div>
+                <div class="round__course">{r.course_name ?? 'Unknown course'}</div>
+                <div class="round__meta">
+                  {r.tee_color && <span class="chip chip--muted">{r.tee_color}</span>}
+                  <span class="chip chip--warn">In progress</span>
+                </div>
+                <div class="round__score">
+                  <span class="round__total">{r.total_score ?? '—'}</span>
+                  <span class="round__vspar">{formatVsPar(r.total_score, r.par_total)}</span>
+                </div>
+              </a>
+            ))
+          }
+        </div>
+      </section>
+    )}
+
+    <section class="block">
+      <h2 class="block__title">Completed · <span class="block__count">{completedRows.length}</span></h2>
+      {completedRows.length === 0 ? (
+        <div class="empty">
+          No completed rounds yet. Finish a round in the mobile app and it shows up here.
+        </div>
+      ) : (
+        <div class="rounds">
+          {
+            completedRows.map((r) => (
+              <a class="round" href={`/app/round/${r.id}`}>
+                <div class="round__date">{fmtDate(r.date_played)}</div>
+                <div class="round__course">{r.course_name ?? 'Unknown course'}</div>
+                <div class="round__meta">
+                  {r.tee_color && <span class="chip chip--muted">{r.tee_color}</span>}
+                  {r.course_rating != null && r.slope_rating != null && (
+                    <span class="chip chip--muted">
+                      {r.course_rating} / {r.slope_rating}
+                    </span>
+                  )}
+                  {r.score_differential != null && (
+                    <span class="chip chip--muted">
+                      diff {r.score_differential.toFixed(1)}
+                    </span>
+                  )}
+                </div>
+                <div class="round__score">
+                  <span class="round__total">{r.total_score ?? '—'}</span>
+                  <span class="round__vspar">{formatVsPar(r.total_score, r.par_total)}</span>
+                </div>
+              </a>
+            ))
+          }
+        </div>
+      )}
     </section>
   </main>
 </BaseLayout>
 
 <style>
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+  .errorbar {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: var(--error);
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    margin-bottom: 18px;
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+
+  .statgrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 720px) {
+    .statgrid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat__label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-muted);
+    font-weight: 700;
+  }
+  .stat__value {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    line-height: 1;
+  }
+
+  .block { margin-top: 24px; }
+  .block__title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .block__count {
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+
+  .rounds {
+    display: grid;
+    gap: 8px;
+  }
+  .round {
+    display: grid;
+    grid-template-columns: 100px 1.5fr auto auto;
+    gap: 18px;
+    align-items: center;
+    padding: 14px 18px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    text-decoration: none;
+    color: var(--ink);
+    transition: border-color 0.12s ease, transform 0.06s ease, box-shadow 0.12s ease;
+  }
+  .round:hover {
+    border-color: var(--brand-green);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 61, 37, 0.08);
+  }
+  .round__date {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .round__course {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+  }
+  .round__meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .round__score {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  .round__total {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    line-height: 1;
+  }
+  .round__vspar {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  @media (max-width: 640px) {
+    .round {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        'course score'
+        'date score'
+        'meta meta';
+      gap: 6px 12px;
+    }
+    .round__course { grid-area: course; }
+    .round__date { grid-area: date; }
+    .round__meta { grid-area: meta; margin-top: 6px; }
+    .round__score { grid-area: score; }
+  }
+
+  .empty {
+    background: #fff;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+    padding: 28px 24px;
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 15px;
+  }
 </style>

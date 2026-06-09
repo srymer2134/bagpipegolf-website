@@ -1,7 +1,39 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../lib/supabase';
+import { listRounds, listBets, formatVsPar, type RoundRow, type BetRow } from '../../lib/queries';
 
 const user = Astro.locals.user!;
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let recentRounds: RoundRow[] = [];
+let activeBets: BetRow[] = [];
+let loadError: string | null = null;
+try {
+  [recentRounds, activeBets] = await Promise.all([
+    listRounds(supabase, { limit: 4 }),
+    listBets(supabase, { limit: 6, activeOnly: true }),
+  ]);
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load dashboard.';
+}
+
+const fmtDate = (iso: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso + (iso.length === 10 ? 'T12:00:00' : ''));
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+const playerNames = (b: BetRow) =>
+  (b.players ?? [])
+    .map((p) => (p?.name as string) || (p?.id as string) || '')
+    .filter(Boolean);
 ---
 
 <BaseLayout title="Dashboard · Bagpipe Golf">
@@ -9,56 +41,249 @@ const user = Astro.locals.user!;
     <p class="pagewrap__eyebrow">Dashboard</p>
     <h1 class="pagewrap__title">Welcome back.</h1>
     <p class="pagewrap__sub">
-      Signed in as <strong>{user.email}</strong> · user id <span class="mono">{user.id}</span>
+      Signed in as <strong>{user.email}</strong>
     </p>
 
-    <section class="grid grid--3">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Active rounds</h3>
-        <p>Resume an in-progress round on any device.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Your tournaments</h3>
-        <p>Live leaderboards from events you're playing or directing.</p>
-        <a class="btn btn--ghost btn--sm" href="/app/tournaments">Open</a>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Your leagues</h3>
-        <p>Weekly standings, schedule, sub assignments.</p>
-        <a class="btn btn--ghost btn--sm" href="/app/leagues">Open</a>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Recent activity</h3>
-        <p>Last rounds, bets settled, money in play.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Friends</h3>
-        <p>Search, add, view shared games.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Profile</h3>
-        <p>Handicap, clubs, bag, account.</p>
-        <a class="btn btn--ghost btn--sm" href="/app/profile">Open</a>
-      </article>
+    {loadError && <div class="errorbar">⚠️ {loadError}</div>}
+
+    <section class="block">
+      <header class="block__head">
+        <h2 class="block__title">Recent rounds</h2>
+        <a class="block__more" href="/app/history">Round history →</a>
+      </header>
+      {recentRounds.length === 0 ? (
+        <div class="empty">
+          No rounds yet. Finish a round in the mobile app and it shows up here.
+        </div>
+      ) : (
+        <div class="rounds">
+          {recentRounds.map((r) => (
+            <a class="round" href={`/app/round/${r.id}`}>
+              <div class="round__date">{fmtDate(r.date_played)}</div>
+              <div class="round__course">{r.course_name ?? 'Unknown course'}</div>
+              <div class="round__meta">
+                {r.tee_color && <span class="chip chip--muted">{r.tee_color}</span>}
+                {r.completed === false && <span class="chip chip--warn">In progress</span>}
+              </div>
+              <div class="round__score">
+                <span class="round__total">{r.total_score ?? '—'}</span>
+                <span class="round__vspar">{formatVsPar(r.total_score, r.par_total)}</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <section class="block">
+      <header class="block__head">
+        <h2 class="block__title">Active side games</h2>
+        <a class="block__more" href="/app/side-games">All side games →</a>
+      </header>
+      {activeBets.length === 0 ? (
+        <div class="empty">
+          No active games. Start one in the mobile app — it'll sync here.
+        </div>
+      ) : (
+        <div class="bets">
+          {activeBets.map((b) => (
+            <a class="bet" href={`/app/side-games/${b.id}`}>
+              <div class="bet__head">
+                <span class="bet__date">{fmtDate(b.created_at)}</span>
+                {b.current_hole != null && b.total_holes && (
+                  <span class="chip chip--warn">Hole {b.current_hole} / {b.total_holes}</span>
+                )}
+              </div>
+              <h3 class="bet__course">{b.course_name ?? 'Unknown course'}</h3>
+              <div class="bet__tags">
+                {(b.game_types ?? []).slice(0, 4).map((g) => <span class="chip">{g.replace(/_/g, ' ')}</span>)}
+                {(b.game_types ?? []).length > 4 && <span class="chip chip--muted">+{(b.game_types ?? []).length - 4}</span>}
+              </div>
+              <div class="bet__players">
+                {playerNames(b).slice(0, 4).join(' · ')}
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <section class="block">
+      <h2 class="block__title">Coming soon</h2>
+      <div class="grid grid--3">
+        <article class="card">
+          <h3>Tournaments</h3>
+          <p>Live leaderboards + Match Board from events you're playing or directing.</p>
+          <a class="btn btn--ghost btn--sm" href="/app/tournaments">Open</a>
+        </article>
+        <article class="card">
+          <h3>Leagues</h3>
+          <p>Weekly standings, schedule, sub assignments.</p>
+          <a class="btn btn--ghost btn--sm" href="/app/leagues">Open</a>
+        </article>
+        <article class="card">
+          <h3>Profile</h3>
+          <p>Handicap, clubs, bag, notification preferences.</p>
+          <a class="btn btn--ghost btn--sm" href="/app/profile">Open</a>
+        </article>
+      </div>
     </section>
   </main>
 </BaseLayout>
 
 <style>
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--ink-muted); }
-  .card { display: grid; gap: 8px; align-content: start; }
-  .card .chip { justify-self: start; }
+  .errorbar {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: var(--error);
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    margin-bottom: 18px;
+  }
+
+  .block { margin-top: 32px; }
+  .block:first-of-type { margin-top: 8px; }
+  .block__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .block__title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .block__more {
+    color: var(--brand-green);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+  .block__more:hover { color: var(--brand-green-dark); }
+
+  .rounds {
+    display: grid;
+    gap: 8px;
+  }
+  .round {
+    display: grid;
+    grid-template-columns: 70px 1.5fr auto auto;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--ink);
+  }
+  .round:hover {
+    border-color: var(--brand-green);
+    box-shadow: 0 4px 12px rgba(15, 61, 37, 0.08);
+  }
+  .round__date {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .round__course {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+  }
+  .round__meta { display: flex; gap: 6px; }
+  .round__score {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .round__total {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    line-height: 1;
+  }
+  .round__vspar {
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  @media (max-width: 640px) {
+    .round {
+      grid-template-columns: 1fr auto;
+      grid-template-areas: 'course score' 'date score' 'meta meta';
+      gap: 4px 12px;
+    }
+    .round__course { grid-area: course; }
+    .round__date { grid-area: date; }
+    .round__meta { grid-area: meta; margin-top: 4px; }
+    .round__score { grid-area: score; }
+  }
+
+  .bets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .bet {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-decoration: none;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .bet:hover {
+    border-color: var(--brand-green);
+    box-shadow: 0 4px 12px rgba(15, 61, 37, 0.08);
+  }
+  .bet__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .bet__date {
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .bet__course {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .bet__tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .bet__players {
+    font-size: 13px;
+    color: var(--ink);
+  }
+
   .card h3 {
     font-size: 17px;
     color: var(--brand-green-dark);
     margin: 0;
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
-  .card .btn { justify-self: start; margin-top: 4px; }
+  .card p { margin: 6px 0 10px; color: var(--ink-muted); font-size: 14px; }
+  .card .btn { justify-self: start; }
+
+  .empty {
+    background: #fff;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+    padding: 24px 24px;
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 14px;
+  }
 </style>
