@@ -1,31 +1,107 @@
 ---
-// Top navigation. Renders one of two link sets:
-//   - Signed out: marketing routes + Sign in CTA
-//   - Signed in:  app routes + Sign out
-// State comes from Astro.locals.user (populated by src/middleware.ts).
+// Top navigation. Two layers:
+//   - Primary horizontal links on the left (key CTAs).
+//   - A "Menu" disclosure on the right that opens a grouped sitemap
+//     panel — every public + app destination organised by subject.
+// State (signed in vs signed out) comes from Astro.locals.user,
+// populated by src/middleware.ts.
 
 const user = Astro.locals.user ?? null;
 const isSignedIn = !!user;
 const pathname = new URL(Astro.request.url).pathname;
 
 type NavLink = { href: string; label: string };
+type NavGroup = { title: string; links: NavLink[] };
 
-const publicLinks: NavLink[] = [
-  { href: '/features', label: 'Features' },
-  { href: '/for-hosts', label: 'For Hosts' },
-  { href: '/for-players', label: 'For Players' },
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/faq', label: 'FAQ' },
-];
+const primaryLinks: NavLink[] = isSignedIn
+  ? [
+      { href: '/app', label: 'Dashboard' },
+      { href: '/app/tournaments', label: 'Tournaments' },
+      { href: '/app/leagues', label: 'Leagues' },
+      { href: '/app/profile', label: 'Profile' },
+    ]
+  : [
+      { href: '/features', label: 'Features' },
+      { href: '/for-hosts', label: 'For Hosts' },
+      { href: '/for-players', label: 'For Players' },
+      { href: '/pricing', label: 'Pricing' },
+    ];
 
-const appLinks: NavLink[] = [
-  { href: '/app', label: 'Dashboard' },
-  { href: '/app/tournaments', label: 'Tournaments' },
-  { href: '/app/leagues', label: 'Leagues' },
-  { href: '/app/profile', label: 'Profile' },
-];
-
-const links: NavLink[] = isSignedIn ? appLinks : publicLinks;
+const menuGroups: NavGroup[] = isSignedIn
+  ? [
+      {
+        title: 'Play',
+        links: [
+          { href: '/app', label: 'Dashboard' },
+          { href: '/app/tournaments', label: 'My tournaments' },
+          { href: '/app/leagues', label: 'My leagues' },
+          { href: '/app/history', label: 'Round history' },
+        ],
+      },
+      {
+        title: 'Account',
+        links: [
+          { href: '/app/profile', label: 'Profile' },
+        ],
+      },
+      {
+        title: 'Product',
+        links: [
+          { href: '/', label: 'Home' },
+          { href: '/features', label: 'Features' },
+          { href: '/for-hosts', label: 'For Hosts' },
+          { href: '/for-players', label: 'For Players' },
+          { href: '/pricing', label: 'Pricing' },
+        ],
+      },
+      {
+        title: 'Help',
+        links: [
+          { href: '/faq', label: 'FAQ' },
+          { href: '/support', label: 'Support' },
+        ],
+      },
+      {
+        title: 'Legal',
+        links: [
+          { href: '/privacy', label: 'Privacy' },
+          { href: '/terms', label: 'Terms' },
+        ],
+      },
+    ]
+  : [
+      {
+        title: 'Product',
+        links: [
+          { href: '/', label: 'Home' },
+          { href: '/features', label: 'Features' },
+          { href: '/for-hosts', label: 'For Hosts' },
+          { href: '/for-players', label: 'For Players' },
+          { href: '/pricing', label: 'Pricing' },
+        ],
+      },
+      {
+        title: 'Account',
+        links: [
+          { href: '/login', label: 'Sign in' },
+          { href: '/signup', label: 'Create account' },
+        ],
+      },
+      {
+        title: 'Help',
+        links: [
+          { href: '/faq', label: 'FAQ' },
+          { href: '/support', label: 'Support' },
+        ],
+      },
+      {
+        title: 'Legal',
+        links: [
+          { href: '/privacy', label: 'Privacy' },
+          { href: '/terms', label: 'Terms' },
+        ],
+      },
+    ];
 
 const isActive = (href: string) =>
   href === pathname || (href !== '/' && pathname.startsWith(href + '/'));
@@ -44,25 +120,53 @@ const isActive = (href: string) =>
       <span class="sitenav__wordmark">Bagpipe&nbsp;Golf</span>
     </a>
 
-    <details class="sitenav__details">
-      <summary class="sitenav__toggle" aria-label="Open menu">
-        <span></span><span></span><span></span>
-      </summary>
+    <ul class="sitenav__primary">
+      {
+        primaryLinks.map((link) => (
+          <li>
+            <a
+              href={link.href}
+              class:list={['sitenav__link', isActive(link.href) && 'is-active']}
+            >
+              {link.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
 
-      <ul class="sitenav__links">
-        {
-          links.map((link) => (
-            <li>
-              <a
-                href={link.href}
-                class:list={['sitenav__link', isActive(link.href) && 'is-active']}
-              >
-                {link.label}
-              </a>
-            </li>
-          ))
-        }
-      </ul>
+    <div class="sitenav__right">
+      <details class="menu">
+        <summary class="menu__trigger" aria-label="Open menu">
+          <span class="menu__triggerlabel">Menu</span>
+          <span class="menu__triggericon" aria-hidden="true">▾</span>
+          <span class="menu__triggerhamburger" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+        </summary>
+
+        <div class="menu__panel" role="menu">
+          {
+            menuGroups.map((group) => (
+              <section class="menu__group">
+                <span class="menu__grouptitle">{group.title}</span>
+                <ul class="menu__grouplinks">
+                  {group.links.map((link) => (
+                    <li>
+                      <a
+                        href={link.href}
+                        class:list={['menu__link', isActive(link.href) && 'is-active']}
+                      >
+                        {link.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))
+          }
+        </div>
+      </details>
 
       <div class="sitenav__cta">
         {
@@ -79,11 +183,12 @@ const isActive = (href: string) =>
           )
         }
       </div>
-    </details>
+    </div>
   </div>
 </nav>
 
 <style>
+  /* ── Frame ───────────────────────────────────────────── */
   .sitenav {
     background: #fff;
     border-bottom: 1px solid var(--line);
@@ -97,7 +202,7 @@ const isActive = (href: string) =>
     padding: 14px 24px;
     display: flex;
     align-items: center;
-    gap: 28px;
+    gap: 24px;
   }
   .sitenav__brand {
     display: inline-flex;
@@ -116,29 +221,16 @@ const isActive = (href: string) =>
     border-radius: 8px;
     object-fit: cover;
   }
-  .sitenav__details {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 28px;
-  }
-  /* Hide the disclosure widget triangle on desktop; we use a custom toggle on mobile. */
-  .sitenav__details summary {
-    list-style: none;
-  }
-  .sitenav__details summary::-webkit-details-marker {
-    display: none;
-  }
-  .sitenav__toggle { display: none; }
 
-  .sitenav__links {
+  /* ── Primary horizontal nav (desktop only) ───────────── */
+  .sitenav__primary {
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     gap: 4px;
     align-items: center;
+    flex: 1;
   }
   .sitenav__link {
     display: inline-block;
@@ -158,10 +250,16 @@ const isActive = (href: string) =>
     background: var(--brand-green-pale);
   }
 
-  .sitenav__cta {
+  .sitenav__right {
     display: flex;
     align-items: center;
     gap: 10px;
+    position: relative;
+  }
+  .sitenav__cta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .sitenav__signoutform {
     display: flex;
@@ -170,8 +268,8 @@ const isActive = (href: string) =>
   }
   .sitenav__user {
     color: var(--ink-muted);
-    font-size: 14px;
-    max-width: 220px;
+    font-size: 13px;
+    max-width: 180px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -182,67 +280,137 @@ const isActive = (href: string) =>
     font-size: 14px;
   }
 
-  /* ── Mobile ─────────────────────────────────────────── */
+  /* ── Menu disclosure ─────────────────────────────────── */
+  .menu { position: relative; }
+  .menu summary { list-style: none; cursor: pointer; }
+  .menu summary::-webkit-details-marker { display: none; }
+
+  .menu__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    color: var(--ink);
+    font-weight: 700;
+    font-size: 14px;
+    background: #fff;
+    transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+  }
+  .menu__trigger:hover {
+    border-color: var(--brand-green);
+    color: var(--brand-green-dark);
+  }
+  .menu[open] .menu__trigger {
+    border-color: var(--brand-green);
+    color: var(--brand-green-dark);
+    background: var(--brand-green-pale);
+  }
+  .menu__triggericon {
+    transition: transform 0.12s ease;
+  }
+  .menu[open] .menu__triggericon {
+    transform: rotate(180deg);
+  }
+  /* Hamburger replaces the "Menu ▾" text on small screens. */
+  .menu__triggerhamburger {
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    width: 18px;
+  }
+  .menu__triggerhamburger > span {
+    display: block;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+  }
+
+  /* ── Menu panel (the grouped sitemap) ────────────────── */
+  .menu__panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 60;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 24px 48px rgba(15, 61, 37, 0.18), 0 4px 12px rgba(0,0,0,0.06);
+    padding: 24px 26px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+    gap: 22px 36px;
+    min-width: 460px;
+    max-width: 640px;
+  }
+  .menu__group { display: flex; flex-direction: column; gap: 8px; }
+  .menu__grouptitle {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--ink-muted);
+  }
+  .menu__grouplinks {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .menu__link {
+    display: block;
+    padding: 6px 8px;
+    margin: 0 -8px;
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+  .menu__link:hover {
+    color: var(--brand-green-dark);
+    background: var(--brand-green-pale);
+  }
+  .menu__link.is-active {
+    color: var(--brand-green-dark);
+    background: var(--brand-green-pale);
+  }
+
+  /* ── Mobile ──────────────────────────────────────────── */
   @media (max-width: 880px) {
-    .sitenav__details {
-      flex: 0;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0;
+    .sitenav__inner { gap: 12px; padding: 12px 16px; }
+    /* Primary horizontal nav hides; access via Menu only. */
+    .sitenav__primary { display: none; }
+    /* "Sign in / Create account" CTAs hide on mobile; same destinations
+       live inside the Menu's Account group. Sign out form for signed-in
+       users stays visible because it's primary. */
+    .sitenav__right > .sitenav__cta > a { display: none; }
+
+    .menu__triggerlabel,
+    .menu__triggericon { display: none; }
+    .menu__triggerhamburger { display: inline-flex; }
+    .menu__trigger {
+      padding: 10px 12px;
     }
-    /* The summary becomes a hamburger button; the contents collapse. */
-    .sitenav__details summary {
-      cursor: pointer;
-      padding: 10px;
-      align-self: flex-end;
-    }
-    .sitenav__details[open] summary {
-      margin-bottom: 12px;
-    }
-    .sitenav__toggle {
-      display: inline-flex;
-      flex-direction: column;
-      gap: 4px;
-      width: 24px;
-    }
-    .sitenav__toggle > span {
-      display: block;
-      height: 2px;
-      background: var(--brand-green-dark);
-      border-radius: 1px;
-    }
-    .sitenav__inner {
-      flex-wrap: wrap;
-    }
-    .sitenav__details:not([open]) .sitenav__links,
-    .sitenav__details:not([open]) .sitenav__cta {
-      display: none;
-    }
-    .sitenav__details[open] {
-      flex-basis: 100%;
-    }
-    .sitenav__links {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 4px;
-    }
-    .sitenav__link {
-      padding: 12px 14px;
-      font-size: 17px;
-    }
-    .sitenav__cta {
-      margin-top: 16px;
-      padding-top: 16px;
-      border-top: 1px solid var(--line);
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .sitenav__signoutform {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .sitenav__user {
+
+    .menu__panel {
+      position: fixed;
+      top: 64px;
+      left: 12px;
+      right: 12px;
+      min-width: 0;
       max-width: none;
+      grid-template-columns: 1fr;
+      gap: 18px;
+      padding: 20px;
+      max-height: calc(100dvh - 80px);
+      overflow-y: auto;
     }
+    /* On mobile, surface Sign in / Create account inside the menu
+       panel via an extra anchor block. Achieved by reusing the
+       Account group already in menuGroups for signed-out users. */
   }
 </style>
