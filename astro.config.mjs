@@ -17,5 +17,10 @@ import cloudflare from "@astrojs/cloudflare";
 // see fairwayiq-flutter/docs/DNS_MIGRATION_HANDOFF.md.
 export default defineConfig({
   site: 'https://bagpipegolf.com',
+  // `server` = every page runs through the Worker (needed for the auth
+  // middleware + per-request Supabase data reads). Marketing pages can
+  // opt back into static prerender with `export const prerender = true;`
+  // once we want them SEO-snappy.
+  output: 'server',
   adapter: cloudflare()
 });

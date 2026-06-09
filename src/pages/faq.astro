@@ -1,0 +1,77 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const faqs = [
+  {
+    q: 'Do players need to download the app to score?',
+    a: 'No. Players can score on this website via a join code. The app gives the full experience (offline scoring, push notifications) but is optional.',
+  },
+  {
+    q: 'Is GHIN integration live?',
+    a: 'Not yet. We are in the USGA GPA approval queue. Until it lands, handicaps are set on the player profile and updated manually.',
+  },
+  {
+    q: 'How many side games are supported?',
+    a: '30 — Nassau, Skins, Wolf, Stableford, Hammer, Vegas, Bingo Bango Bongo, Scotch, Six-Six-Six and more. Every game settles hole-by-hole and is zero-sum.',
+  },
+  {
+    q: 'Can I run a multi-day tournament with different formats per round?',
+    a: 'Yes. Per-round format and per-round course are supported. Per-round handicap snapshots are landing soon for weekly leagues.',
+  },
+  {
+    q: 'How do players watch a tournament without an account?',
+    a: 'Every tournament has a public leaderboard at /t/<id>. Share the link, no sign-in required.',
+  },
+];
+---
+
+<BaseLayout title="FAQ · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">FAQ</p>
+    <h1 class="pagewrap__title">Quick answers.</h1>
+    <p class="pagewrap__sub">
+      Don't see your question? <a href="mailto:support@bagpipegolf.com">Email support</a>.
+    </p>
+
+    <section class="faqs">
+      {
+        faqs.map((f) => (
+          <details class="faq">
+            <summary class="faq__q">{f.q}</summary>
+            <p class="faq__a">{f.a}</p>
+          </details>
+        ))
+      }
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .faqs { display: grid; gap: 12px; }
+  .faq {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 20px;
+  }
+  .faq__q {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    list-style: none;
+    font-size: 16px;
+  }
+  .faq__q::-webkit-details-marker { display: none; }
+  .faq__q::after {
+    content: '+';
+    float: right;
+    color: var(--ink-muted);
+    font-weight: 400;
+  }
+  .faq[open] .faq__q::after { content: '–'; }
+  .faq__a {
+    margin: 12px 0 0;
+    color: var(--ink-muted);
+    font-size: 15px;
+  }
+</style>

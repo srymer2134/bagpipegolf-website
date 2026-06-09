@@ -1,0 +1,40 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Round history · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Round history</p>
+    <h1 class="pagewrap__title">Your rounds.</h1>
+    <p class="pagewrap__sub">
+      Career totals, recent rounds, scoring trends.
+    </p>
+
+    <section class="grid grid--3">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Career stats</h3>
+        <p>Rounds played, avg score, best score, vs-par, FIR / GIR / putts.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Recent rounds</h3>
+        <p>Last 25 rounds with course, tees, gross, net, money won.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Trends</h3>
+        <p>Scoring trend, FIR / GIR / putts trend, by course.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

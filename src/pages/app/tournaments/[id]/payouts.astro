@@ -1,0 +1,50 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+
+const { id } = Astro.params;
+---
+
+<BaseLayout title={`Payouts · Tournament ${id} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Tournament · payouts</p>
+    <h1 class="pagewrap__title">Purse &amp; settlement.</h1>
+    <p class="pagewrap__sub">
+      Per-flight payout curve, side-pool winners, Calcutta payouts.
+    </p>
+
+    <TournamentSubnav id={id!} active="payouts" />
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Purse</h3>
+        <p>Total pot · entry fees · side pools · Calcutta.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Winners</h3>
+        <p>Per-flight gross/net, CTP, LD, skins.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Settlement</h3>
+        <p>Per-player money owed / won. Balance guard before posting.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Print pack</h3>
+        <p>Payout sheet PDF for the clubhouse.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

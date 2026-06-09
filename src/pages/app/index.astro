@@ -1,0 +1,64 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const user = Astro.locals.user!;
+---
+
+<BaseLayout title="Dashboard · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Dashboard</p>
+    <h1 class="pagewrap__title">Welcome back.</h1>
+    <p class="pagewrap__sub">
+      Signed in as <strong>{user.email}</strong> · user id <span class="mono">{user.id}</span>
+    </p>
+
+    <section class="grid grid--3">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Active rounds</h3>
+        <p>Resume an in-progress round on any device.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Your tournaments</h3>
+        <p>Live leaderboards from events you're playing or directing.</p>
+        <a class="btn btn--ghost btn--sm" href="/app/tournaments">Open</a>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Your leagues</h3>
+        <p>Weekly standings, schedule, sub assignments.</p>
+        <a class="btn btn--ghost btn--sm" href="/app/leagues">Open</a>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Recent activity</h3>
+        <p>Last rounds, bets settled, money in play.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Friends</h3>
+        <p>Search, add, view shared games.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Profile</h3>
+        <p>Handicap, clubs, bag, account.</p>
+        <a class="btn btn--ghost btn--sm" href="/app/profile">Open</a>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--ink-muted); }
+  .card { display: grid; gap: 8px; align-content: start; }
+  .card .chip { justify-self: start; }
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .card .btn { justify-self: start; margin-top: 4px; }
+</style>

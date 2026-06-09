@@ -1,0 +1,48 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+
+const { id } = Astro.params;
+---
+
+<BaseLayout title={`Standings · League ${id} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">League · standings</p>
+    <h1 class="pagewrap__title">Season standings.</h1>
+    <p class="pagewrap__sub">Cumulative points, flights, qualifier status.</p>
+
+    <LeagueSubnav id={id!} active="standings" />
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Overall</h3>
+        <p>Rank, points, weeks played, drop weeks.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>By flight</h3>
+        <p>Per-flight standings + cut lines.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Trends</h3>
+        <p>Week-by-week movement, hot streaks.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Playoffs</h3>
+        <p>Qualifier status + projected bracket.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

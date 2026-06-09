@@ -1,0 +1,40 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+
+const { id } = Astro.params;
+---
+
+<BaseLayout title={`Scorecard · Tournament ${id} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Tournament · scorecard</p>
+    <h1 class="pagewrap__title">Scorecard</h1>
+    <p class="pagewrap__sub">
+      Tap-to-enter scoring. Mirrors the mobile app's score modal.
+    </p>
+
+    <TournamentSubnav id={id!} active="scorecard" />
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Your group</h3>
+        <p>Players, scorekeeper claim, per-team progress.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Score entry</h3>
+        <p>Per-hole modal with FIR / GIR / putts, GHIN-style notation.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

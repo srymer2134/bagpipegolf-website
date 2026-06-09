@@ -1,0 +1,98 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="sitefoot">
+  <div class="sitefoot__inner">
+    <div class="sitefoot__col">
+      <strong class="sitefoot__brand">Bagpipe Golf</strong>
+      <p class="sitefoot__tag">Play games. Settle scores.</p>
+    </div>
+
+    <div class="sitefoot__col">
+      <span class="sitefoot__label">Product</span>
+      <a href="/features">Features</a>
+      <a href="/for-hosts">For Hosts</a>
+      <a href="/for-players">For Players</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/faq">FAQ</a>
+    </div>
+
+    <div class="sitefoot__col">
+      <span class="sitefoot__label">Company</span>
+      <a href="/support">Support</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>
+    </div>
+
+    <div class="sitefoot__col">
+      <span class="sitefoot__label">Account</span>
+      <a href="/login">Sign in</a>
+      <a href="/signup">Create account</a>
+    </div>
+  </div>
+  <div class="sitefoot__bottom">
+    <span>© {year} Bagpipe Golf</span>
+    <span>iOS TestFlight beta · Android coming soon</span>
+  </div>
+</footer>
+
+<style>
+  .sitefoot {
+    background: var(--paper-tint);
+    border-top: 1px solid var(--line);
+    padding: 56px 24px 28px;
+    margin-top: 80px;
+  }
+  .sitefoot__inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 2fr repeat(3, 1fr);
+    gap: 32px;
+  }
+  @media (max-width: 720px) {
+    .sitefoot__inner { grid-template-columns: 1fr 1fr; }
+  }
+  .sitefoot__col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .sitefoot__brand {
+    color: var(--brand-green-dark);
+    font-size: 18px;
+  }
+  .sitefoot__tag {
+    color: var(--ink-muted);
+    margin: 4px 0 0;
+    font-size: 14px;
+  }
+  .sitefoot__label {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--ink-muted);
+    margin-bottom: 4px;
+  }
+  .sitefoot__col a {
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 15px;
+  }
+  .sitefoot__col a:hover { color: var(--brand-green-dark); }
+  .sitefoot__bottom {
+    max-width: 1180px;
+    margin: 32px auto 0;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    color: var(--ink-muted);
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+</style>

@@ -1,0 +1,40 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Pricing · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Pricing</p>
+    <h1 class="pagewrap__title">Free during beta.</h1>
+    <p class="pagewrap__sub">
+      Every feature, no credit card. We'll publish a pricing model
+      after the beta wraps. Want to be on the list when it does?
+      <a href="mailto:hello@bagpipegolf.com?subject=Pricing%20waitlist">Email hello@bagpipegolf.com</a>.
+    </p>
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip">Players</span>
+        <h3>Free</h3>
+        <p>Full scorecard, all 30 side games, friends, spectator share, history and stats.</p>
+      </article>
+      <article class="card">
+        <span class="chip">Hosts</span>
+        <h3>Free during beta</h3>
+        <p>Run a tournament or league for any field size. We'll work with you on a paid plan when the beta ends.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card { display: grid; gap: 6px; }
+  .card .chip { justify-self: start; }
+  .card h3 {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 6px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+</style>

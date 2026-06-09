@@ -1,0 +1,55 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Tournaments · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Tournaments</p>
+    <h1 class="pagewrap__title">Your tournaments.</h1>
+    <p class="pagewrap__sub">
+      Events you're playing, directing, or have been invited to.
+    </p>
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip">Active</span>
+        <h3 class="muted">Loading from Supabase…</h3>
+        <p>Cards will land here for each live tournament.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Upcoming</span>
+        <h3 class="muted">Loading from Supabase…</h3>
+        <p>Events you've been added to but haven't started.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Completed</span>
+        <h3 class="muted">Loading from Supabase…</h3>
+        <p>Past events with final standings and payouts.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--warn">TD</span>
+        <h3 class="muted">Loading from Supabase…</h3>
+        <p>Tournaments where you're the director — manage controls available.</p>
+      </article>
+    </section>
+
+    <p class="hint">
+      Sample microsite (public, no auth): <a href="/t/demo">/t/demo</a>
+    </p>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card h3.muted { color: var(--ink-muted); font-weight: 600; }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .hint {
+    margin-top: 32px;
+    color: var(--ink-muted);
+    font-size: 14px;
+  }
+</style>

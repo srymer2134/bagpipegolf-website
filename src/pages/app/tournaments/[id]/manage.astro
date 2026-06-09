@@ -1,0 +1,64 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+
+const { id } = Astro.params;
+// PR #2 will gate this whole page on the user being the tournament's
+// directorUserId (or in directorUserIds). For the wireframe pass the
+// page is reachable to any signed-in user — the cards just say "TD only".
+---
+
+<BaseLayout title={`Manage · Tournament ${id} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Tournament · director controls</p>
+    <h1 class="pagewrap__title">Manage tournament.</h1>
+    <p class="pagewrap__sub">
+      <span class="chip chip--warn">TD only</span>
+      Wizard-equivalent surface for the tournament director.
+    </p>
+
+    <TournamentSubnav id={id!} active="manage" />
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Lifecycle</h3>
+        <p>Setup → Field final → Tee times live → Payouts posted.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Roster</h3>
+        <p>Add / remove / sub players, lock roster, late additions.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Per-round setup</h3>
+        <p>Format, course, tees, pairings, shotgun, handicap snapshot.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Communications</h3>
+        <p>Push / email / SMS blast to the field, AI-assisted compose.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Sponsors</h3>
+        <p>Logos on leaderboard, kiosk, print pack.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Settle &amp; post</h3>
+        <p>Director-controlled payout distribution with balance guard.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

@@ -1,0 +1,83 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+// Public tournament microsite — no auth required. Anyone with the
+// link can see the leaderboard.
+//
+// v1 stub: shows the id + placeholder cards. Real data fetch lands
+// in PR #2 (read tournaments + tournament_rounds via the anon-key
+// client, gated by an `is_public` flag on the tournament).
+
+const { id } = Astro.params;
+---
+
+<BaseLayout title={`Tournament ${id} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Tournament · public view</p>
+    <h1 class="pagewrap__title">Tournament <span class="mono">{id}</span></h1>
+    <p class="pagewrap__sub">
+      Public leaderboard, field, and schedule. Share this link with
+      spectators — no sign-in required.
+    </p>
+
+    <nav class="subnav">
+      <a class="subnav__link is-active" href={`/t/${id}`}>Overview</a>
+      <a class="subnav__link" href={`/t/${id}/leaderboard`}>Leaderboard</a>
+      <a class="subnav__link" href={`/t/${id}/field`}>Field</a>
+    </nav>
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Course &amp; format</h3>
+        <p>Tee box, par, slope, format per round.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Schedule</h3>
+        <p>Tee times, shotgun assignments, group rotation.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Field</h3>
+        <p>Players, handicaps, flights.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Leaderboard</h3>
+        <p>Live gross, net, Stableford, Match Board, side pools.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .subnav {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 28px;
+    overflow-x: auto;
+  }
+  .subnav__link {
+    padding: 10px 14px;
+    color: var(--ink-muted);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .subnav__link:hover { color: var(--brand-green-dark); }
+  .subnav__link.is-active {
+    color: var(--brand-green-dark);
+    border-bottom-color: var(--brand-green);
+  }
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+</style>

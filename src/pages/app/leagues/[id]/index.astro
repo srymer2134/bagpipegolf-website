@@ -1,0 +1,51 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+
+const { id } = Astro.params;
+---
+
+<BaseLayout title={`League ${id} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">League</p>
+    <h1 class="pagewrap__title">League <span class="mono">{id}</span></h1>
+    <p class="pagewrap__sub">
+      Your view as a member. Public view at <a href={`/l/${id}`}>/l/{id}</a>.
+    </p>
+
+    <LeagueSubnav id={id!} active="overview" />
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Season at a glance</h3>
+        <p>Points model, weekly format, sub rule, flighting, playoffs.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Your position</h3>
+        <p>Rank, points, week-by-week results.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Next event</h3>
+        <p>Date, partner, RSVP, sub request.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Recent week</h3>
+        <p>Pairings, results, points earned.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

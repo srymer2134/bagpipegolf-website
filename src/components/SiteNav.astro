@@ -1,0 +1,248 @@
+---
+// Top navigation. Renders one of two link sets:
+//   - Signed out: marketing routes + Sign in CTA
+//   - Signed in:  app routes + Sign out
+// State comes from Astro.locals.user (populated by src/middleware.ts).
+
+const user = Astro.locals.user ?? null;
+const isSignedIn = !!user;
+const pathname = new URL(Astro.request.url).pathname;
+
+type NavLink = { href: string; label: string };
+
+const publicLinks: NavLink[] = [
+  { href: '/features', label: 'Features' },
+  { href: '/for-hosts', label: 'For Hosts' },
+  { href: '/for-players', label: 'For Players' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/faq', label: 'FAQ' },
+];
+
+const appLinks: NavLink[] = [
+  { href: '/app', label: 'Dashboard' },
+  { href: '/app/tournaments', label: 'Tournaments' },
+  { href: '/app/leagues', label: 'Leagues' },
+  { href: '/app/profile', label: 'Profile' },
+];
+
+const links: NavLink[] = isSignedIn ? appLinks : publicLinks;
+
+const isActive = (href: string) =>
+  href === pathname || (href !== '/' && pathname.startsWith(href + '/'));
+---
+
+<nav class="sitenav">
+  <div class="sitenav__inner">
+    <a class="sitenav__brand" href={isSignedIn ? '/app' : '/'}>
+      <img
+        src="/bagpipe-golf-logo.jpg"
+        alt=""
+        width="32"
+        height="32"
+        class="sitenav__mark"
+      />
+      <span class="sitenav__wordmark">Bagpipe&nbsp;Golf</span>
+    </a>
+
+    <details class="sitenav__details">
+      <summary class="sitenav__toggle" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </summary>
+
+      <ul class="sitenav__links">
+        {
+          links.map((link) => (
+            <li>
+              <a
+                href={link.href}
+                class:list={['sitenav__link', isActive(link.href) && 'is-active']}
+              >
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+
+      <div class="sitenav__cta">
+        {
+          isSignedIn ? (
+            <form method="post" action="/api/auth/signout" class="sitenav__signoutform">
+              <span class="sitenav__user">{user!.email}</span>
+              <button type="submit" class="btn btn--ghost btn--sm">Sign out</button>
+            </form>
+          ) : (
+            <>
+              <a class="btn btn--ghost btn--sm" href="/login">Sign in</a>
+              <a class="btn btn--primary btn--sm" href="/signup">Create account</a>
+            </>
+          )
+        }
+      </div>
+    </details>
+  </div>
+</nav>
+
+<style>
+  .sitenav {
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .sitenav__inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+  .sitenav__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--brand-green-dark);
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .sitenav__mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    object-fit: cover;
+  }
+  .sitenav__details {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 28px;
+  }
+  /* Hide the disclosure widget triangle on desktop; we use a custom toggle on mobile. */
+  .sitenav__details summary {
+    list-style: none;
+  }
+  .sitenav__details summary::-webkit-details-marker {
+    display: none;
+  }
+  .sitenav__toggle { display: none; }
+
+  .sitenav__links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .sitenav__link {
+    display: inline-block;
+    padding: 8px 12px;
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+  .sitenav__link:hover {
+    color: var(--brand-green-dark);
+    background: var(--brand-green-pale);
+  }
+  .sitenav__link.is-active {
+    color: var(--brand-green-dark);
+    background: var(--brand-green-pale);
+  }
+
+  .sitenav__cta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sitenav__signoutform {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .sitenav__user {
+    color: var(--ink-muted);
+    font-size: 14px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn--sm {
+    padding: 8px 14px;
+    font-size: 14px;
+  }
+
+  /* ── Mobile ─────────────────────────────────────────── */
+  @media (max-width: 880px) {
+    .sitenav__details {
+      flex: 0;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+    }
+    /* The summary becomes a hamburger button; the contents collapse. */
+    .sitenav__details summary {
+      cursor: pointer;
+      padding: 10px;
+      align-self: flex-end;
+    }
+    .sitenav__details[open] summary {
+      margin-bottom: 12px;
+    }
+    .sitenav__toggle {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 24px;
+    }
+    .sitenav__toggle > span {
+      display: block;
+      height: 2px;
+      background: var(--brand-green-dark);
+      border-radius: 1px;
+    }
+    .sitenav__inner {
+      flex-wrap: wrap;
+    }
+    .sitenav__details:not([open]) .sitenav__links,
+    .sitenav__details:not([open]) .sitenav__cta {
+      display: none;
+    }
+    .sitenav__details[open] {
+      flex-basis: 100%;
+    }
+    .sitenav__links {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+    }
+    .sitenav__link {
+      padding: 12px 14px;
+      font-size: 17px;
+    }
+    .sitenav__cta {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .sitenav__signoutform {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .sitenav__user {
+      max-width: none;
+    }
+  }
+</style>

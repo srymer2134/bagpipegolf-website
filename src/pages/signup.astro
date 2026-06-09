@@ -1,0 +1,157 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../lib/supabase';
+
+let error: string | null = null;
+let info: string | null = null;
+const url = new URL(Astro.request.url);
+const next = url.searchParams.get('next') || '/app';
+let prefillEmail = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const email = (form.get('email') ?? '').toString().trim();
+  const password = (form.get('password') ?? '').toString();
+  const confirm = (form.get('confirm') ?? '').toString();
+  prefillEmail = email;
+
+  if (!email || !password) {
+    error = 'Email and password are required.';
+  } else if (password.length < 8) {
+    error = 'Password must be at least 8 characters.';
+  } else if (password !== confirm) {
+    error = 'Passwords do not match.';
+  } else {
+    const supabase = createSupabaseClient({
+      request: Astro.request,
+      cookies: Astro.cookies,
+      locals: Astro.locals,
+    });
+    const { data, error: authErr } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: new URL('/login', Astro.request.url).toString(),
+      },
+    });
+    if (authErr) {
+      error = authErr.message || 'Sign-up failed.';
+    } else if (data.session) {
+      return Astro.redirect(next.startsWith('/') ? next : '/app', 303);
+    } else {
+      // Email confirmation required — no session returned.
+      info = `Check ${email} for a confirmation link to finish signing up.`;
+    }
+  }
+}
+---
+
+<BaseLayout title="Create account · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Create account</p>
+    <h1 class="pagewrap__title">Join Bagpipe Golf.</h1>
+    <p class="pagewrap__sub">
+      One account works for the mobile app and this site.
+    </p>
+
+    <form method="post" class="card authform">
+      {error && <div class="authform__error" role="alert">{error}</div>}
+      {info && <div class="authform__info" role="status">{info}</div>}
+
+      <label class="authform__field">
+        <span class="authform__label">Email</span>
+        <input
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+          value={prefillEmail}
+          class="authform__input"
+        />
+      </label>
+
+      <label class="authform__field">
+        <span class="authform__label">Password</span>
+        <input
+          name="password"
+          type="password"
+          autocomplete="new-password"
+          required
+          minlength="8"
+          class="authform__input"
+        />
+      </label>
+
+      <label class="authform__field">
+        <span class="authform__label">Confirm password</span>
+        <input
+          name="confirm"
+          type="password"
+          autocomplete="new-password"
+          required
+          minlength="8"
+          class="authform__input"
+        />
+      </label>
+
+      <button type="submit" class="btn btn--primary btn--block">Create account</button>
+
+      <div class="authform__meta">
+        <span>Already have an account? <a href={`/login?next=${encodeURIComponent(next)}`}>Sign in</a></span>
+      </div>
+    </form>
+  </main>
+</BaseLayout>
+
+<style>
+  .authform { display: grid; gap: 18px; margin-top: 8px; }
+  .authform__error,
+  .authform__info {
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    border-width: 1px;
+    border-style: solid;
+  }
+  .authform__error {
+    background: #FEF2F2;
+    border-color: #FECACA;
+    color: var(--error);
+  }
+  .authform__info {
+    background: var(--brand-green-pale);
+    border-color: var(--brand-green);
+    color: var(--brand-green-dark);
+  }
+  .authform__field { display: grid; gap: 6px; }
+  .authform__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .authform__input {
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 16px;
+    font-family: inherit;
+    background: #fff;
+    transition: border-color 0.12s ease;
+  }
+  .authform__input:focus {
+    outline: none;
+    border-color: var(--brand-green);
+    box-shadow: 0 0 0 4px rgba(26, 92, 56, 0.12);
+  }
+  .authform__meta {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--ink-muted);
+  }
+  .authform__meta a { font-weight: 600; }
+</style>
