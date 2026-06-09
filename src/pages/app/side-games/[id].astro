@@ -90,7 +90,6 @@ const holeRange = Array.from({ length: totalHoles }, (_, i) => i);
               {players.map((p) => (
                 <li class="player">
                   <span class="player__name">{p.name}</span>
-                  <span class="player__id mono">{p.id}</span>
                 </li>
               ))}
             </ul>
@@ -147,7 +146,7 @@ const holeRange = Array.from({ length: totalHoles }, (_, i) => i);
 
         <section class="block">
           <p class="hint">
-            Settlement math runs in the mobile app. The website is read-only for v1 — open this game on your phone to see balances or settle it.
+            Balances and settlement (who owes who) live in the mobile app. Open this game on your phone to settle it.
           </p>
         </section>
       </>
@@ -215,11 +214,6 @@ const holeRange = Array.from({ length: totalHoles }, (_, i) => i);
     font-weight: 700;
     color: var(--brand-green-dark);
   }
-  .player__id {
-    font-size: 11px;
-    color: var(--ink-hint);
-  }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
   .grid-card { padding: 14px; overflow-x: auto; }
   .scoregrid {

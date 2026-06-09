@@ -4,12 +4,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 const { id } = Astro.params;
 ---
 
-<BaseLayout title={`League ${id} · Bagpipe Golf`}>
+<BaseLayout title="League · Bagpipe Golf">
   <main class="pagewrap">
-    <p class="pagewrap__eyebrow">League · public view</p>
-    <h1 class="pagewrap__title">League <span class="mono">{id}</span></h1>
+    <p class="pagewrap__eyebrow">Public league page</p>
+    <h1 class="pagewrap__title">League</h1>
     <p class="pagewrap__sub">
-      Public standings, schedule, and roster. Share this link with members.
+      Standings, schedule, and roster — shareable with members and family. No sign-in required.
     </p>
 
     <nav class="subnav">
@@ -44,7 +44,6 @@ const { id } = Astro.params;
 </BaseLayout>
 
 <style>
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .subnav {
     display: flex;
     gap: 4px;

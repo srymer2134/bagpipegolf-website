@@ -5,12 +5,12 @@ import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 const { id } = Astro.params;
 ---
 
-<BaseLayout title={`League ${id} · Bagpipe Golf`}>
+<BaseLayout title="League · Bagpipe Golf">
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">League</p>
-    <h1 class="pagewrap__title">League <span class="mono">{id}</span></h1>
+    <h1 class="pagewrap__title">League details</h1>
     <p class="pagewrap__sub">
-      Your view as a member. Public view at <a href={`/l/${id}`}>/l/{id}</a>.
+      Your view as a member. The public league page is shareable — anyone with the link can follow along.
     </p>
 
     <LeagueSubnav id={id!} active="overview" />
@@ -41,7 +41,6 @@ const { id } = Astro.params;
 </BaseLayout>
 
 <style>
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .card h3 {
     font-size: 17px;
     color: var(--brand-green-dark);

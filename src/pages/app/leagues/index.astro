@@ -13,24 +13,20 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
     <section class="grid grid--2">
       <article class="card">
         <span class="chip">In season</span>
-        <h3 class="muted">Loading from Supabase…</h3>
-        <p>Cards land here for each active league.</p>
+        <h3 class="muted">No active leagues</h3>
+        <p>Once you join a league, the standings and weekly schedule show up here.</p>
       </article>
       <article class="card">
         <span class="chip chip--muted">Completed</span>
-        <h3 class="muted">Loading from Supabase…</h3>
-        <p>Past seasons with final standings.</p>
+        <h3 class="muted">No completed seasons yet</h3>
+        <p>Past seasons show up here with final standings.</p>
       </article>
       <article class="card">
-        <span class="chip chip--warn">LD</span>
-        <h3 class="muted">Loading from Supabase…</h3>
-        <p>Leagues where you're the league director — manage controls available.</p>
+        <span class="chip chip--warn">Running a league</span>
+        <h3 class="muted">No leagues to manage</h3>
+        <p>When you create one, you'll get full league-director controls here.</p>
       </article>
     </section>
-
-    <p class="hint">
-      Sample microsite (public, no auth): <a href="/l/demo">/l/demo</a>
-    </p>
   </main>
 </BaseLayout>
 
@@ -42,9 +38,4 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
   }
   .card h3.muted { color: var(--ink-muted); font-weight: 600; }
   .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
-  .hint {
-    margin-top: 32px;
-    color: var(--ink-muted);
-    font-size: 14px;
-  }
 </style>

@@ -5,12 +5,12 @@ import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
 const { id } = Astro.params;
 ---
 
-<BaseLayout title={`Tournament ${id} · Bagpipe Golf`}>
+<BaseLayout title="Tournament · Bagpipe Golf">
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">Tournament</p>
-    <h1 class="pagewrap__title">Tournament <span class="mono">{id}</span></h1>
+    <h1 class="pagewrap__title">Tournament details</h1>
     <p class="pagewrap__sub">
-      Your view as a player. Public view at <a href={`/t/${id}`}>/t/{id}</a>.
+      Your view as a player. The public leaderboard for this tournament is shareable — anyone with the link can follow along live.
     </p>
 
     <TournamentSubnav id={id!} active="overview" />
@@ -41,7 +41,6 @@ const { id } = Astro.params;
 </BaseLayout>
 
 <style>
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .card h3 {
     font-size: 17px;
     color: var(--brand-green-dark);

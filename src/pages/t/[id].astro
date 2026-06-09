@@ -11,13 +11,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 const { id } = Astro.params;
 ---
 
-<BaseLayout title={`Tournament ${id} · Bagpipe Golf`}>
+<BaseLayout title="Live tournament · Bagpipe Golf">
   <main class="pagewrap">
-    <p class="pagewrap__eyebrow">Tournament · public view</p>
-    <h1 class="pagewrap__title">Tournament <span class="mono">{id}</span></h1>
+    <p class="pagewrap__eyebrow">Public leaderboard</p>
+    <h1 class="pagewrap__title">Tournament</h1>
     <p class="pagewrap__sub">
-      Public leaderboard, field, and schedule. Share this link with
-      spectators — no sign-in required.
+      Anyone with this link can follow along live — leaderboard, field, and schedule update in real time. No sign-in required.
     </p>
 
     <nav class="subnav">
@@ -52,7 +51,6 @@ const { id } = Astro.params;
 </BaseLayout>
 
 <style>
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .subnav {
     display: flex;
     gap: 4px;

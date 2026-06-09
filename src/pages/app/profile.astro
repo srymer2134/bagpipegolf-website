@@ -17,7 +17,6 @@ const user = Astro.locals.user!;
         <h3>Account</h3>
         <dl class="kv">
           <dt>Email</dt><dd>{user.email}</dd>
-          <dt>User id</dt><dd class="mono">{user.id}</dd>
         </dl>
       </article>
       <article class="card">
@@ -40,7 +39,6 @@ const user = Astro.locals.user!;
 </BaseLayout>
 
 <style>
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
   .card h3 {
     font-size: 17px;
     color: var(--brand-green-dark);
