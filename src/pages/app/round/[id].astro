@@ -1,0 +1,214 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import ScoreGrid from '../../../components/ScoreGrid.astro';
+import { createSupabaseClient } from '../../../lib/supabase';
+import {
+  getRound,
+  holeScoresAsArray,
+  formatVsPar,
+  type RoundRow,
+} from '../../../lib/queries';
+
+const { id } = Astro.params;
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let round: RoundRow | null = null;
+let loadError: string | null = null;
+try {
+  round = await getRound(supabase, id!);
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load round.';
+}
+
+if (!round && !loadError) {
+  return Astro.redirect('/app/history?missing=' + encodeURIComponent(id!), 302);
+}
+
+const totalHoles = round?.hole_pars?.length || 18;
+const scores = round ? holeScoresAsArray(round.hole_scores, totalHoles) : [];
+const pars = round?.hole_pars ?? [];
+
+const front = Array.from({ length: 9 }, (_, i) => i);
+const back = Array.from({ length: Math.max(0, totalHoles - 9) }, (_, i) => i + 9);
+
+const sumHoles = (idxs: number[], from: number[]) =>
+  idxs.reduce((s, i) => s + (Number(from[i]) || 0), 0);
+
+const frontScore = sumHoles(front, scores);
+const backScore = sumHoles(back, scores);
+const frontPar = sumHoles(front, pars);
+const backPar = sumHoles(back, pars);
+
+const fmtDate = (iso: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso + 'T12:00:00');
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+---
+
+<BaseLayout title={`${round?.course_name ?? 'Round'} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">
+      <a href="/app/history" class="back">← Round history</a>
+    </p>
+
+    {loadError && <div class="errorbar">⚠️ {loadError}</div>}
+
+    {round && (
+      <>
+        <h1 class="pagewrap__title">{round.course_name ?? 'Round'}</h1>
+        <p class="pagewrap__sub">
+          {fmtDate(round.date_played)}
+          {round.tee_color && <> · {round.tee_color} tees</>}
+          {round.course_rating != null && round.slope_rating != null && (
+            <> · rating {round.course_rating} / slope {round.slope_rating}</>
+          )}
+          {round.completed === false && <> · in progress</>}
+        </p>
+
+        <section class="totals">
+          <div class="totals__cell">
+            <span class="totals__label">Total</span>
+            <span class="totals__value">{round.total_score ?? '—'}</span>
+            <span class="totals__sub">{formatVsPar(round.total_score, round.par_total)}</span>
+          </div>
+          <div class="totals__cell">
+            <span class="totals__label">Front 9</span>
+            <span class="totals__value">{frontScore || '—'}</span>
+            <span class="totals__sub">{formatVsPar(frontScore || null, frontPar || null)}</span>
+          </div>
+          {totalHoles > 9 && (
+            <div class="totals__cell">
+              <span class="totals__label">Back {totalHoles - 9}</span>
+              <span class="totals__value">{backScore || '—'}</span>
+              <span class="totals__sub">{formatVsPar(backScore || null, backPar || null)}</span>
+            </div>
+          )}
+          <div class="totals__cell">
+            <span class="totals__label">Putts</span>
+            <span class="totals__value">{round.total_putts ?? '—'}</span>
+          </div>
+          <div class="totals__cell">
+            <span class="totals__label">FIR / GIR</span>
+            <span class="totals__value">
+              {round.fairways_hit ?? '—'} / {round.greens_in_reg ?? '—'}
+            </span>
+          </div>
+        </section>
+
+        {front.length > 0 && (
+          <section class="block">
+            <h2 class="block__title">Front 9</h2>
+            <div class="card grid-card">
+              <ScoreGrid idxs={front} pars={pars} scores={scores} />
+            </div>
+          </section>
+        )}
+
+        {back.length > 0 && (
+          <section class="block">
+            <h2 class="block__title">Back {totalHoles - 9}</h2>
+            <div class="card grid-card">
+              <ScoreGrid idxs={back} pars={pars} scores={scores} />
+            </div>
+          </section>
+        )}
+
+        {round.ai_summary && (
+          <section class="block">
+            <h2 class="block__title">AI summary</h2>
+            <div class="card prose">
+              <p>{round.ai_summary}</p>
+            </div>
+          </section>
+        )}
+      </>
+    )}
+  </main>
+</BaseLayout>
+
+<style>
+  .back {
+    color: var(--brand-green);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .back:hover { color: var(--brand-green-dark); }
+
+  .errorbar {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: var(--error);
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    margin-bottom: 18px;
+  }
+
+  .totals {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 720px) {
+    .totals { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .totals { grid-template-columns: repeat(2, 1fr); }
+  }
+  .totals__cell {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .totals__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-muted);
+    font-weight: 700;
+  }
+  .totals__value {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    line-height: 1.05;
+  }
+  .totals__sub {
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+
+  .block { margin-top: 24px; }
+  .block__title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .grid-card { padding: 14px; overflow-x: auto; }
+
+  .prose p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+</style>

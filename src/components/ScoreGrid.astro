@@ -1,0 +1,134 @@
+---
+import { scoreNotation } from '../lib/queries';
+
+interface Props {
+  idxs: number[];
+  pars: number[];
+  scores: number[];
+}
+const { idxs, pars, scores } = Astro.props;
+---
+
+<table class="scoregrid">
+  <thead>
+    <tr>
+      <th class="scoregrid__rowlabel">Hole</th>
+      {idxs.map((i) => <th>{i + 1}</th>)}
+      <th class="scoregrid__total">TOT</th>
+    </tr>
+    <tr>
+      <th class="scoregrid__rowlabel">Par</th>
+      {
+        idxs.map((i) => (
+          <td class="scoregrid__par">{pars[i] || '—'}</td>
+        ))
+      }
+      <td class="scoregrid__par scoregrid__total">{idxs.reduce((s, i) => s + (Number(pars[i]) || 0), 0) || '—'}</td>
+    </tr>
+    <tr>
+      <th class="scoregrid__rowlabel">Score</th>
+      {
+        idxs.map((i) => {
+          const sc = Number(scores[i]) || 0;
+          const par = Number(pars[i]) || 0;
+          const note = sc && par ? scoreNotation(sc, par) : { label: '', className: '' };
+          return (
+            <td class:list={['scoregrid__score', note.className]}>
+              {sc || '—'}
+            </td>
+          );
+        })
+      }
+      <td class="scoregrid__score scoregrid__total">{idxs.reduce((s, i) => s + (Number(scores[i]) || 0), 0) || '—'}</td>
+    </tr>
+  </thead>
+</table>
+
+<style>
+  .scoregrid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .scoregrid th, .scoregrid td {
+    padding: 6px 4px;
+    text-align: center;
+    min-width: 32px;
+  }
+  .scoregrid thead tr:first-child th {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-muted);
+    border-bottom: 2px solid var(--line);
+  }
+  .scoregrid__rowlabel {
+    text-align: left;
+    color: var(--ink-muted);
+    font-weight: 700;
+    padding-right: 12px;
+    min-width: 56px;
+  }
+  .scoregrid__par {
+    color: var(--ink);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+  .scoregrid__score {
+    font-weight: 700;
+    color: var(--ink);
+    position: relative;
+  }
+  .scoregrid__total {
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    border-left: 2px solid var(--line);
+    background: var(--paper-tint);
+  }
+
+  /* GHIN score notation: circles for under par, squares for over par */
+  .scoregrid__score.sc--birdie,
+  .scoregrid__score.sc--eagle {
+    color: #B91C1C;
+  }
+  .scoregrid__score.sc--birdie::before,
+  .scoregrid__score.sc--eagle::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border: 1.5px solid currentColor;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+  .scoregrid__score.sc--eagle::after {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+  .scoregrid__score.sc--bogey,
+  .scoregrid__score.sc--double {
+    color: #1D4ED8;
+  }
+  .scoregrid__score.sc--double {
+    color: #7C2D12;
+  }
+  .scoregrid__score.sc--bogey::before,
+  .scoregrid__score.sc--double::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  .scoregrid__score.sc--double::after {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    pointer-events: none;
+  }
+</style>

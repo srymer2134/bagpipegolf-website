@@ -115,13 +115,6 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </div>
     </section>
 
-    <!-- ───────── Footer ───────── -->
-    <footer class="footer">
-      <div class="footer__inner">
-        <span>© {new Date().getFullYear()} Bagpipe Golf</span>
-        <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>
-      </div>
-    </footer>
   </main>
 </BaseLayout>
 
@@ -323,18 +316,4 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     font-size: 15px;
   }
 
-  /* ── Footer ────────────────────────────────────────── */
-  .footer {
-    padding: 28px 24px;
-    color: var(--ink-muted);
-    font-size: 14px;
-  }
-  .footer__inner {
-    max-width: 1100px;
-    margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
 </style>

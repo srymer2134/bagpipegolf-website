@@ -1,0 +1,40 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Privacy Policy · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Legal</p>
+    <h1 class="pagewrap__title">Privacy policy.</h1>
+    <p class="pagewrap__sub">
+      Draft — full policy lands before public launch.
+    </p>
+
+    <article class="card prose">
+      <h3>What we collect</h3>
+      <p>Email, display name, optional phone, optional handicap index and home course. Scoring data, side-game and tournament records, friend connections you create in the app.</p>
+
+      <h3>Why we collect it</h3>
+      <p>To sync your rounds across devices, surface live leaderboards to people you invite, send the notifications you opt into, and improve the product.</p>
+
+      <h3>Who we share with</h3>
+      <p>Service providers we use to operate Bagpipe Golf (Supabase for our database, Railway for our API, Cloudflare for this website, SendGrid for email, Twilio for SMS — all of which sit under their own privacy commitments). We do not sell personal data.</p>
+
+      <h3>Your controls</h3>
+      <p>You can delete your account from the mobile app's Profile screen. We'll process the deletion within 30 days. Email <a href="mailto:support@bagpipegolf.com">support@bagpipegolf.com</a> for anything else.</p>
+
+      <p class="prose__meta">A dated, full policy is published before public launch. Questions in the meantime? <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>.</p>
+    </article>
+  </main>
+</BaseLayout>
+
+<style>
+  .prose h3 {
+    margin: 20px 0 8px;
+    font-size: 17px;
+    color: var(--brand-green-dark);
+  }
+  .prose h3:first-child { margin-top: 0; }
+  .prose p { color: var(--ink-muted); font-size: 15px; }
+  .prose__meta { margin-top: 24px; color: var(--ink-hint); font-size: 13px; }
+</style>

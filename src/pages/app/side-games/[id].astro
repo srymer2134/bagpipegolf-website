@@ -1,0 +1,290 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../../lib/supabase';
+import { getBet, type BetRow } from '../../../lib/queries';
+
+const { id } = Astro.params;
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let bet: BetRow | null = null;
+let loadError: string | null = null;
+try {
+  bet = await getBet(supabase, id!);
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load side game.';
+}
+
+if (!bet && !loadError) {
+  return Astro.redirect('/app/side-games?missing=' + encodeURIComponent(id!), 302);
+}
+
+const fmtDate = (iso: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+type PlayerLite = { id: string; name: string };
+
+const players: PlayerLite[] = (bet?.players ?? []).map((p, idx) => ({
+  id: (p?.id as string) ?? `p${idx}`,
+  name: (p?.name as string) ?? `Player ${idx + 1}`,
+}));
+
+const totalHoles = bet?.total_holes ?? 18;
+const pars = bet?.pars ?? [];
+const scoresByPlayer = bet?.scores ?? {};
+
+const gameLabels = (bet?.game_types ?? []).map((g) => g.replace(/_/g, ' '));
+const holeRange = Array.from({ length: totalHoles }, (_, i) => i);
+---
+
+<BaseLayout title={`${bet?.course_name ?? 'Side game'} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">
+      <a href="/app/side-games" class="back">← Side games</a>
+    </p>
+
+    {loadError && <div class="errorbar">⚠️ {loadError}</div>}
+
+    {bet && (
+      <>
+        <h1 class="pagewrap__title">{bet.course_name ?? 'Side game'}</h1>
+        <p class="pagewrap__sub">
+          {fmtDate(bet.created_at)}
+          {bet.unit_value != null && <> · ${bet.unit_value} / unit</>}
+          {bet.press_config && <> · presses: {bet.press_config}</>}
+          {bet.completed
+            ? <> · settled</>
+            : (bet.current_hole != null
+                ? <> · on hole {bet.current_hole} / {totalHoles}</>
+                : <> · in progress</>)}
+        </p>
+
+        <section class="block">
+          <h2 class="block__title">Games</h2>
+          <div class="tags">
+            {gameLabels.length === 0
+              ? <span class="muted">No game types recorded.</span>
+              : gameLabels.map((g) => <span class="chip">{g}</span>)}
+          </div>
+        </section>
+
+        <section class="block">
+          <h2 class="block__title">Players · <span class="block__count">{players.length}</span></h2>
+          {players.length === 0 ? (
+            <div class="empty">No players on this game.</div>
+          ) : (
+            <ul class="players">
+              {players.map((p) => (
+                <li class="player">
+                  <span class="player__name">{p.name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {players.length > 0 && (
+          <section class="block">
+            <h2 class="block__title">Scores</h2>
+            <div class="card grid-card">
+              <table class="scoregrid">
+                <thead>
+                  <tr>
+                    <th class="scoregrid__rowlabel">Hole</th>
+                    {holeRange.map((i) => <th>{i + 1}</th>)}
+                    <th class="scoregrid__total">TOT</th>
+                  </tr>
+                  {pars.length > 0 && (
+                    <tr>
+                      <th class="scoregrid__rowlabel">Par</th>
+                      {holeRange.map((i) => <td class="scoregrid__par">{pars[i] || '—'}</td>)}
+                      <td class="scoregrid__par scoregrid__total">{pars.slice(0, totalHoles).reduce((s, p) => s + (Number(p) || 0), 0) || '—'}</td>
+                    </tr>
+                  )}
+                </thead>
+                <tbody>
+                  {players.map((p) => {
+                    const sc = (scoresByPlayer[p.id] ?? []) as number[];
+                    const tot = sc.slice(0, totalHoles).reduce((s, v) => s + (Number(v) || 0), 0);
+                    return (
+                      <tr>
+                        <th class="scoregrid__rowlabel">{p.name}</th>
+                        {holeRange.map((i) => (
+                          <td class="scoregrid__score">{Number(sc[i]) || '—'}</td>
+                        ))}
+                        <td class="scoregrid__score scoregrid__total">{tot || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {bet.linked_round_id && (
+          <section class="block">
+            <h2 class="block__title">Linked round</h2>
+            <a class="linkcard" href={`/app/round/${bet.linked_round_id}`}>
+              View paired scorecard round →
+            </a>
+          </section>
+        )}
+
+        <section class="block">
+          <p class="hint">
+            Balances and settlement (who owes who) live in the mobile app. Open this game on your phone to settle it.
+          </p>
+        </section>
+      </>
+    )}
+  </main>
+</BaseLayout>
+
+<style>
+  .back {
+    color: var(--brand-green);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .back:hover { color: var(--brand-green-dark); }
+
+  .errorbar {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: var(--error);
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    margin-bottom: 18px;
+  }
+
+  .block { margin-top: 24px; }
+  .block__title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .block__count {
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .muted { color: var(--ink-muted); font-size: 14px; }
+
+  .players {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .player {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .player__name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+  }
+
+  .grid-card { padding: 14px; overflow-x: auto; }
+  .scoregrid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .scoregrid th, .scoregrid td {
+    padding: 6px 4px;
+    text-align: center;
+    min-width: 32px;
+    white-space: nowrap;
+  }
+  .scoregrid thead tr:first-child th {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-muted);
+    border-bottom: 2px solid var(--line);
+  }
+  .scoregrid__rowlabel {
+    text-align: left;
+    color: var(--ink);
+    font-weight: 700;
+    padding-right: 12px;
+    min-width: 96px;
+  }
+  .scoregrid__par {
+    color: var(--ink-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+  .scoregrid__score {
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .scoregrid__total {
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    border-left: 2px solid var(--line);
+    background: var(--paper-tint);
+  }
+
+  .linkcard {
+    display: block;
+    background: var(--brand-green-pale);
+    border: 1px solid var(--brand-green);
+    color: var(--brand-green-dark);
+    padding: 14px 18px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 700;
+  }
+  .linkcard:hover { background: #fff; }
+
+  .hint {
+    background: var(--paper-tint);
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: var(--ink-muted);
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .empty {
+    background: #fff;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+    padding: 28px 24px;
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 15px;
+  }
+</style>

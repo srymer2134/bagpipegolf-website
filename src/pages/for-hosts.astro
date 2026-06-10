@@ -1,0 +1,57 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const lifecycle = [
+  { stage: 'Setup', what: 'Wizard-driven roster, tees, format, side pools, payout curve.' },
+  { stage: 'Field final', what: 'Lock the roster, generate pairings or a shotgun, send invites.' },
+  { stage: 'Live', what: 'Players score on their phones. Leaderboard and Match Board update in real time.' },
+  { stage: 'Payouts', what: 'Director-controlled distribution with a balance guard. Print pack to PDF.' },
+];
+---
+
+<BaseLayout title="For Tournament & League Directors · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">For Hosts</p>
+    <h1 class="pagewrap__title">Run an event from your phone.</h1>
+    <p class="pagewrap__sub">
+      One wizard generates roster, tee sheet, flights, pairings, shotgun, leaderboard, payouts.
+      Player phones become the scorecards. The clubhouse TV runs the kiosk.
+    </p>
+
+    <section class="grid grid--2">
+      {
+        lifecycle.map((s) => (
+          <article class="card">
+            <span class="chip">{s.stage}</span>
+            <p>{s.what}</p>
+          </article>
+        ))
+      }
+    </section>
+
+    <section class="cta">
+      <h2>Pitch us your event</h2>
+      <p>Tell us the format, the field size, the venue. We'll help you wire it up.</p>
+      <a class="btn btn--primary" href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf%20for%20my%20event">
+        Email hello@bagpipegolf.com
+      </a>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card .chip { margin-bottom: 10px; }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+  .cta {
+    margin-top: 56px;
+    padding: 36px 28px;
+    background: var(--brand-green);
+    color: #fff;
+    border-radius: 22px;
+    text-align: center;
+  }
+  .cta h2 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+  .cta p { color: rgba(255,255,255,0.92); margin: 0 0 18px; }
+  .cta .btn--primary { background: #fff; color: var(--brand-green-dark); }
+  .cta .btn--primary:hover { background: var(--brand-green-pale); color: var(--brand-green-dark); }
+</style>

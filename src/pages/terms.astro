@@ -1,0 +1,40 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Terms of Service · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Legal</p>
+    <h1 class="pagewrap__title">Terms of service.</h1>
+    <p class="pagewrap__sub">
+      Draft — full terms land before public launch.
+    </p>
+
+    <article class="card prose">
+      <h3>Accounts</h3>
+      <p>You're responsible for the activity on your account. Keep your password and any TestFlight invites you receive safe.</p>
+
+      <h3>Acceptable use</h3>
+      <p>Use Bagpipe Golf for golf-related scoring, side games, and tournaments. Don't use it to harass others, run unlicensed gambling, or break any law that applies to where you play.</p>
+
+      <h3>Side games and betting</h3>
+      <p>Bagpipe Golf's side-bet engine calculates settlements between players. Bagpipe Golf does not handle money. Player-to-player settlements are between the players.</p>
+
+      <h3>Termination</h3>
+      <p>You can delete your account from the app at any time. We may suspend or terminate accounts that violate these terms.</p>
+
+      <p class="prose__meta">Full, dated terms are published before public launch. Questions in the meantime? <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>.</p>
+    </article>
+  </main>
+</BaseLayout>
+
+<style>
+  .prose h3 {
+    margin: 20px 0 8px;
+    font-size: 17px;
+    color: var(--brand-green-dark);
+  }
+  .prose h3:first-child { margin-top: 0; }
+  .prose p { color: var(--ink-muted); font-size: 15px; }
+  .prose__meta { margin-top: 24px; color: var(--ink-hint); font-size: 13px; }
+</style>

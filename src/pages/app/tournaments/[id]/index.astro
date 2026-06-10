@@ -1,0 +1,50 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+
+const { id } = Astro.params;
+---
+
+<BaseLayout title="Tournament · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Tournament</p>
+    <h1 class="pagewrap__title">Tournament details</h1>
+    <p class="pagewrap__sub">
+      Your view as a player. The public leaderboard for this tournament is shareable — anyone with the link can follow along live.
+    </p>
+
+    <TournamentSubnav id={id!} active="overview" />
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Format &amp; field</h3>
+        <p>Per-round format, courses, tees, flights, side pools.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Your status</h3>
+        <p>Your pairing, your tee time, your scorekeeper assignment.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Today's score</h3>
+        <p>Hole-by-hole entry + live position.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Side bets</h3>
+        <p>Auto-paired scorecard round + live balances.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

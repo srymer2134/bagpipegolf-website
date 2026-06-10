@@ -1,0 +1,46 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const user = Astro.locals.user!;
+---
+
+<BaseLayout title="Profile · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Profile</p>
+    <h1 class="pagewrap__title">Your profile.</h1>
+    <p class="pagewrap__sub">
+      Matches the profile editor in the mobile app. Edits sync everywhere.
+    </p>
+
+    <section class="grid grid--2">
+      <article class="card">
+        <h3>Account</h3>
+        <dl class="kv">
+          <dt>Email</dt><dd>{user.email}</dd>
+        </dl>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Golfer</h3>
+        <p>Display name, handicap index, home course, GHIN number.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Notifications</h3>
+        <p>Push / email / SMS / in-app toggles per category.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .kv { display: grid; grid-template-columns: 100px 1fr; gap: 6px 14px; margin: 4px 0 0; }
+  .kv dt { color: var(--ink-muted); font-size: 13px; }
+  .kv dd { margin: 0; color: var(--ink); font-size: 14px; }
+</style>

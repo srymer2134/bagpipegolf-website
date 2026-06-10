@@ -1,0 +1,206 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../../lib/supabase';
+import { listBets, type BetRow } from '../../../lib/queries';
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let rows: BetRow[] = [];
+let loadError: string | null = null;
+try {
+  rows = await listBets(supabase, { limit: 100 });
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load side games.';
+}
+
+const active = rows.filter((b) => b.completed !== true);
+const settled = rows.filter((b) => b.completed === true);
+
+const fmtDate = (iso: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const playerNames = (b: BetRow) =>
+  (b.players ?? [])
+    .map((p) => (p?.name as string) || (p?.id as string) || '')
+    .filter(Boolean);
+
+const gameLabels = (b: BetRow) => (b.game_types ?? []).map((g) => g.replace(/_/g, ' '));
+
+const progressLabel = (b: BetRow) => {
+  if (b.completed) return 'Settled';
+  if (b.current_hole != null && b.total_holes) {
+    return `Hole ${b.current_hole} / ${b.total_holes}`;
+  }
+  return 'In progress';
+};
+---
+
+<BaseLayout title="Side games · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Side games</p>
+    <h1 class="pagewrap__title">Your bet games.</h1>
+    <p class="pagewrap__sub">
+      Games you scorekeep + games you're playing in. Tap a card for the live state.
+    </p>
+
+    {loadError && <div class="errorbar">⚠️ {loadError}</div>}
+
+    <section class="block">
+      <h2 class="block__title">Active · <span class="block__count">{active.length}</span></h2>
+      {active.length === 0 ? (
+        <div class="empty">No active games right now.</div>
+      ) : (
+        <div class="bets">
+          {active.map((b) => (
+            <a class="bet" href={`/app/side-games/${b.id}`}>
+              <div class="bet__head">
+                <span class="bet__date">{fmtDate(b.created_at)}</span>
+                <span class="chip chip--warn">{progressLabel(b)}</span>
+              </div>
+              <h3 class="bet__course">{b.course_name ?? 'Unknown course'}</h3>
+              <div class="bet__tags">
+                {gameLabels(b).map((g) => <span class="chip">{g}</span>)}
+              </div>
+              <div class="bet__players">
+                {playerNames(b).slice(0, 4).join(' · ')}
+                {playerNames(b).length > 4 && <span class="bet__more"> + {playerNames(b).length - 4} more</span>}
+              </div>
+              {b.unit_value != null && (
+                <div class="bet__unit">${b.unit_value} / unit</div>
+              )}
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <section class="block">
+      <h2 class="block__title">Settled · <span class="block__count">{settled.length}</span></h2>
+      {settled.length === 0 ? (
+        <div class="empty">No settled games yet.</div>
+      ) : (
+        <div class="bets">
+          {settled.map((b) => (
+            <a class="bet" href={`/app/side-games/${b.id}`}>
+              <div class="bet__head">
+                <span class="bet__date">{fmtDate(b.completed_at ?? b.created_at)}</span>
+                <span class="chip chip--muted">Settled</span>
+              </div>
+              <h3 class="bet__course">{b.course_name ?? 'Unknown course'}</h3>
+              <div class="bet__tags">
+                {gameLabels(b).map((g) => <span class="chip">{g}</span>)}
+              </div>
+              <div class="bet__players">
+                {playerNames(b).slice(0, 4).join(' · ')}
+                {playerNames(b).length > 4 && <span class="bet__more"> + {playerNames(b).length - 4} more</span>}
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .errorbar {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: var(--error);
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    margin-bottom: 18px;
+  }
+
+  .block { margin-top: 16px; }
+  .block__title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .block__count {
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+
+  .bets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .bet {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 18px;
+    text-decoration: none;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 0.12s ease, transform 0.06s ease, box-shadow 0.12s ease;
+  }
+  .bet:hover {
+    border-color: var(--brand-green);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 61, 37, 0.08);
+  }
+  .bet__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .bet__date {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .bet__course {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .bet__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .bet__players {
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .bet__more { color: var(--ink-muted); }
+  .bet__unit {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+
+  .empty {
+    background: #fff;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+    padding: 28px 24px;
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 15px;
+  }
+</style>

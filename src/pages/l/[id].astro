@@ -1,0 +1,74 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const { id } = Astro.params;
+---
+
+<BaseLayout title="League · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Public league page</p>
+    <h1 class="pagewrap__title">League</h1>
+    <p class="pagewrap__sub">
+      Standings, schedule, and roster — shareable with members and family. No sign-in required.
+    </p>
+
+    <nav class="subnav">
+      <a class="subnav__link is-active" href={`/l/${id}`}>Overview</a>
+      <a class="subnav__link" href={`/l/${id}/standings`}>Standings</a>
+      <a class="subnav__link" href={`/l/${id}/schedule`}>Schedule</a>
+    </nav>
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Season standings</h3>
+        <p>Cumulative points, flight ranks, qualifier status.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Schedule</h3>
+        <p>Weekly tournaments, dates, formats, courses.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Roster</h3>
+        <p>Members + season handicaps.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Playoffs</h3>
+        <p>Bracket, seeding, results.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .subnav {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 28px;
+    overflow-x: auto;
+  }
+  .subnav__link {
+    padding: 10px 14px;
+    color: var(--ink-muted);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .subnav__link:hover { color: var(--brand-green-dark); }
+  .subnav__link.is-active {
+    color: var(--brand-green-dark);
+    border-bottom-color: var(--brand-green);
+  }
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+</style>

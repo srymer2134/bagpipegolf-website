@@ -1,0 +1,41 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Leagues · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Leagues</p>
+    <h1 class="pagewrap__title">Your leagues.</h1>
+    <p class="pagewrap__sub">
+      Seasons you're playing in, directing, or signed up to sub for.
+    </p>
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip">In season</span>
+        <h3 class="muted">No active leagues</h3>
+        <p>Once you join a league, the standings and weekly schedule show up here.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Completed</span>
+        <h3 class="muted">No completed seasons yet</h3>
+        <p>Past seasons show up here with final standings.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--warn">Running a league</span>
+        <h3 class="muted">No leagues to manage</h3>
+        <p>When you create one, you'll get full league-director controls here.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card h3.muted { color: var(--ink-muted); font-weight: 600; }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

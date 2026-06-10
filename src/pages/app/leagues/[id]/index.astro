@@ -1,0 +1,50 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+
+const { id } = Astro.params;
+---
+
+<BaseLayout title="League · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">League</p>
+    <h1 class="pagewrap__title">League details</h1>
+    <p class="pagewrap__sub">
+      Your view as a member. The public league page is shareable — anyone with the link can follow along.
+    </p>
+
+    <LeagueSubnav id={id!} active="overview" />
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Season at a glance</h3>
+        <p>Points model, weekly format, sub rule, flighting, playoffs.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Your position</h3>
+        <p>Rank, points, week-by-week results.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Next event</h3>
+        <p>Date, partner, RSVP, sub request.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Recent week</h3>
+        <p>Pairings, results, points earned.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

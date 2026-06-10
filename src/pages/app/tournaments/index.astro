@@ -1,0 +1,46 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Tournaments · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Tournaments</p>
+    <h1 class="pagewrap__title">Your tournaments.</h1>
+    <p class="pagewrap__sub">
+      Events you're playing, directing, or have been invited to.
+    </p>
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip">Active</span>
+        <h3 class="muted">No active tournaments</h3>
+        <p>Once you're scoring or running a tournament, it shows up here.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Upcoming</span>
+        <h3 class="muted">Nothing upcoming</h3>
+        <p>Events you've been added to but haven't started yet.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Completed</span>
+        <h3 class="muted">No completed tournaments yet</h3>
+        <p>Past events show up here with final standings and payouts.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--warn">Running an event</span>
+        <h3 class="muted">No tournaments to manage</h3>
+        <p>When you create one, you'll get full director controls here.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card h3.muted { color: var(--ink-muted); font-weight: 600; }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

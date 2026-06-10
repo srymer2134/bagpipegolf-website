@@ -1,0 +1,62 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const groups = [
+  {
+    title: 'Smart scorecard',
+    body: 'GHIN-style notation, per-hole FIR / GIR / putts, course handicap math done for you. Career stats roll up automatically.',
+  },
+  {
+    title: '30 side games',
+    body: 'Skins, Nassau, Wolf, Vegas, Stableford, Hammer, Bingo Bango Bongo, Scotch, Six-Six-Six and more — hole-by-hole, zero-sum settlement.',
+  },
+  {
+    title: 'Tournaments',
+    body: 'Flighted gross / net / Stableford, Cup match-points, shotgun pairings, leaderboards, payouts. Run your member-guest from a phone.',
+  },
+  {
+    title: 'Leagues',
+    body: 'Weekly events binding to a season. Sub rules, partner rotation, flighting, playoffs, cumulative standings.',
+  },
+  {
+    title: 'Calcutta',
+    body: 'Live auction, ownership tracking, parimutuel-style payouts. Built into every tournament.',
+  },
+  {
+    title: 'Spectator share',
+    body: 'Six-character join codes broadcast live scoring to friends and family. Works on web — no app required.',
+  },
+];
+---
+
+<BaseLayout title="Features · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Features</p>
+    <h1 class="pagewrap__title">Everything from the cart path to the clubhouse TV.</h1>
+    <p class="pagewrap__sub">
+      Built by golfers tired of doing skins on a napkin.
+      Full depth coming soon — this is the short list.
+    </p>
+
+    <section class="grid grid--3">
+      {
+        groups.map((g) => (
+          <article class="card">
+            <h3>{g.title}</h3>
+            <p>{g.body}</p>
+          </article>
+        ))
+      }
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    margin: 0 0 6px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+</style>

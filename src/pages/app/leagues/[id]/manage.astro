@@ -1,0 +1,62 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+
+const { id } = Astro.params;
+// PR #2 will gate this on the user being the league's directorUserId.
+---
+
+<BaseLayout title="Manage league · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">League · director controls</p>
+    <h1 class="pagewrap__title">Manage league.</h1>
+    <p class="pagewrap__sub">
+      <span class="chip chip--warn">LD only</span>
+      Season setup, roster, sub rules, flighting, playoffs.
+    </p>
+
+    <LeagueSubnav id={id!} active="manage" />
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Season setup</h3>
+        <p>Start date, week count, format per week, points model.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Roster</h3>
+        <p>Members, season handicaps, sub pool.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Pairings &amp; subs</h3>
+        <p>Partner rotation, weekly RSVPs, sub assignments.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Flighting</h3>
+        <p>Auto-flight or manual, cut lines per flight.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Playoffs</h3>
+        <p>Qualifier rule, bracket, seeding.</p>
+      </article>
+      <article class="card">
+        <span class="chip chip--muted">Coming soon</span>
+        <h3>Communications</h3>
+        <p>League-wide blast: weekly recap, schedule change, AI compose.</p>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 8px 0 4px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</style>

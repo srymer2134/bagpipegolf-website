@@ -1,0 +1,46 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Support · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Support</p>
+    <h1 class="pagewrap__title">We're listening.</h1>
+    <p class="pagewrap__sub">
+      The fastest way to reach us is email. We answer same-day during the beta.
+    </p>
+
+    <section class="grid grid--2">
+      <article class="card">
+        <span class="chip">Anything</span>
+        <h3>hello@bagpipegolf.com</h3>
+        <p>General questions, TestFlight invites, tournament setup, partnerships.</p>
+        <a class="btn btn--ghost btn--sm" href="mailto:hello@bagpipegolf.com">Email hello</a>
+      </article>
+      <article class="card">
+        <span class="chip">Bug or outage</span>
+        <h3>support@bagpipegolf.com</h3>
+        <p>Include the build number, what you tapped, and a screenshot if you have one.</p>
+        <a class="btn btn--ghost btn--sm" href="mailto:support@bagpipegolf.com">Email support</a>
+      </article>
+      <article class="card">
+        <span class="chip">FAQ</span>
+        <h3>Quick answers</h3>
+        <p>Skim the FAQ before emailing — your question may be there.</p>
+        <a class="btn btn--ghost btn--sm" href="/faq">Read FAQ</a>
+      </article>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .card { display: grid; gap: 8px; align-content: start; }
+  .card .chip { justify-self: start; }
+  .card h3 {
+    font-size: 17px;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .card .btn { justify-self: start; margin-top: 6px; }
+</style>

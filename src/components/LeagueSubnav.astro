@@ -1,0 +1,55 @@
+---
+interface Props {
+  id: string;
+  active: 'overview' | 'standings' | 'schedule' | 'manage';
+}
+
+const { id, active } = Astro.props;
+
+const links: Array<{ key: Props['active']; label: string }> = [
+  { key: 'overview',  label: 'Overview' },
+  { key: 'standings', label: 'Standings' },
+  { key: 'schedule',  label: 'Schedule' },
+  { key: 'manage',    label: 'Manage (LD)' },
+];
+
+const hrefFor = (key: Props['active']) =>
+  key === 'overview' ? `/app/leagues/${id}` : `/app/leagues/${id}/${key}`;
+---
+
+<nav class="lnav">
+  {
+    links.map((l) => (
+      <a
+        href={hrefFor(l.key)}
+        class:list={['lnav__link', l.key === active && 'is-active']}
+      >
+        {l.label}
+      </a>
+    ))
+  }
+</nav>
+
+<style>
+  .lnav {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 28px;
+    overflow-x: auto;
+  }
+  .lnav__link {
+    padding: 10px 14px;
+    color: var(--ink-muted);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .lnav__link:hover { color: var(--brand-green-dark); }
+  .lnav__link.is-active {
+    color: var(--brand-green-dark);
+    border-bottom-color: var(--brand-green);
+  }
+</style>
