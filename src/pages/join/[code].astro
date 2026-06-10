@@ -1,0 +1,182 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+// Tournament-invite landing page.
+//
+// Reached when someone taps a `https://bagpipegolf.com/join/<CODE>`
+// link and:
+//   (a) the app isn't installed yet — show install + manual-entry
+//       instructions, OR
+//   (b) iOS / Android failed the Universal-Link / App-Link
+//       verification (placeholder Android cert fingerprint until the
+//       release key is minted), so the OS landed on the web page
+//       instead of opening the app.
+//
+// When the app IS installed and verified, iOS / Android intercept
+// this URL before the page ever renders — so the "Open in app"
+// affordance below is a graceful fallback rather than the primary
+// flow.
+
+const rawCode = (Astro.params.code ?? '').toUpperCase();
+// Tighten the displayed code to 6 alphanumerics so a typo URL
+// doesn't render a giant blob. We keep the user on the page with
+// an error state when the code is malformed.
+const isValid = /^[A-Z0-9]{6}$/.test(rawCode);
+const code = isValid ? rawCode : '';
+const fairwayiqScheme = isValid ? `fairwayiq://join/${code}` : null;
+---
+
+<BaseLayout title={isValid ? `Join code ${code} · Bagpipe Golf` : 'Join · Bagpipe Golf'}>
+  <main class="pagewrap pagewrap--narrow">
+    {isValid ? (
+      <>
+        <p class="pagewrap__eyebrow">Tournament invite</p>
+        <h1 class="pagewrap__title">You're invited.</h1>
+        <p class="pagewrap__sub">
+          Tap "Open in Bagpipe Golf" below to jump straight to the live tournament. If the app isn't installed yet, grab it first — your invite code is ready when you sign in.
+        </p>
+
+        <section class="codecard">
+          <span class="codecard__label">Your join code</span>
+          <code class="codecard__value" data-code={code}>{code}</code>
+          <button id="copyBtn" class="codecard__copy" type="button" aria-label="Copy code">Copy</button>
+        </section>
+
+        <div class="cta-row">
+          {fairwayiqScheme && (
+            <a class="btn btn--primary" href={fairwayiqScheme}>
+              Open in Bagpipe Golf
+            </a>
+          )}
+          <a class="btn btn--ghost" href="https://apps.apple.com/app/id0000000000">
+            Get the app
+          </a>
+        </div>
+
+        <details class="manual">
+          <summary>Or enter the code manually</summary>
+          <ol>
+            <li>Open <strong>Bagpipe Golf</strong> on your phone.</li>
+            <li>Tap the <strong>Tourney</strong> tab at the bottom.</li>
+            <li>Tap <strong>Join Tournament</strong> (top-right menu) and paste <code>{code}</code>.</li>
+            <li>Pick <strong>Spectator</strong> to watch or <strong>Player</strong> to be added to the field.</li>
+          </ol>
+        </details>
+      </>
+    ) : (
+      <>
+        <p class="pagewrap__eyebrow">Tournament invite</p>
+        <h1 class="pagewrap__title">That code doesn't look right.</h1>
+        <p class="pagewrap__sub">
+          Bagpipe Golf join codes are 6 letters and numbers — like <code>ABC123</code>. Check the link you tapped and try again, or open the app and tap "Join Tournament" to type the code manually.
+        </p>
+        <a class="btn btn--primary" href="/">Back to home</a>
+      </>
+    )}
+  </main>
+
+  {isValid && (
+    <script is:inline define:vars={{ code }}>
+      // Copy-to-clipboard for the code chip. Inline so the page works
+      // without the marketing-site JS bundle (which is empty today).
+      const btn = document.getElementById('copyBtn');
+      if (btn && navigator.clipboard) {
+        btn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(code);
+            const original = btn.textContent;
+            btn.textContent = 'Copied';
+            setTimeout(() => { btn.textContent = original ?? 'Copy'; }, 1500);
+          } catch (_) {
+            // Clipboard API blocked — no-op. The code is still visible.
+          }
+        });
+      }
+    </script>
+  )}
+</BaseLayout>
+
+<style>
+  .pagewrap--narrow { max-width: 560px; }
+
+  .codecard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 28px 24px;
+    background: var(--brand-green-soft, #f0f7f2);
+    border: 2px solid var(--brand-green, #2f7d44);
+    border-radius: 16px;
+    margin: 24px 0;
+  }
+  .codecard__label {
+    text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--brand-green-dark, #1f5b30);
+  }
+  .codecard__value {
+    font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: 10px;
+    color: var(--brand-green-dark, #1f5b30);
+  }
+  .codecard__copy {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--brand-green, #2f7d44);
+    color: var(--brand-green-dark, #1f5b30);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .codecard__copy:hover { background: rgba(47, 125, 68, 0.08); }
+
+  .cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 12px 0 24px;
+  }
+  .btn {
+    flex: 1 1 200px;
+    text-align: center;
+    padding: 14px 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    text-decoration: none;
+  }
+  .btn--primary {
+    background: var(--brand-green, #2f7d44);
+    color: white;
+  }
+  .btn--primary:hover { background: var(--brand-green-dark, #1f5b30); }
+  .btn--ghost {
+    background: transparent;
+    border: 1px solid var(--brand-green, #2f7d44);
+    color: var(--brand-green-dark, #1f5b30);
+  }
+  .btn--ghost:hover { background: rgba(47, 125, 68, 0.08); }
+
+  .manual { margin-top: 24px; }
+  .manual summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--brand-green-dark, #1f5b30);
+    padding: 12px 0;
+  }
+  .manual ol { padding-left: 24px; color: var(--ink-muted, #4b5b54); }
+  .manual li { padding: 6px 0; line-height: 1.5; }
+  .manual code {
+    background: rgba(47, 125, 68, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+</style>

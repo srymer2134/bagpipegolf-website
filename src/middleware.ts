@@ -1,5 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
 import { createSupabaseClient } from './lib/supabase';
+import { handleWellKnownRequest } from './lib/wellKnown';
 
 // Routes that require an authenticated Supabase session. If a request
 // to one of these comes in without a session, we redirect to /login
@@ -12,6 +13,14 @@ const SIGNED_IN_BOUNCE = ['/login', '/signup', '/forgot-password'];
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const { pathname } = new URL(ctx.request.url);
+
+  // Short-circuit .well-known/* before Supabase init. The
+  // apple-app-site-association + assetlinks.json paths are polled by
+  // iOS / Android during install-time verification and should never
+  // pay the auth cost. The handler returns null for paths it doesn't
+  // claim, falling through to the rest of the middleware.
+  const wellKnown = handleWellKnownRequest(pathname);
+  if (wellKnown !== null) return wellKnown;
 
   let session: App.Locals['session'] = null;
   let user: App.Locals['user'] = null;
