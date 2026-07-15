@@ -7,34 +7,385 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <p class="pagewrap__eyebrow">Legal</p>
     <h1 class="pagewrap__title">Privacy policy.</h1>
     <p class="pagewrap__sub">
-      Draft — full policy lands before public launch.
+      Last updated: <strong>July 15, 2026</strong>.
     </p>
 
     <article class="card prose">
-      <h3>What we collect</h3>
-      <p>Email, display name, optional phone, optional handicap index and home course. Scoring data, side-game and tournament records, friend connections you create in the app.</p>
+      <p class="prose__lead">
+        Bagpipe Golf, a subsidiary of Taybuta, Inc. ("Bagpipe Golf,"
+        "we," "us") respects your privacy. This policy explains what
+        information we collect when you use the Bagpipe Golf mobile
+        app or website, how we use it, and the choices you have. By
+        creating an account or using the app, you agree to the
+        practices described below.
+      </p>
 
-      <h3>Why we collect it</h3>
-      <p>To sync your rounds across devices, surface live leaderboards to people you invite, send the notifications you opt into, and improve the product.</p>
+      <h2>1. Information we collect</h2>
 
-      <h3>Who we share with</h3>
-      <p>Service providers we use to operate Bagpipe Golf (Supabase for our database, Railway for our API, Cloudflare for this website, SendGrid for email, Twilio for SMS — all of which sit under their own privacy commitments). We do not sell personal data.</p>
+      <h3>Information you give us</h3>
+      <ul>
+        <li><strong>Account information</strong> — email address, display name, and a password (or social sign-in token if you sign in with Apple, Google, or another provider). You can optionally add a phone number for SMS-based features (tournament alerts); the number isn't required to use the app.</li>
+        <li><strong>Profile information</strong> — your handicap index, home course, playing style, typical miss, and any other fields you choose to fill in on the Profile screen. You can edit or remove this information at any time.</li>
+        <li><strong>Bag / clubs</strong> — the clubs you've configured in your bag, with optional distances. This information stays in your account.</li>
+        <li><strong>Round data</strong> — scorecards you create, including course played, date, per-hole scores, putts, fairways hit, greens in regulation, and any other stats you choose to enter.</li>
+        <li><strong>Bet and tournament data</strong> — bet games you create or join, player rosters, hole-by-hole scoring entries, and the resulting settlement amounts. We process bet outcomes as informational scoring; we do not collect, hold, or transfer money.</li>
+        <li><strong>Friends</strong> — when you add another Bagpipe Golf user as a friend, their account becomes a mutual link in your account. You can remove a friend at any time.</li>
+        <li><strong>Tournament invites</strong> — when a tournament director sends an email invite, we store the invitee's email address along with a status (pending, accepted, expired, revoked) so the director can manage the invite list and the recipient can accept the invite.</li>
+        <li><strong>Issue reports</strong> — if you report a bug or send feedback, we collect the text of the report and any screenshots you attach.</li>
+      </ul>
 
-      <h3>Your controls</h3>
-      <p>You can delete your account from the mobile app's Profile screen. We'll process the deletion within 30 days. Email <a href="mailto:support@bagpipegolf.com">support@bagpipegolf.com</a> for anything else.</p>
+      <h3>Information collected automatically</h3>
+      <ul>
+        <li><strong>Round-of-play location</strong> — when you tap a course in search results, we use your device's location to surface nearby courses. The app does not continuously track your location; location is used only when you actively search for or open a course screen. iOS asks your permission via the standard Location prompt.</li>
+        <li><strong>Voice input</strong> — if you use the voice-input feature for shot advice or issue reports, the app uses your device's speech recognition service to transcribe what you say. The transcript is processed in the app and is not stored on our servers as raw audio.</li>
+        <li><strong>Push notification token</strong> — if you opt in to tournament push notifications, the app registers a Firebase Cloud Messaging (FCM) token with our backend so we can deliver tee-time, pairing, and update messages. You can turn off push at any time from Profile → Notifications or in your device settings.</li>
+        <li><strong>Crash and error reports</strong> — when the app crashes or hits an unhandled error, we send a crash report (stack trace, OS version, app build number, release tag) to Sentry. Crash reports do not include the content of your scorecards, bet games, or messages.</li>
+        <li><strong>Usage analytics</strong> — we use PostHog to record product usage (which screens are visited, which buttons are tapped, error rates, feature adoption). Analytics events <strong>are tied to your account</strong> — your user ID, email, display name, and handicap are attached as PostHog profile properties so we can debug account-specific issues and understand usage by segment. This is not anonymous analytics. You can ask us to opt your account out of analytics collection (see §6). We never sell analytics data and never use it for third-party advertising.</li>
+        <li><strong>Authentication metadata</strong> — when you sign in, Supabase records the timestamp of the sign-in along with a session token. This is standard authentication infrastructure.</li>
+      </ul>
 
-      <p class="prose__meta">A dated, full policy is published before public launch. Questions in the meantime? <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>.</p>
+      <h3>Information we do NOT collect</h3>
+      <ul>
+        <li>We do not collect contacts, calendar entries, or messages from your device.</li>
+        <li>We do not collect health, fitness, or biometric data beyond what's required for Face ID / Touch ID device authentication (the biometric template never leaves your device — it stays in the iOS Keychain or Android Keystore).</li>
+        <li>We do not collect microphone audio in the background. The microphone is only active when you explicitly tap the voice-input button.</li>
+        <li>We do not collect photos in the background. Photos are accessed only when you choose to attach a screenshot to an issue report.</li>
+      </ul>
+
+      <h2>2. How we use your information</h2>
+      <p>We use the information we collect to:</p>
+      <ul>
+        <li>Provide the core service — show your scorecards, run your bet games, render your tournament leaderboards, sync your data across your devices.</li>
+        <li>Connect you with the friends, opponents, and tournament organizers you choose to play with.</li>
+        <li>Send service messages: tee-time confirmations, tournament updates, password recovery emails, and other transactional notifications you've opted into.</li>
+        <li>Improve the app — diagnose crashes, prioritize features that are actually being used, identify slow surfaces to optimize.</li>
+        <li>Honor your account-deletion requests.</li>
+        <li>Comply with our legal obligations.</li>
+      </ul>
+      <p>
+        We do not sell your personal information. We do not use your
+        data to target third-party ads.
+      </p>
+
+      <h2>3. Third-party processors</h2>
+      <p>
+        We rely on a small set of trusted infrastructure providers to
+        operate the app. Each is bound by a data processing agreement
+        and is listed below so you know where your data flows:
+      </p>
+      <div class="prose__tablewrap">
+        <table class="prose__table">
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th>Role</th>
+              <th>What they receive</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Supabase</strong></td>
+              <td>Database, authentication, file storage</td>
+              <td>Account credentials, profile, rounds, bets, tournaments, friends</td>
+            </tr>
+            <tr>
+              <td><strong>Railway</strong></td>
+              <td>Backend API hosting</td>
+              <td>API requests routed through our backend</td>
+            </tr>
+            <tr>
+              <td><strong>Firebase Cloud Messaging</strong> (Google)</td>
+              <td>Push notification delivery</td>
+              <td>Device push token + the notification payload</td>
+            </tr>
+            <tr>
+              <td><strong>Sentry</strong></td>
+              <td>Crash reporting</td>
+              <td>Stack traces, OS / app version, release tag</td>
+            </tr>
+            <tr>
+              <td><strong>PostHog</strong></td>
+              <td>Product analytics</td>
+              <td>Usage events tied to your account (user ID, email, display name, handicap) — not anonymous</td>
+            </tr>
+            <tr>
+              <td><strong>SendGrid</strong></td>
+              <td>Transactional email</td>
+              <td>Email addresses + the email body for invites, password reset, tournament alerts</td>
+            </tr>
+            <tr>
+              <td><strong>Twilio</strong></td>
+              <td>SMS delivery + phone verification</td>
+              <td>Phone number, for one-time verification codes (Verify) and any SMS alerts you opt into</td>
+            </tr>
+            <tr>
+              <td><strong>Cloudflare</strong></td>
+              <td>DNS, web hosting, inbound email routing</td>
+              <td>Public-website traffic; no app data</td>
+            </tr>
+            <tr>
+              <td><strong>GolfCourseAPI.com</strong></td>
+              <td>Course data</td>
+              <td>Search queries (course name, location) and the course-id you select</td>
+            </tr>
+            <tr>
+              <td><strong>Anthropic Claude</strong> (via our backend)</td>
+              <td>AI shot recommendations</td>
+              <td>When the AI Caddie feature is enabled, we send the shot context (lie, distance, wind, club options) to Anthropic. The Caddie feature is currently disabled in the app; this section will activate if and when it is re-enabled.</td>
+            </tr>
+            <tr>
+              <td><strong>Apple / Google</strong></td>
+              <td>Identity providers (Sign in with Apple, Sign in with Google)</td>
+              <td>Used only when you choose to sign in via their provider; we receive an opaque identifier and your email address</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>We do not use third-party advertising networks.</p>
+
+      <h3>Downstream developers and API users</h3>
+      <p>
+        If we make an API, SDK, join-code integration, or other data
+        access available to a third-party developer,
+        tournament-management partner, or course operator's own
+        tooling, that access is governed by a separate agreement with
+        us in addition to this Privacy Policy. Any such third party
+        must handle data obtained through that access consistent with
+        <strong>both</strong> this Privacy Policy <strong>and</strong>
+        their own posted privacy policy, and may not use the API or
+        the associated agreement in a way that conflicts with either.
+        We vet and contractually bind the processors listed above, but
+        we do not control what an independent third-party developer
+        does with data once it leaves our systems through an access
+        grant we did not directly process on our own infrastructure.
+      </p>
+      <p>
+        <strong>Bagpipe Golf, its parent company Taybuta, Inc., and
+        any other facility or LLC owned by Taybuta, Inc. are not
+        responsible or liable for a third party's improper,
+        unauthorized, or unlawful use, storage, or disclosure of data
+        obtained through such access.</strong> That liability rests
+        solely with the third party responsible for the misuse. If
+        you believe a third-party integration has misused your data,
+        contact us at the address in §10 and report it to that third
+        party directly.
+      </p>
+
+      <h2>4. International data transfers</h2>
+      <p>
+        Our backend runs in the United States. If you use Bagpipe
+        Golf from outside the United States, your data will be
+        transferred to, stored, and processed in the United States.
+        By using the app, you consent to this transfer. We rely on
+        standard contractual clauses or equivalent safeguards for
+        transfers from the European Economic Area, the United
+        Kingdom, and Switzerland where applicable.
+      </p>
+
+      <h2>5. Data retention</h2>
+      <ul>
+        <li><strong>Account data</strong> — kept for as long as your account exists.</li>
+        <li><strong>Round, bet, and tournament data</strong> — kept for as long as your account exists.</li>
+        <li><strong>Crash and analytics events</strong> — retained for up to 12 months then aggregated or deleted.</li>
+        <li><strong>Push notification tokens</strong> — refreshed continuously by the device; stale tokens are pruned automatically.</li>
+        <li><strong>Tournament invites</strong> — retained until accepted, revoked, or expired, then archived for one year to support audit.</li>
+      </ul>
+      <p>
+        When you delete your account (see §6), all data tied to your
+        account is deleted from our active systems within 30 days.
+        Backup copies may persist for up to 90 days before being
+        permanently erased.
+      </p>
+
+      <h2>6. Your choices and rights</h2>
+
+      <h3>Delete your account</h3>
+      <p>
+        You can delete your Bagpipe Golf account at any time from
+        <strong>Profile → Delete Account</strong>. The deletion flow
+        removes:
+      </p>
+      <ul>
+        <li>Your profile and authentication record</li>
+        <li>Your rounds, bets, and tournaments</li>
+        <li>Your friends list (and your entry from your friends' lists)</li>
+        <li>Your issue reports</li>
+      </ul>
+      <p>
+        <strong>Known limitation:</strong> image attachments
+        (screenshots) you included with an issue report are not
+        currently deleted automatically when you delete your account
+        — the report text is removed, but the uploaded image file may
+        remain in our storage. We're working on closing this gap;
+        until then, avoid attaching screenshots that show sensitive
+        personal information, and email us (§10) if you want a
+        specific attachment removed.
+      </p>
+      <p>
+        Some information may be retained where law requires (for
+        example, financial recordkeeping where Bagpipe Golf has
+        handled real money; we currently do not).
+      </p>
+      <p>
+        <strong>Aggregate metrics survive deletion.</strong> Deleting
+        your account removes your personally-identifying records, but
+        aggregate counts derived from your activity — for example,
+        totals used for app-wide metrics like rounds played, bets
+        settled, or tournaments run — may continue to exist as part
+        of our overall usage statistics. These counts are not linked
+        back to your identity once your account is deleted.
+      </p>
+
+      <h3>Access and correct your data</h3>
+      <p>
+        You can view and edit most of your data in-app. For a full
+        data export, email us at the address in §10 below.
+      </p>
+
+      <h3>Opt out of notifications</h3>
+      <p>
+        You can disable push, email, SMS, and in-app notifications
+        per category (Tournament, Social, System) at
+        <strong>Profile → Notifications</strong>.
+      </p>
+
+      <h3>Opt out of analytics</h3>
+      <p>
+        Analytics are used for product improvement; we don't sell
+        them. If you'd like to disable PostHog event reporting
+        entirely, email us — we can flag your account as opted-out.
+      </p>
+
+      <h3>Region-specific rights</h3>
+      <p>
+        If you are in California, the EEA, the UK, or another
+        jurisdiction with statutory privacy rights, you may have
+        additional rights including the right to know, the right to
+        delete, the right to portability, and the right to opt out of
+        "selling" or "sharing." Email us to exercise any of these
+        rights. We will not discriminate against you for exercising
+        your rights.
+      </p>
+
+      <h2>7. Children's privacy</h2>
+      <p>
+        Bagpipe Golf is not intended for children under 13 (or the
+        equivalent minimum age in your country). We do not knowingly
+        collect information from children. If we learn we've
+        collected information from a child, we'll delete it.
+      </p>
+
+      <h2>8. Security</h2>
+      <p>
+        We use industry-standard encryption in transit (HTTPS for
+        every API call, TLS for every database connection) and at
+        rest (provider-managed encrypted storage on Supabase). We use
+        Supabase Row Level Security to enforce per-user access
+        controls at the database layer. Authentication uses PKCE;
+        biometric credentials never leave your device.
+      </p>
+      <p>
+        No system is perfect. If you believe your account has been
+        compromised, email the address in §10 and we'll help you
+        secure it.
+      </p>
+
+      <h2>9. Changes to this policy</h2>
+      <p>
+        This policy is subject to change at any time, with or without
+        notice. When we update it, we'll update the "Last updated"
+        date at the top of this page, and we'll make reasonable
+        efforts to notify active users in-app or by email when the
+        changes are material — but your continued use of the Service
+        after a revised policy is posted constitutes your acceptance
+        of it, whether or not you received a direct notice.
+      </p>
+
+      <h2>10. Contact us</h2>
+      <p>Privacy questions, data export requests, or rights inquiries:</p>
+      <p>
+        <strong>Bagpipe Golf</strong>, a subsidiary of Taybuta, Inc.<br />
+        <strong>Privacy contact:</strong>
+        <a href="mailto:privacy@bagpipegolf.com">privacy@bagpipegolf.com</a><br />
+        <strong>Mailing address:</strong> 2119 Greenspire Dr, Casper, WY 82604
+      </p>
+
+      <h2>11. Governing law</h2>
+      <p>
+        This policy is governed by the laws of the State of
+        Colorado, without regard to its conflict of laws principles.
+      </p>
+
+      <p class="prose__meta">
+        Questions? <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>
+      </p>
     </article>
   </main>
 </BaseLayout>
 
 <style>
+  .prose {
+    color: var(--ink);
+    font-size: 15.5px;
+    line-height: 1.6;
+  }
+  .prose__lead {
+    font-size: 16px;
+    color: var(--ink);
+    margin: 0 0 28px;
+  }
+  .prose h2 {
+    margin: 32px 0 10px;
+    font-size: 20px;
+    color: var(--brand-green-dark);
+    font-weight: 800;
+  }
+  .prose h2:first-of-type { margin-top: 8px; }
   .prose h3 {
     margin: 20px 0 8px;
-    font-size: 17px;
+    font-size: 16px;
     color: var(--brand-green-dark);
+    font-weight: 700;
   }
-  .prose h3:first-child { margin-top: 0; }
-  .prose p { color: var(--ink-muted); font-size: 15px; }
-  .prose__meta { margin-top: 24px; color: var(--ink-hint); font-size: 13px; }
+  .prose p {
+    color: var(--ink);
+    margin: 0 0 12px;
+  }
+  .prose ul {
+    margin: 0 0 14px;
+    padding-left: 22px;
+  }
+  .prose li {
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .prose__tablewrap {
+    overflow-x: auto;
+    margin: 0 0 16px;
+  }
+  .prose__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .prose__table th,
+  .prose__table td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .prose__table th {
+    background: var(--paper-tint);
+    color: var(--brand-green-dark);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .prose__meta {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-hint);
+    font-size: 13px;
+  }
 </style>
