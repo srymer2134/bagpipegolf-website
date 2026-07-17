@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
-// Tournament-invite landing page.
+// Join-code landing page.
 //
 // Reached when someone taps a `https://bagpipegolf.com/join/<CODE>`
 // link and:
@@ -16,6 +16,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 // this URL before the page ever renders — so the "Open in app"
 // affordance below is a graceful fallback rather than the primary
 // flow.
+//
+// Codes here are ambiguous by design: the same 6-char alphabet
+// covers both shared bet games and shared tournaments. The
+// Flutter side dispatches on lookup (`JoinDispatcherScreen`) once
+// the app opens, so this page stays game-agnostic.
 
 const rawCode = (Astro.params.code ?? '').toUpperCase();
 // Tighten the displayed code to 6 alphanumerics so a typo URL
@@ -30,10 +35,10 @@ const fairwayiqScheme = isValid ? `fairwayiq://join/${code}` : null;
   <main class="pagewrap pagewrap--narrow">
     {isValid ? (
       <>
-        <p class="pagewrap__eyebrow">Tournament invite</p>
+        <p class="pagewrap__eyebrow">Join a live game</p>
         <h1 class="pagewrap__title">You're invited.</h1>
         <p class="pagewrap__sub">
-          Tap "Open in Bagpipe Golf" below to jump straight to the live tournament. If the app isn't installed yet, grab it first — your invite code is ready when you sign in.
+          Tap "Open in Bagpipe Golf" below to jump straight to the live game — the app will figure out whether it's a tournament or a side-bet game. If the app isn't installed yet, grab it first and your code will be ready.
         </p>
 
         <section class="codecard">
@@ -48,7 +53,7 @@ const fairwayiqScheme = isValid ? `fairwayiq://join/${code}` : null;
               Open in Bagpipe Golf
             </a>
           )}
-          <a class="btn btn--ghost" href="https://apps.apple.com/app/id0000000000">
+          <a class="btn btn--ghost" href={`mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf%20TestFlight%20invite%20(join%20${code})`}>
             Get the app
           </a>
         </div>
@@ -57,18 +62,18 @@ const fairwayiqScheme = isValid ? `fairwayiq://join/${code}` : null;
           <summary>Or enter the code manually</summary>
           <ol>
             <li>Open <strong>Bagpipe Golf</strong> on your phone.</li>
-            <li>Tap the <strong>Tourney</strong> tab at the bottom.</li>
-            <li>Tap <strong>Join Tournament</strong> (top-right menu) and paste <code>{code}</code>.</li>
-            <li>Pick <strong>Spectator</strong> to watch or <strong>Player</strong> to be added to the field.</li>
+            <li>For a <strong>side-bet game</strong>: tap the <strong>Play</strong> tab and choose <strong>Join Game</strong>, then paste <code>{code}</code>.</li>
+            <li>For a <strong>tournament</strong>: tap the <strong>Events</strong> tab and choose <strong>Join Tournament</strong>, then paste <code>{code}</code>.</li>
+            <li>Not sure which? Either flow will bounce you to the right screen once the code resolves.</li>
           </ol>
         </details>
       </>
     ) : (
       <>
-        <p class="pagewrap__eyebrow">Tournament invite</p>
+        <p class="pagewrap__eyebrow">Join a live game</p>
         <h1 class="pagewrap__title">That code doesn't look right.</h1>
         <p class="pagewrap__sub">
-          Bagpipe Golf join codes are 6 letters and numbers — like <code>ABC123</code>. Check the link you tapped and try again, or open the app and tap "Join Tournament" to type the code manually.
+          Bagpipe Golf join codes are 6 letters and numbers — like <code>ABC123</code>. Check the link you tapped and try again, or open the app and use <strong>Join Game</strong> (Play tab) or <strong>Join Tournament</strong> (Events tab) to type the code manually.
         </p>
         <a class="btn btn--primary" href="/">Back to home</a>
       </>
