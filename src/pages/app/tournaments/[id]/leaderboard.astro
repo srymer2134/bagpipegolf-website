@@ -22,6 +22,11 @@ import {
   isHeadToHeadFormat,
   type MatchStatus,
 } from '../../../../lib/matchBoard';
+import {
+  buildAllSkinsSections,
+  hasAnySkinsPool,
+  type SkinsSection,
+} from '../../../../lib/skinsPool';
 import type { TournamentRound } from '../../../../lib/tournamentQueries';
 
 // Public leaderboard — no auth required. RLS grants anon SELECT
@@ -50,9 +55,10 @@ const roundIdParam = url.searchParams.get('round');
 //                     when no round in the tournament uses a match-play
 //                     format (best_ball / best_three_of_four / singles).
 const boardParam = url.searchParams.get('board');
-const boardMode: 'individual' | 'teams' | 'matches' =
+const boardMode: 'individual' | 'teams' | 'matches' | 'skins' =
   boardParam === 'teams' ? 'teams'
   : boardParam === 'matches' ? 'matches'
+  : boardParam === 'skins' ? 'skins'
   : 'individual';
 
 const supabase = createSupabaseClient({
@@ -68,6 +74,8 @@ let courseName: string | null = null;
 let rows: LeaderboardRow[] = [];
 let teamRows: TeamStandingRow[] = [];
 let matchGroups: { round: TournamentRound; matches: MatchStatus[] }[] = [];
+let skinsSections: SkinsSection[] = [];
+let anySkinsEnabled = false;
 let ctpEntries: ReturnType<typeof extractCtpEntries> = [];
 type RoundTab = { id: string; name: string; format: string };
 let rounds: RoundTab[] = [];
@@ -107,11 +115,14 @@ try {
           && rounds.find((r) => r.id === activeRoundId)?.format != null
           && isHeadToHeadFormat(rounds.find((r) => r.id === activeRoundId)!.format);
 
+      anySkinsEnabled = hasAnySkinsPool(t);
       const canShowTeams = activeRoundId ? activeRoundIsBestBall : anyBestBall;
       const canShowMatches = activeRoundId ? activeRoundIsMatchPlay : anyMatchPlay;
+      const canShowSkins = anySkinsEnabled;
       const effectiveBoard =
         boardMode === 'teams' && canShowTeams ? 'teams'
         : boardMode === 'matches' && canShowMatches ? 'matches'
+        : boardMode === 'skins' && canShowSkins ? 'skins'
         : 'individual';
 
       if (effectiveBoard === 'teams') {
@@ -128,6 +139,8 @@ try {
         } else {
           matchGroups = buildAllRoundsMatchBoard(t);
         }
+      } else if (effectiveBoard === 'skins') {
+        skinsSections = buildAllSkinsSections(t);
       } else {
         rows = activeRoundId
           ? buildRoundLeaderboard(t, activeRoundId, view)
@@ -146,6 +159,7 @@ const showTeamsBoard = boardMode === 'teams'
   && (activeRoundId ? activeRoundIsBestBall : anyBestBall);
 const showMatchBoard = boardMode === 'matches'
   && (activeRoundId ? activeRoundIsMatchPlay : anyMatchPlay);
+const showSkinsBoard = boardMode === 'skins' && anySkinsEnabled;
 
 // Helper to build a URL for a toggle click that preserves the
 // other params (so tapping "Net" doesn't kick you out of kiosk
@@ -215,10 +229,19 @@ function buildUrl(overrides: Record<string, string | null>): string {
                   Matches
                 </a>
               )}
+              {anySkinsEnabled && (
+                <a
+                  class={`seg ${showSkinsBoard ? 'seg--active' : ''}`}
+                  href={buildUrl({ board: 'skins' })}
+                  title="Skins pools (per-flight + Super Skins)"
+                >
+                  Skins
+                </a>
+              )}
             </div>
           )}
 
-          {!showTeamsBoard && !showMatchBoard && anyNetAvailable && (
+          {!showTeamsBoard && !showMatchBoard && !showSkinsBoard && anyNetAvailable && (
             <div class="segmented">
               <a
                 class={`seg ${view === 'gross' ? 'seg--active' : ''}`}
@@ -314,7 +337,7 @@ function buildUrl(overrides: Record<string, string | null>): string {
       </article>
     )}
 
-    {!loadError && !notFound && !showTeamsBoard && rows.length === 0 && (
+    {!loadError && !notFound && !showTeamsBoard && !showMatchBoard && !showSkinsBoard && rows.length === 0 && (
       <article class="card">
         <h3>No scores yet</h3>
         <p>
@@ -333,7 +356,7 @@ function buildUrl(overrides: Record<string, string | null>): string {
       </article>
     )}
 
-    {!loadError && !notFound && !showTeamsBoard && rows.length > 0 && (
+    {!loadError && !notFound && !showTeamsBoard && !showMatchBoard && !showSkinsBoard && rows.length > 0 && (
       <table class="lbtable">
         <thead>
           <tr>
@@ -464,6 +487,45 @@ function buildUrl(overrides: Record<string, string | null>): string {
                 );
               })}
             </div>
+          </section>
+        ))}
+      </div>
+    )}
+
+    {!loadError && !notFound && showSkinsBoard && skinsSections.length === 0 && (
+      <article class="card">
+        <h3>No skins won yet</h3>
+        <p>
+          Skins pools fill in as scorekeepers enter scores. Ties carry
+          forward — a hole must have a strict low to award a skin.
+          Auto-refreshes every 30 seconds.
+        </p>
+      </article>
+    )}
+
+    {!loadError && !notFound && showSkinsBoard && skinsSections.length > 0 && (
+      <div class="skins-sections">
+        {skinsSections.map((s) => (
+          <section class="skins-section">
+            <h2 class="skins-title">{s.title}</h2>
+            <table class="lbtable">
+              <thead>
+                <tr>
+                  <th class="col-rank">#</th>
+                  <th class="col-name">Player</th>
+                  <th class="col-thru">Skins</th>
+                </tr>
+              </thead>
+              <tbody>
+                {s.rows.map((r) => (
+                  <tr>
+                    <td class="col-rank">{r.rank}</td>
+                    <td class="col-name">{r.name}</td>
+                    <td class="col-thru">{r.skinsWon}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </section>
         ))}
       </div>
@@ -744,6 +806,23 @@ function buildUrl(overrides: Record<string, string | null>): string {
   .kiosk .match-status { font-size: 18px; }
   .kiosk .match-thru { font-size: 13px; }
   .kiosk .match-vs { min-width: 180px; }
+
+  /* Skins */
+  .skins-sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+    margin-top: 8px;
+  }
+  .skins-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+  }
+  .kiosk .skins-title { font-size: 20px; }
 
   .card--warn {
     border-color: #b00020;
