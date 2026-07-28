@@ -1,50 +1,638 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import {
+  getPublicTournament,
+  isCompleted,
+  hasAnyScores,
+  playerHoleScoresFor,
+  type TournamentPlayer,
+  type TournamentRound,
+} from '../../../../lib/tournamentQueries';
+
+// Tournament overview — the "at a glance" landing when someone
+// clicks a tournament card. Anon-readable (RLS grants SELECT to
+// anon on public.tournaments), auto-refreshes every 30s so a
+// dashboard on a clubhouse TV stays live.
+//
+// Layout:
+//   Hero:           status pill + name + course + tourney meta
+//   Quick actions:  Leaderboard / Scorecard / Share URL / Kiosk
+//   Key stats row:  Players / Rounds / Course / Par
+//   Rounds card:    per-round format + progress indicator
+//   Field card:     player roster with HC
+//   Config card:    skins pools, flights, CTP/LD tracking (when set)
 
 const { id } = Astro.params;
+const url = new URL(Astro.request.url);
+const kiosk = url.searchParams.get('kiosk') === '1';
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let notFound = false;
+let loadError: string | null = null;
+type Tournament = Awaited<ReturnType<typeof getPublicTournament>>;
+let t: Tournament = null;
+
+try {
+  if (!id) notFound = true;
+  else {
+    t = await getPublicTournament(supabase, id);
+    if (!t) notFound = true;
+  }
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load tournament.';
+}
+
+// Derived state — nothing renders when t is null.
+const players: TournamentPlayer[] = t?.players ?? [];
+const rounds: TournamentRound[] = t?.rounds ?? [];
+const completed = t ? isCompleted(t) : false;
+const scored = t ? hasAnyScores(t) : false;
+const state: 'upcoming' | 'active' | 'completed' = completed
+  ? 'completed'
+  : scored
+    ? 'active'
+    : 'upcoming';
+
+const stateLabel = { upcoming: 'Upcoming', active: 'Live', completed: 'Final' }[state];
+
+// Per-round scored counts — how many players posted any score in
+// each round. Drives the progress indicator.
+function scoredCountForRound(r: TournamentRound): number {
+  let count = 0;
+  for (const phs of playerHoleScoresFor(r)) {
+    if ((phs.holeScores ?? []).some((s) => s != null)) count++;
+  }
+  return count;
+}
+
+const roundsScored = rounds.filter((r) => scoredCountForRound(r) > 0).length;
+
+const fmtDate = (iso: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+// Wire-value → human label for the round format chip.
+const FORMAT_LABEL: Record<string, string> = {
+  stroke_play: 'Stroke Play',
+  best_ball: '2-Man Best Ball',
+  best_ball_four_man: '4-Man Best 2 of 4',
+  best_three_of_four: 'Best 3 of 4',
+  high_low_2v2: 'High-Low 2v2',
+  singles: 'Singles Match Play',
+  foursomes: 'Foursomes',
+  greensomes: 'Greensomes',
+  pinehurst: 'Pinehurst',
+  scramble: 'Scramble',
+  shotgun: 'Shotgun',
+};
+function formatLabel(f: string | null | undefined): string {
+  if (!f) return 'Format';
+  return FORMAT_LABEL[f] ?? f.replace(/_/g, ' ');
+}
+
+// Skins + flights signals for the config card.
+const skinsList: string[] = (t?.skins_competitions ?? []) as string[];
+const skinsLabels = skinsList
+  .map((s) =>
+    s === 'gross_skins' ? 'Gross Skins'
+    : s === 'net_skins' ? 'Net Skins'
+    : s === 'super_skins' ? 'Super Skins'
+    : s,
+  )
+  .filter(Boolean);
+const flights = t?.flights ?? [];
+const trackCTP = (t as unknown as { track_ctp_on_par3s?: boolean } | null)
+  ?.track_ctp_on_par3s === true;
+const trackLD = (t as unknown as { track_longest_drive?: boolean } | null)
+  ?.track_longest_drive === true;
+
+// The "you should see this feature" signals — hides the whole
+// Config card when nothing is set.
+const hasConfig =
+  skinsLabels.length > 0 || flights.length > 0 || trackCTP || trackLD;
+
+// Sort players by handicap ascending for a proper "roster" feel
+// (lower HC / stronger players first). Nulls last.
+const sortedPlayers = [...players].sort((a, b) => {
+  const ai = typeof a.handicapIndex === 'number' ? a.handicapIndex : 999;
+  const bi = typeof b.handicapIndex === 'number' ? b.handicapIndex : 999;
+  return ai - bi;
+});
 ---
 
-<BaseLayout title="Tournament · Bagpipe Golf">
+<BaseLayout title={`${t?.name ?? 'Tournament'} · Bagpipe Golf`}>
+  <meta http-equiv="refresh" content="30" slot="head" />
+
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">Tournament</p>
-    <h1 class="pagewrap__title">Tournament details</h1>
-    <p class="pagewrap__sub">
-      Your view as a player. The public leaderboard for this tournament is shareable — anyone with the link can follow along live.
-    </p>
 
-    <TournamentSubnav id={id!} active="overview" />
+    {loadError && (
+      <article class="card card--warn">
+        <h3>Could not load tournament</h3>
+        <p>{loadError}</p>
+      </article>
+    )}
 
-    <section class="grid grid--2">
+    {notFound && !loadError && (
       <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Format &amp; field</h3>
-        <p>Per-round format, courses, tees, flights, side pools.</p>
+        <h3>Tournament not found</h3>
+        <p>Double-check the id in the URL.</p>
       </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Your status</h3>
-        <p>Your pairing, your tee time, your scorekeeper assignment.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Today's score</h3>
-        <p>Hole-by-hole entry + live position.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Side bets</h3>
-        <p>Auto-paired scorecard round + live balances.</p>
-      </article>
-    </section>
+    )}
+
+    {t && !loadError && (
+      <>
+        {/* Hero */}
+        <header class="hero">
+          <div class="hero__row">
+            <span class={`pill pill--${state}`}>{stateLabel}</span>
+            {rounds.length > 1 && (
+              <span class="pill pill--muted">
+                {roundsScored}/{rounds.length} rounds scored
+              </span>
+            )}
+          </div>
+          <h1 class="hero__name">{t.name}</h1>
+          {t.course_name && <p class="hero__course">{t.course_name}</p>}
+          <p class="hero__meta">
+            {t.created_at && <>Created {fmtDate(t.created_at)}</>}
+            {t.completed_at && <> · Completed {fmtDate(t.completed_at)}</>}
+          </p>
+        </header>
+
+        <TournamentSubnav id={id!} active="overview" />
+
+        {/* Quick actions */}
+        <div class="actions">
+          <a class="btn btn--primary" href={`/app/tournaments/${id}/leaderboard`}>
+            📊 Leaderboard
+          </a>
+          <a class="btn btn--ghost" href={`/app/tournaments/${id}/scorecard`}>
+            📝 Scorecard
+          </a>
+          <a
+            class="btn btn--ghost"
+            href={`/app/tournaments/${id}/leaderboard?kiosk=1`}
+            title="Kiosk / TV view"
+          >
+            📺 TV Mode
+          </a>
+          <a
+            class="btn btn--ghost"
+            href={`/t/${id}`}
+            title="Public short URL — share with anyone"
+          >
+            🔗 Share
+          </a>
+        </div>
+
+        {/* Key stats */}
+        <section class="stats">
+          <div class="stat">
+            <div class="stat__val">{players.length}</div>
+            <div class="stat__lbl">Players</div>
+          </div>
+          <div class="stat">
+            <div class="stat__val">{rounds.length}</div>
+            <div class="stat__lbl">Round{rounds.length === 1 ? '' : 's'}</div>
+          </div>
+          <div class="stat">
+            <div class="stat__val">{t.total_holes ?? '—'}</div>
+            <div class="stat__lbl">Holes</div>
+          </div>
+          <div class="stat">
+            <div class="stat__val">{t.par_total ?? '—'}</div>
+            <div class="stat__lbl">Par</div>
+          </div>
+        </section>
+
+        {/* Rounds */}
+        {rounds.length > 0 && (
+          <section class="block">
+            <h2 class="block__title">Rounds</h2>
+            <div class="rounds-list">
+              {rounds.map((r, idx) => {
+                const scoredCount = scoredCountForRound(r);
+                const teams = r.teams ?? [];
+                const roundState =
+                  scoredCount === 0
+                    ? 'upcoming'
+                    : scoredCount < players.length
+                      ? 'active'
+                      : 'complete';
+                const rsLbl = { upcoming: 'Upcoming', active: 'In play', complete: 'Complete' }[
+                  roundState
+                ];
+                return (
+                  <a
+                    class="round-row"
+                    href={`/app/tournaments/${id}/leaderboard?round=${encodeURIComponent(r.id)}`}
+                  >
+                    <div class="round-row__idx">R{idx + 1}</div>
+                    <div class="round-row__main">
+                      <div class="round-row__name">{r.name}</div>
+                      <div class="round-row__meta">
+                        <span class="chip chip--format">{formatLabel(r.format)}</span>
+                        {teams.length > 0 && (
+                          <span class="chip chip--muted">{teams.length} teams</span>
+                        )}
+                      </div>
+                    </div>
+                    <div class="round-row__right">
+                      <span class={`pill pill--${roundState}`}>{rsLbl}</span>
+                      <span class="round-row__progress">
+                        {scoredCount}/{players.length} scored
+                      </span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Field */}
+        {sortedPlayers.length > 0 && (
+          <section class="block">
+            <h2 class="block__title">
+              Field
+              <span class="block__count">· {sortedPlayers.length}</span>
+            </h2>
+            <div class="roster">
+              {sortedPlayers.map((p) => (
+                <div class="roster__row">
+                  <span class="roster__name">{p.name}</span>
+                  <span class="roster__hc">
+                    {typeof p.handicapIndex === 'number'
+                      ? p.handicapIndex.toFixed(1)
+                      : '—'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Config */}
+        {hasConfig && (
+          <section class="block">
+            <h2 class="block__title">Format &amp; pools</h2>
+            <div class="config-grid">
+              {skinsLabels.length > 0 && (
+                <article class="config-card">
+                  <div class="config-card__hdr">Skins pools</div>
+                  <div class="config-card__body">
+                    {skinsLabels.map((s) => (
+                      <span class="chip chip--brand">{s}</span>
+                    ))}
+                  </div>
+                </article>
+              )}
+              {flights.length > 0 && (
+                <article class="config-card">
+                  <div class="config-card__hdr">Flights</div>
+                  <div class="config-card__body">
+                    {flights.map((f) => (
+                      <span class="chip chip--brand">
+                        {f.name}
+                        {' · '}
+                        {(f.playerIds ?? f.player_ids ?? []).length} players
+                      </span>
+                    ))}
+                  </div>
+                </article>
+              )}
+              {(trackCTP || trackLD) && (
+                <article class="config-card">
+                  <div class="config-card__hdr">Side events</div>
+                  <div class="config-card__body">
+                    {trackCTP && <span class="chip chip--brand">Closest to Pin (par 3s)</span>}
+                    {trackLD && <span class="chip chip--brand">Longest Drive</span>}
+                  </div>
+                </article>
+              )}
+            </div>
+          </section>
+        )}
+
+        <p class="pagefoot muted small">
+          Auto-refreshes every 30 seconds. Score entry happens in the mobile app.
+        </p>
+      </>
+    )}
   </main>
 </BaseLayout>
 
 <style>
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+  /* Hero */
+  .hero {
+    margin: 8px 0 20px;
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .hero__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .hero__name {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+    line-height: 1.15;
+  }
+  .hero__course {
+    font-size: 16px;
+    color: var(--ink);
+    font-weight: 600;
+    margin: 4px 0 0;
+  }
+  .hero__meta {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin: 4px 0 0;
+  }
+
+  /* State + progress pills */
+  .pill {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: #f1f4f2;
+    color: var(--ink-muted);
+    border: 1px solid transparent;
+  }
+  .pill--active {
+    background: var(--brand-green);
+    color: white;
+  }
+  .pill--upcoming {
+    background: #fef7e0;
+    color: #8a6d1f;
+  }
+  .pill--completed {
+    background: #eef4ff;
+    color: #1e40af;
+  }
+  .pill--complete {
+    background: var(--brand-green);
+    color: white;
+  }
+  .pill--muted {
+    background: #f1f4f2;
+    color: var(--ink-muted);
+  }
+
+  /* Quick action row */
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .btn {
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+    border: 1px solid transparent;
+  }
+  .btn--primary {
+    background: var(--brand-green);
+    color: white;
+  }
+  .btn--primary:hover { background: var(--brand-green-dark); }
+  .btn--ghost {
+    background: transparent;
+    border-color: var(--line);
+    color: var(--brand-green-dark);
+  }
+  .btn--ghost:hover {
+    border-color: var(--brand-green);
+    background: #f0f7f2;
+  }
+
+  /* Stats row */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 8px;
+    margin-bottom: 28px;
+  }
+  .stat {
+    text-align: center;
+    padding: 4px 4px;
+    border-right: 1px solid var(--line);
+  }
+  .stat:last-child { border-right: none; }
+  .stat__val {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    line-height: 1.1;
+  }
+  .stat__lbl {
+    font-size: 11px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  @media (max-width: 540px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .stat { border-right: none; }
+    .stat:nth-child(odd) { border-right: 1px solid var(--line); }
+  }
+
+  /* Section blocks */
+  .block { margin-top: 28px; }
+  .block__title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .block__count {
+    font-size: 13px;
+    color: var(--ink-muted);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+  }
+
+  /* Rounds list */
+  .rounds-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .round-row {
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--ink);
+    transition: border-color 0.12s ease;
+  }
+  .round-row:hover {
+    border-color: var(--brand-green);
+    box-shadow: 0 4px 12px rgba(15, 61, 37, 0.06);
+  }
+  .round-row__idx {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--brand-green);
+    color: white;
+    font-weight: 800;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+  .round-row__name {
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    font-size: 15px;
+    line-height: 1.2;
+  }
+  .round-row__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .round-row__right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .round-row__progress {
+    font-size: 11px;
+    color: var(--ink-muted);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Chips */
+  .chip {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f1f4f2;
+    color: var(--ink-muted);
+    white-space: nowrap;
+  }
+  .chip--format {
+    background: var(--brand-green-soft, #f0f7f2);
+    color: var(--brand-green-dark);
+  }
+  .chip--brand {
+    background: rgba(47, 125, 68, 0.1);
+    color: var(--brand-green-dark);
+  }
+  .chip--muted {
+    background: #f1f4f2;
+    color: var(--ink-muted);
+  }
+
+  /* Roster */
+  .roster {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 6px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px;
+  }
+  .roster__row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: transparent;
+  }
+  .roster__row:hover { background: #f0f7f2; }
+  .roster__name {
+    font-weight: 600;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .roster__hc {
+    font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    margin-left: 12px;
+    flex-shrink: 0;
+  }
+
+  /* Config cards */
+  .config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 10px;
+  }
+  .config-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .config-card__hdr {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  .config-card__body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .pagefoot { margin: 32px 0 16px; }
+  .card--warn { border-color: #b00020; }
 </style>
