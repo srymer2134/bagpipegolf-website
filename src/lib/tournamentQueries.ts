@@ -161,9 +161,33 @@ export function parsForRound(
 /// case depending on which write path landed it) into a stable
 /// shape the leaderboard aggregator can walk. Empty when the
 /// round has no scores.
+///
+/// Normalisation runs on BOTH levels:
+///   1. Round key: `player_hole_scores` (server / Flutter writes)
+///      vs `playerHoleScores` (older Freezed-only writes).
+///   2. Inner row keys: `{player_id, hole_scores}` vs
+///      `{playerId, holeScores}`. Sam 2026-07-28: B5/Gg3/B2 all
+///      persist as snake_case at the inner level (matches Flutter's
+///      TournamentPlayerHoleScore.toJson via @JsonKey rename).
+///      Before this normalisation, the aggregator read
+///      `phs.playerId` and got undefined for every player, so
+///      every row was skipped and the leaderboard showed
+///      "No scores yet" for tournaments with real data.
 export function playerHoleScoresFor(
   round: TournamentRound,
 ): TournamentPlayerHoleScore[] {
   const raw = round.player_hole_scores ?? round.playerHoleScores ?? [];
-  return raw;
+  return raw.map((row: any) => ({
+    playerId:
+      typeof row?.playerId === 'string'
+        ? row.playerId
+        : typeof row?.player_id === 'string'
+          ? row.player_id
+          : '',
+    holeScores: Array.isArray(row?.holeScores)
+      ? row.holeScores
+      : Array.isArray(row?.hole_scores)
+        ? row.hole_scores
+        : [],
+  }));
 }
