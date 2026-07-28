@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "bagpipegolf",
+  "name": "bagpipegolf-website",
   "compatibility_date": "2026-05-27",
   "observability": {
     "enabled": true
