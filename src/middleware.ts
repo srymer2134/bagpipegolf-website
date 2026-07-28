@@ -7,6 +7,18 @@ import { handleWellKnownRequest } from './lib/wellKnown';
 // with a `?next=` so the user comes back to where they started.
 const PROTECTED_PREFIXES = ['/app'];
 
+// Sub-routes under a PROTECTED_PREFIXES path that are PUBLIC and
+// bypass the auth gate. The Ballyneal Brigade 2026-07-27 public
+// leaderboard lives at `/app/tournaments/:id/leaderboard` — anyone
+// with the id (or the `/t/:id` short URL that redirects here) can
+// view without signing in. RLS on `public.tournaments` grants
+// `anon` a SELECT policy so the SSR fetch works with just the
+// anon key (see the flutter repo migration
+// `20260727_public_read_tournaments_for_web_leaderboard.sql`).
+const PUBLIC_APP_PATTERNS: RegExp[] = [
+  /^\/app\/tournaments\/[^/]+\/leaderboard\/?$/,
+];
+
 // Routes a signed-in user should be bounced AWAY from (login pages,
 // etc.). Sends them to /app instead.
 const SIGNED_IN_BOUNCE = ['/login', '/signup', '/forgot-password'];
@@ -45,7 +57,8 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
   (ctx.locals as App.Locals).user = user;
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
-  if (isProtected && !user) {
+  const isPublicApp = PUBLIC_APP_PATTERNS.some((r) => r.test(pathname));
+  if (isProtected && !isPublicApp && !user) {
     const next = encodeURIComponent(pathname + (new URL(ctx.request.url).search || ''));
     return ctx.redirect(`/login?next=${next}`, 302);
   }
