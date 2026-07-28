@@ -1,40 +1,495 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import {
+  getPublicTournament,
+  parsForRound,
+  playerHoleScoresFor,
+  type TournamentPlayer,
+  type TournamentRound,
+} from '../../../../lib/tournamentQueries';
+
+// Read-only scorecard. Grid of players × holes. FRONT NINE +
+// BACK NINE tables when the round is 18 holes; single table for
+// 9-hole rounds or shorter Cup formats.
+//
+// Data path: same as the leaderboard — anon Supabase read of
+// public.tournaments (RLS grants anon SELECT). No writes; the
+// mobile app is the source of truth for score entry.
+//
+// URL state:
+//   ?round=<id> → single round shown (default: first round)
+// Auto-refreshes every 30s so a clubhouse laptop stays live.
 
 const { id } = Astro.params;
+const url = new URL(Astro.request.url);
+const roundIdParam = url.searchParams.get('round');
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let notFound = false;
+let loadError: string | null = null;
+let tournamentName = 'Tournament';
+let courseName: string | null = null;
+type RoundTab = { id: string; name: string };
+let rounds: RoundTab[] = [];
+let activeRound: TournamentRound | null = null;
+let players: TournamentPlayer[] = [];
+let pars: number[] = [];
+
+try {
+  if (!id) {
+    notFound = true;
+  } else {
+    const t = await getPublicTournament(supabase, id);
+    if (!t) {
+      notFound = true;
+    } else {
+      tournamentName = t.name;
+      courseName = t.course_name;
+      rounds = t.rounds.map((r) => ({ id: r.id, name: r.name }));
+      const preferred = roundIdParam
+        ? t.rounds.find((r) => r.id === roundIdParam)
+        : undefined;
+      activeRound = preferred ?? t.rounds[0] ?? null;
+      players = t.players ?? [];
+      if (activeRound) pars = parsForRound(t, activeRound);
+    }
+  }
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load scorecard.';
+}
+
+// Score lookup by playerId.
+const scoreByPlayer = new Map<string, (number | null)[]>();
+if (activeRound) {
+  for (const phs of playerHoleScoresFor(activeRound)) {
+    scoreByPlayer.set(phs.playerId, phs.holeScores);
+  }
+}
+
+const totalHoles = pars.length;
+const has18 = totalHoles >= 18;
+const front9Pars = pars.slice(0, 9);
+const back9Pars = has18 ? pars.slice(9, 18) : [];
+const front9Total = front9Pars.reduce((s, p) => s + p, 0);
+const back9Total = back9Pars.reduce((s, p) => s + p, 0);
+const parTotal = pars.reduce((s, p) => s + p, 0);
+
+// Format a signed vs-par string like the leaderboard.
+function fmtVs(v: number): string {
+  if (v === 0) return 'E';
+  return v > 0 ? `+${v}` : `${v}`;
+}
+
+// Compute a player's front / back / total sums + played counts.
+function summariseRow(row: (number | null)[] | undefined) {
+  let front = 0;
+  let frontPlayed = 0;
+  let back = 0;
+  let backPlayed = 0;
+  for (let i = 0; i < 9; i++) {
+    const s = row?.[i];
+    if (s != null) {
+      front += s;
+      frontPlayed++;
+    }
+  }
+  for (let i = 9; i < 18; i++) {
+    const s = row?.[i];
+    if (s != null) {
+      back += s;
+      backPlayed++;
+    }
+  }
+  return {
+    front,
+    frontPlayed,
+    back,
+    backPlayed,
+    total: front + back,
+    totalPlayed: frontPlayed + backPlayed,
+  };
+}
+
+// GHIN-style cell classifier: birdie / eagle / par / bogey / double+.
+function scoreClass(score: number | null | undefined, par: number): string {
+  if (score == null) return 'sc sc--empty';
+  const diff = score - par;
+  if (diff <= -2) return 'sc sc--eagle';
+  if (diff === -1) return 'sc sc--birdie';
+  if (diff === 0) return 'sc sc--par';
+  if (diff === 1) return 'sc sc--bogey';
+  return 'sc sc--double';
+}
 ---
 
-<BaseLayout title="Scorecard · Bagpipe Golf">
+<BaseLayout title={`${tournamentName} · Scorecard · Bagpipe Golf`}>
+  <meta http-equiv="refresh" content="30" slot="head" />
+
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">Tournament · scorecard</p>
-    <h1 class="pagewrap__title">Scorecard</h1>
-    <p class="pagewrap__sub">
-      Tap-to-enter scoring. Mirrors the mobile app's score modal.
-    </p>
+    <h1 class="pagewrap__title">{tournamentName}</h1>
+    {courseName && <p class="pagewrap__sub">{courseName}</p>}
+    {id && <TournamentSubnav id={id} active="scorecard" />}
 
-    <TournamentSubnav id={id!} active="scorecard" />
+    {rounds.length > 1 && (
+      <div class="round-strip">
+        {rounds.map((r) => (
+          <a
+            class={`round-chip ${activeRound?.id === r.id ? 'round-chip--active' : ''}`}
+            href={`?round=${encodeURIComponent(r.id)}`}
+          >
+            {r.name}
+          </a>
+        ))}
+      </div>
+    )}
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Your group</h3>
-        <p>Players, scorekeeper claim, per-team progress.</p>
+    {loadError && (
+      <article class="card card--warn">
+        <h3>Could not load scorecard</h3>
+        <p>{loadError}</p>
       </article>
+    )}
+
+    {notFound && !loadError && (
       <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Score entry</h3>
-        <p>Per-hole modal with FIR / GIR / putts, GHIN-style notation.</p>
+        <h3>Tournament not found</h3>
+        <p>Double-check the id in the URL.</p>
       </article>
-    </section>
+    )}
+
+    {!loadError && !notFound && (!activeRound || pars.length === 0) && (
+      <article class="card">
+        <h3>No scoring set up yet</h3>
+        <p>
+          A tournament needs a round with pars + tee boxes before
+          the scorecard can render. Configure the round in the
+          mobile app and this page will fill in.
+        </p>
+      </article>
+    )}
+
+    {!loadError && !notFound && activeRound && pars.length > 0 && players.length === 0 && (
+      <article class="card">
+        <h3>No players yet</h3>
+        <p>Add players in the mobile app.</p>
+      </article>
+    )}
+
+    {!loadError && !notFound && activeRound && pars.length > 0 && players.length > 0 && (
+      <>
+        {front9Pars.length > 0 && (
+          <section class="sccard">
+            <h2 class="sccard__title">Front Nine</h2>
+            <div class="sctable-wrap">
+              <table class="sctable">
+                <thead>
+                  <tr>
+                    <th class="sc-hdr sc-hdr--player">Player</th>
+                    {front9Pars.map((_, i) => (
+                      <th class="sc-hdr">{i + 1}</th>
+                    ))}
+                    <th class="sc-hdr sc-hdr--total">Out</th>
+                  </tr>
+                  <tr>
+                    <td class="sc-par sc-par--label">Par</td>
+                    {front9Pars.map((p) => (
+                      <td class="sc-par">{p}</td>
+                    ))}
+                    <td class="sc-par sc-par--total">{front9Total}</td>
+                  </tr>
+                </thead>
+                <tbody>
+                  {players.map((p) => {
+                    const row = scoreByPlayer.get(p.id);
+                    const s = summariseRow(row);
+                    return (
+                      <tr>
+                        <td class="sc-name">{p.name}</td>
+                        {front9Pars.map((par, i) => {
+                          const val = row?.[i] ?? null;
+                          return (
+                            <td class={scoreClass(val, par)}>
+                              {val ?? '—'}
+                            </td>
+                          );
+                        })}
+                        <td class="sc-total">
+                          {s.frontPlayed > 0 ? s.front : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {has18 && back9Pars.length > 0 && (
+          <section class="sccard">
+            <h2 class="sccard__title">Back Nine</h2>
+            <div class="sctable-wrap">
+              <table class="sctable">
+                <thead>
+                  <tr>
+                    <th class="sc-hdr sc-hdr--player">Player</th>
+                    {back9Pars.map((_, i) => (
+                      <th class="sc-hdr">{i + 10}</th>
+                    ))}
+                    <th class="sc-hdr sc-hdr--total">In</th>
+                    <th class="sc-hdr sc-hdr--total">Total</th>
+                    <th class="sc-hdr sc-hdr--total">vs Par</th>
+                  </tr>
+                  <tr>
+                    <td class="sc-par sc-par--label">Par</td>
+                    {back9Pars.map((p) => (
+                      <td class="sc-par">{p}</td>
+                    ))}
+                    <td class="sc-par sc-par--total">{back9Total}</td>
+                    <td class="sc-par sc-par--total">{parTotal}</td>
+                    <td class="sc-par sc-par--total">—</td>
+                  </tr>
+                </thead>
+                <tbody>
+                  {players.map((p) => {
+                    const row = scoreByPlayer.get(p.id);
+                    const s = summariseRow(row);
+                    const partialPar = pars
+                      .slice(0, s.totalPlayed)
+                      .reduce((a, b) => a + b, 0);
+                    const vsPar = s.total - partialPar;
+                    const vsClass =
+                      s.totalPlayed === 0
+                        ? 'sc-total sc-total--empty'
+                        : vsPar < 0
+                          ? 'sc-total sc-total--under'
+                          : vsPar > 0
+                            ? 'sc-total sc-total--over'
+                            : 'sc-total sc-total--even';
+                    return (
+                      <tr>
+                        <td class="sc-name">{p.name}</td>
+                        {back9Pars.map((par, i) => {
+                          const val = row?.[i + 9] ?? null;
+                          return (
+                            <td class={scoreClass(val, par)}>
+                              {val ?? '—'}
+                            </td>
+                          );
+                        })}
+                        <td class="sc-total">
+                          {s.backPlayed > 0 ? s.back : '—'}
+                        </td>
+                        <td class="sc-total sc-total--big">
+                          {s.totalPlayed > 0 ? s.total : '—'}
+                        </td>
+                        <td class={vsClass}>
+                          {s.totalPlayed > 0 ? fmtVs(vsPar) : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {!has18 && (
+          <section class="sccard sccard--summary">
+            <h2 class="sccard__title">Totals</h2>
+            <table class="sctable">
+              <thead>
+                <tr>
+                  <th class="sc-hdr sc-hdr--player">Player</th>
+                  <th class="sc-hdr sc-hdr--total">Total</th>
+                  <th class="sc-hdr sc-hdr--total">vs Par</th>
+                </tr>
+              </thead>
+              <tbody>
+                {players.map((p) => {
+                  const row = scoreByPlayer.get(p.id);
+                  const s = summariseRow(row);
+                  const partialPar = pars
+                    .slice(0, s.totalPlayed)
+                    .reduce((a, b) => a + b, 0);
+                  const vsPar = s.total - partialPar;
+                  return (
+                    <tr>
+                      <td class="sc-name">{p.name}</td>
+                      <td class="sc-total sc-total--big">
+                        {s.totalPlayed > 0 ? s.total : '—'}
+                      </td>
+                      <td class="sc-total">
+                        {s.totalPlayed > 0 ? fmtVs(vsPar) : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
+        )}
+
+        <p class="scfoot muted small">
+          Auto-refreshes every 30 seconds. Scoring happens in the
+          mobile app.
+        </p>
+      </>
+    )}
   </main>
 </BaseLayout>
 
 <style>
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+  .round-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 16px 0 8px;
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .round-chip {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    text-decoration: none;
+    color: var(--ink-muted);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .round-chip--active {
+    background: var(--brand-green);
+    color: white;
+    border-color: var(--brand-green);
+  }
+
+  .sccard { margin-top: 24px; }
+  .sccard__title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+  }
+  .sctable-wrap {
+    overflow-x: auto;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .sctable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .sctable th,
+  .sctable td {
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid var(--line);
+    min-width: 36px;
+    white-space: nowrap;
+  }
+  .sc-hdr {
+    background: var(--brand-green-dark);
+    color: white;
+    font-weight: 800;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .sc-hdr--player {
+    text-align: left;
+    padding-left: 14px;
+    min-width: 160px;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+  }
+  .sc-hdr--total {
+    background: var(--brand-green);
+  }
+
+  .sc-par {
+    background: #f0f7f2;
+    color: var(--brand-green-dark);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .sc-par--label {
+    text-align: left;
+    padding-left: 14px;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: #f0f7f2;
+  }
+  .sc-par--total {
+    background: #dfeee5;
+  }
+
+  .sc-name {
+    text-align: left;
+    padding-left: 14px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 1;
+  }
+
+  .sc {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .sc--empty { color: var(--ink-muted); }
+  .sc--par { color: var(--ink); }
+  .sc--birdie {
+    color: #b91c1c;
+    background: radial-gradient(circle, transparent 55%, #fee2e2 55%, #fee2e2 80%, transparent 80%);
+  }
+  .sc--eagle {
+    color: #7f1d1d;
+    background: radial-gradient(circle, transparent 45%, #fecaca 45%, #fecaca 65%, transparent 65%, transparent 80%, #fecaca 80%);
+    font-weight: 800;
+  }
+  .sc--bogey {
+    color: #1e3a8a;
+    background: linear-gradient(#dbeafe, #dbeafe);
+    background-size: 70% 70%;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .sc--double {
+    color: #7f1d1d;
+    background: linear-gradient(#fecaca, #fecaca);
+    background-size: 70% 70%;
+    background-position: center;
+    background-repeat: no-repeat;
+    font-weight: 800;
+  }
+
+  .sc-total {
+    background: #f0f7f2;
+    color: var(--brand-green-dark);
+    font-weight: 800;
+  }
+  .sc-total--big { font-size: 16px; }
+  .sc-total--empty { color: var(--ink-muted); }
+  .sc-total--under { color: #b91c1c; }
+  .sc-total--over { color: var(--ink); }
+  .sc-total--even { color: var(--brand-green-dark); }
+
+  .scfoot { margin-top: 12px; }
+  .card--warn { border-color: #b00020; }
 </style>
