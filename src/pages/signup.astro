@@ -22,25 +22,32 @@ if (Astro.request.method === 'POST') {
   } else if (password !== confirm) {
     error = 'Passwords do not match.';
   } else {
-    const supabase = createSupabaseClient({
-      request: Astro.request,
-      cookies: Astro.cookies,
-      locals: Astro.locals,
-    });
-    const { data, error: authErr } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: new URL('/login', Astro.request.url).toString(),
-      },
-    });
-    if (authErr) {
-      error = authErr.message || 'Sign-up failed.';
-    } else if (data.session) {
-      return Astro.redirect(next.startsWith('/') ? next : '/app', 303);
-    } else {
-      // Email confirmation required — no session returned.
-      info = `Check ${email} for a confirmation link to finish signing up.`;
+    try {
+      const supabase = createSupabaseClient({
+        request: Astro.request,
+        cookies: Astro.cookies,
+        locals: Astro.locals,
+      });
+      const { data, error: authErr } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: new URL('/login', Astro.request.url).toString(),
+        },
+      });
+      if (authErr) {
+        error = authErr.message || 'Sign-up failed.';
+      } else if (data.session) {
+        return Astro.redirect(next.startsWith('/') ? next : '/app', 303);
+      } else {
+        // Email confirmation required — no session returned.
+        info = `Check ${email} for a confirmation link to finish signing up.`;
+      }
+    } catch (err: any) {
+      console.error('[signup POST] auth call threw', err);
+      error =
+        'Sign-up is temporarily unavailable. Please try again in a moment. ' +
+        (err?.message ? `(${err.message})` : '');
     }
   }
 }

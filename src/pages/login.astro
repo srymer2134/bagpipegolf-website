@@ -16,16 +16,26 @@ if (Astro.request.method === 'POST') {
   if (!email || !password) {
     error = 'Email and password are required.';
   } else {
-    const supabase = createSupabaseClient({
-      request: Astro.request,
-      cookies: Astro.cookies,
-      locals: Astro.locals,
-    });
-    const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (authErr) {
-      error = authErr.message || 'Sign-in failed. Check your email and password.';
-    } else {
-      return Astro.redirect(next.startsWith('/') ? next : '/app', 303);
+    try {
+      const supabase = createSupabaseClient({
+        request: Astro.request,
+        cookies: Astro.cookies,
+        locals: Astro.locals,
+      });
+      const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+      if (authErr) {
+        error = authErr.message || 'Sign-in failed. Check your email and password.';
+      } else {
+        return Astro.redirect(next.startsWith('/') ? next : '/app', 303);
+      }
+    } catch (err: any) {
+      // Something below Supabase auth threw (env misconfig, Workers
+      // runtime edge case, transient upstream). Surface the message
+      // so we can diagnose instead of returning a bare 500.
+      console.error('[login POST] auth call threw', err);
+      error =
+        'Sign-in is temporarily unavailable. Please try again in a moment. ' +
+        (err?.message ? `(${err.message})` : '');
     }
   }
 }
