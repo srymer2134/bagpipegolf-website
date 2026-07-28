@@ -1,23 +1,87 @@
 ---
-// Short URL redirect: /t/:id → /app/tournaments/:id/leaderboard
+// Tournament short URL — accepts either the full tournament id
+// (e.g. `tourney_1784852231759`) or the 6-char join code shared
+// out from the app's tournament Share sheet (e.g. `ABC123`).
 //
-// Kept as an Astro page (not a static redirect map) so we can:
-//   * Preserve any query string the caller supplied (e.g. ?kiosk=1
-//     from a shared kiosk-mode QR code)
-//   * Return a real HTTP 302 with cache-friendly headers
-//   * Give a bare fallback when :id is missing
+// Resolution flow:
+//   1. Bare id path       → 302 to /app/tournaments/:id/leaderboard
+//   2. 6-char code path   → look up shared_tournaments.join_code,
+//                           read tournament_state->'tournament'->>'id',
+//                           302 to /app/tournaments/:realId/leaderboard
+//   3. Anything else      → punt to /t (the type-in landing page)
 //
-// Sam 2026-07-27: /t/:id is the short, TV-remotable URL for the
-// public leaderboard. Full path is /app/tournaments/:id/leaderboard;
-// both routes render the same page (the short URL just hops).
+// Why an Astro page and not a static redirect map:
+//   * Codes need a live DB lookup; a static map couldn't do it.
+//   * We preserve any query string the caller supplied (?kiosk=1
+//     from a shared kiosk-mode QR code).
+//   * We return a real HTTP 302 with cache-friendly headers.
+//   * Missing/unknown code has a graceful fallback (the /t landing).
+//
+// Sam 2026-07-27:
+//   * `/t/:id`   — full tournament id, redirects to leaderboard
+//   * `/t/:code` — 6-char code from the Share sheet, resolves via
+//                   shared_tournaments and 302s to the leaderboard
+//   * `/t`      — landing page with a type-in form
+// All three routes render (or hop to) the same underlying
+// leaderboard page.
+
+import { createSupabaseClient } from '../../lib/supabase';
 
 const { id } = Astro.params;
 const search = new URL(Astro.request.url).search;
 
 if (!id) {
-  return Astro.redirect('/app/tournaments', 302);
+  return Astro.redirect('/t', 302);
 }
 
+// If the param looks like a 6-char join code, resolve it via
+// shared_tournaments. Codes are uppercased letters + digits by the
+// generator; we accept lowercase input for friendliness.
+const codeShape = /^[A-Za-z0-9]{6}$/;
+if (codeShape.test(id)) {
+  const code = id.toUpperCase();
+  const supabase = createSupabaseClient({
+    request: Astro.request,
+    cookies: Astro.cookies,
+    locals: Astro.locals as App.Locals,
+  });
+
+  const { data, error } = await supabase
+    .from('shared_tournaments')
+    .select('tournament_state, completed')
+    .eq('join_code', code)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[/t/:code] lookup failed', code, error);
+    return Astro.redirect(`/t?e=lookup&code=${code}`, 302);
+  }
+
+  const state = data?.tournament_state as
+    | { tournament?: { id?: string } }
+    | null
+    | undefined;
+  const realId = state?.tournament?.id;
+
+  if (!realId) {
+    return Astro.redirect(`/t?e=notfound&code=${code}`, 302);
+  }
+
+  // Preserve any query string the caller supplied. If none was
+  // given and this is a bare-code URL (the common Share-sheet
+  // path), default to kiosk mode — that's what TV / clubhouse
+  // shares want.
+  const forwardSearch =
+    search && search.length > 0 ? search : '?kiosk=1';
+  return Astro.redirect(
+    `/app/tournaments/${realId}/leaderboard${forwardSearch}`,
+    302,
+  );
+}
+
+// Not a code shape — treat as a full tournament id and forward.
 const target = `/app/tournaments/${id}/leaderboard${search}`;
 return Astro.redirect(target, 302);
 ---
