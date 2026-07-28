@@ -16,6 +16,13 @@ import {
   isBestBallFormat,
   type TeamStandingRow,
 } from '../../../../lib/teamStandings';
+import {
+  buildRoundMatchBoard,
+  buildAllRoundsMatchBoard,
+  isHeadToHeadFormat,
+  type MatchStatus,
+} from '../../../../lib/matchBoard';
+import type { TournamentRound } from '../../../../lib/tournamentQueries';
 
 // Public leaderboard — no auth required. RLS grants anon SELECT
 // on public.tournaments via the `web_leaderboard_public_read_
@@ -37,12 +44,16 @@ const url = new URL(Astro.request.url);
 const kiosk = url.searchParams.get('kiosk') === '1';
 const view = url.searchParams.get('view') === 'net' ? 'net' : 'gross';
 const roundIdParam = url.searchParams.get('round');
-// `?board=teams` swaps the individual leaderboard for the Best Ball
-// team standings (2-man low-net / 4-man best-2-of-4-nets). Ignored
-// when the active round isn't a Best Ball format.
+// `?board=teams`   → Best Ball team standings (2-man low-net /
+//                     4-man best-2-of-4-nets). Ignored on non-BB rounds.
+// `?board=matches` → Cup-style head-to-head Match Board. Ignored
+//                     when no round in the tournament uses a match-play
+//                     format (best_ball / best_three_of_four / singles).
 const boardParam = url.searchParams.get('board');
-const boardMode: 'individual' | 'teams' =
-  boardParam === 'teams' ? 'teams' : 'individual';
+const boardMode: 'individual' | 'teams' | 'matches' =
+  boardParam === 'teams' ? 'teams'
+  : boardParam === 'matches' ? 'matches'
+  : 'individual';
 
 const supabase = createSupabaseClient({
   request: Astro.request,
@@ -56,16 +67,18 @@ let tournamentName = 'Tournament';
 let courseName: string | null = null;
 let rows: LeaderboardRow[] = [];
 let teamRows: TeamStandingRow[] = [];
+let matchGroups: { round: TournamentRound; matches: MatchStatus[] }[] = [];
 let ctpEntries: ReturnType<typeof extractCtpEntries> = [];
 type RoundTab = { id: string; name: string; format: string };
 let rounds: RoundTab[] = [];
 let activeRoundId: string | null = null;
 let anyNetAvailable = false;
-// True when EITHER the whole tournament has at least one Best Ball
-// round, OR the active round (when one is picked) is Best Ball. Drives
-// the Individual/Teams toggle visibility.
+// Toggle-visibility signals. Drives which chips render on the
+// Individual/Teams/Matches toolbar row.
 let anyBestBall = false;
+let anyMatchPlay = false;
 let activeRoundIsBestBall = false;
+let activeRoundIsMatchPlay = false;
 
 try {
   if (!id) {
@@ -86,18 +99,20 @@ try {
           roundIdParam != null && rounds.some((r) => r.id === roundIdParam);
       activeRoundId = validRound ? roundIdParam : null;
       anyBestBall = rounds.some((r) => isBestBallFormat(r.format));
+      anyMatchPlay = rounds.some((r) => isHeadToHeadFormat(r.format));
       activeRoundIsBestBall = activeRoundId != null
           && rounds.find((r) => r.id === activeRoundId)?.format != null
           && isBestBallFormat(rounds.find((r) => r.id === activeRoundId)!.format);
+      activeRoundIsMatchPlay = activeRoundId != null
+          && rounds.find((r) => r.id === activeRoundId)?.format != null
+          && isHeadToHeadFormat(rounds.find((r) => r.id === activeRoundId)!.format);
 
-      // Team board only makes sense on a specific Best Ball round or
-      // when the whole tournament is Best Ball (total-view aggregate).
-      // Fall through to individual otherwise.
-      const canShowTeams = activeRoundId
-        ? activeRoundIsBestBall
-        : anyBestBall;
+      const canShowTeams = activeRoundId ? activeRoundIsBestBall : anyBestBall;
+      const canShowMatches = activeRoundId ? activeRoundIsMatchPlay : anyMatchPlay;
       const effectiveBoard =
-        boardMode === 'teams' && canShowTeams ? 'teams' : 'individual';
+        boardMode === 'teams' && canShowTeams ? 'teams'
+        : boardMode === 'matches' && canShowMatches ? 'matches'
+        : 'individual';
 
       if (effectiveBoard === 'teams') {
         teamRows = activeRoundId
@@ -106,6 +121,13 @@ try {
               t.rounds.find((r) => r.id === activeRoundId)!,
             )
           : buildTotalTeamStandings(t);
+      } else if (effectiveBoard === 'matches') {
+        if (activeRoundId) {
+          const rd = t.rounds.find((r) => r.id === activeRoundId)!;
+          matchGroups = [{ round: rd, matches: buildRoundMatchBoard(t, rd) }];
+        } else {
+          matchGroups = buildAllRoundsMatchBoard(t);
+        }
       } else {
         rows = activeRoundId
           ? buildRoundLeaderboard(t, activeRoundId, view)
@@ -119,11 +141,11 @@ try {
   loadError = err?.message ?? 'Could not load tournament.';
 }
 
-// Effective board (after the "only-show-teams-when-format-supports-it" guard).
+// Effective board (after the "only-show-if-format-supports-it" guards).
 const showTeamsBoard = boardMode === 'teams'
-  && (activeRoundId
-    ? activeRoundIsBestBall
-    : anyBestBall);
+  && (activeRoundId ? activeRoundIsBestBall : anyBestBall);
+const showMatchBoard = boardMode === 'matches'
+  && (activeRoundId ? activeRoundIsMatchPlay : anyMatchPlay);
 
 // Helper to build a URL for a toggle click that preserves the
 // other params (so tapping "Net" doesn't kick you out of kiosk
@@ -159,29 +181,44 @@ function buildUrl(overrides: Record<string, string | null>): string {
         {id && <TournamentSubnav id={id} active="leaderboard" />}
 
         <div class="toolbar">
-          {anyBestBall && (
+          {(anyBestBall || anyMatchPlay) && (
             <div class="segmented">
               <a
-                class={`seg ${!showTeamsBoard ? 'seg--active' : ''}`}
+                class={`seg ${!showTeamsBoard && !showMatchBoard ? 'seg--active' : ''}`}
                 href={buildUrl({ board: null })}
               >
                 Individual
               </a>
-              <a
-                class={`seg ${showTeamsBoard ? 'seg--active' : ''}`}
-                href={buildUrl({ board: 'teams' })}
-                title={
-                  activeRoundId && !activeRoundIsBestBall
-                    ? 'Team standings only available on Best Ball rounds — pick a Best Ball round to enable.'
-                    : 'Best Ball team standings'
-                }
-              >
-                Teams
-              </a>
+              {anyBestBall && (
+                <a
+                  class={`seg ${showTeamsBoard ? 'seg--active' : ''}`}
+                  href={buildUrl({ board: 'teams' })}
+                  title={
+                    activeRoundId && !activeRoundIsBestBall
+                      ? 'Team standings only on Best Ball rounds — pick one to enable.'
+                      : 'Best Ball team standings'
+                  }
+                >
+                  Teams
+                </a>
+              )}
+              {anyMatchPlay && (
+                <a
+                  class={`seg ${showMatchBoard ? 'seg--active' : ''}`}
+                  href={buildUrl({ board: 'matches' })}
+                  title={
+                    activeRoundId && !activeRoundIsMatchPlay
+                      ? 'Match Board only on match-play rounds — pick one to enable.'
+                      : 'Cup-style head-to-head match board'
+                  }
+                >
+                  Matches
+                </a>
+              )}
             </div>
           )}
 
-          {!showTeamsBoard && anyNetAvailable && (
+          {!showTeamsBoard && !showMatchBoard && anyNetAvailable && (
             <div class="segmented">
               <a
                 class={`seg ${view === 'gross' ? 'seg--active' : ''}`}
@@ -380,6 +417,58 @@ function buildUrl(overrides: Record<string, string | null>): string {
       </table>
     )}
 
+    {!loadError && !notFound && showMatchBoard && matchGroups.length === 0 && (
+      <article class="card">
+        <h3>No matches yet</h3>
+        <p>
+          The Match Board fills in as scorekeepers post scores on
+          match-play rounds. Auto-refreshes every 30 seconds.
+        </p>
+      </article>
+    )}
+
+    {!loadError && !notFound && showMatchBoard && matchGroups.length > 0 && (
+      <div class="matches">
+        {matchGroups.map((group) => (
+          <section class="match-round">
+            {matchGroups.length > 1 && (
+              <h2 class="match-round__title">{group.round.name}</h2>
+            )}
+            <div class="match-list">
+              {group.matches.map((m) => {
+                const t1Winning = m.holesUp > 0 || (m.complete && m.holesUp === 0);
+                const t2Winning = m.holesUp < 0 || (m.complete && m.holesUp === 0);
+                const t1Cls = m.complete
+                  ? (m.holesUp > 0 ? 'match-side--won' : m.holesUp === 0 ? 'match-side--halved' : 'match-side--lost')
+                  : m.holesUp > 0 ? 'match-side--leading' : m.holesUp === 0 ? 'match-side--tied' : '';
+                const t2Cls = m.complete
+                  ? (m.holesUp < 0 ? 'match-side--won' : m.holesUp === 0 ? 'match-side--halved' : 'match-side--lost')
+                  : m.holesUp < 0 ? 'match-side--leading' : m.holesUp === 0 ? 'match-side--tied' : '';
+                return (
+                  <article class={`match-card ${m.complete ? 'match-card--complete' : ''}`}>
+                    <div class={`match-side ${t1Cls}`}>
+                      <div class="match-team">{m.team1.name}</div>
+                      <div class="match-players">{m.team1.playerNames.join(' · ')}</div>
+                    </div>
+                    <div class="match-vs">
+                      <div class="match-status">{m.statusLabel}</div>
+                      <div class="match-thru">
+                        {m.complete ? 'Final' : `Thru ${m.holesPlayed} / ${m.totalHoles}`}
+                      </div>
+                    </div>
+                    <div class={`match-side match-side--right ${t2Cls}`}>
+                      <div class="match-team">{m.team2.name}</div>
+                      <div class="match-players">{m.team2.playerNames.join(' · ')}</div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    )}
+
     {!loadError && !notFound && ctpEntries.length > 0 && (
       <section class="ctp-section">
         <h2 class="ctp-title">Closest to Pin</h2>
@@ -566,6 +655,95 @@ function buildUrl(overrides: Record<string, string | null>): string {
   }
   .kiosk .team-name { font-size: 22px; }
   .kiosk .team-players { font-size: 15px; margin-top: 4px; }
+
+  /* Match Board */
+  .matches {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin-top: 8px;
+  }
+  .match-round__title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+  }
+  .match-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .match-card {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 18px;
+  }
+  .match-card--complete { background: #f9faf9; }
+
+  .match-side {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .match-side--right {
+    text-align: right;
+  }
+  .match-team {
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .match-players {
+    font-size: 12px;
+    color: var(--ink-muted);
+    line-height: 1.3;
+  }
+  .match-side--leading .match-team,
+  .match-side--won .match-team {
+    color: var(--brand-green);
+  }
+  .match-side--lost { opacity: 0.55; }
+
+  .match-vs {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 0 6px;
+    min-width: 120px;
+  }
+  .match-status {
+    font-weight: 800;
+    font-size: 13px;
+    color: var(--brand-green-dark);
+    text-align: center;
+    line-height: 1.2;
+  }
+  .match-thru {
+    font-size: 11px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .match-card--complete .match-status { color: var(--brand-green); }
+
+  .kiosk .match-team { font-size: 24px; }
+  .kiosk .match-players { font-size: 14px; }
+  .kiosk .match-status { font-size: 18px; }
+  .kiosk .match-thru { font-size: 13px; }
+  .kiosk .match-vs { min-width: 180px; }
 
   .card--warn {
     border-color: #b00020;
