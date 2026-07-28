@@ -77,6 +77,50 @@ const TOURNAMENT_COLS =
   'created_at, updated_at, completed_at, players, rounds, ' +
   'tee_boxes, scoring_mode, use_net_scoring';
 
+/// List tournaments owned by the currently-authenticated user.
+/// The `tournaments` RLS "owner-only" policy on authenticated
+/// users transparently filters to `user_id = auth.uid()`, so no
+/// WHERE clause is needed — Supabase's anon-key SELECT (used for
+/// the public leaderboard) is scoped separately and does NOT
+/// apply here because the request carries an auth cookie.
+///
+/// Sort: newest first by created_at (matches the app's default).
+export async function listMyTournaments(
+  supabase: SupabaseClient,
+  opts: { limit?: number } = {},
+): Promise<TournamentRow[]> {
+  let q = supabase
+    .from('tournaments')
+    .select(TOURNAMENT_COLS)
+    .order('created_at', { ascending: false });
+  if (opts.limit) q = q.limit(opts.limit);
+  const { data, error } = await q;
+  if (error) {
+    console.error('[listMyTournaments]', error);
+    return [];
+  }
+  return (data ?? []) as TournamentRow[];
+}
+
+/// True when the tournament has been marked completed by the app.
+/// `completed_at` is null for in-progress + upcoming events.
+export function isCompleted(t: TournamentRow): boolean {
+  return t.completed_at != null;
+}
+
+/// True when the tournament has at least one round with a
+/// recorded score. Used to distinguish "upcoming" (created but
+/// no scores yet) from "active" (scoring underway).
+export function hasAnyScores(t: TournamentRow): boolean {
+  for (const round of t.rounds ?? []) {
+    const rows = playerHoleScoresFor(round);
+    for (const row of rows) {
+      if ((row.holeScores ?? []).some((s) => s != null)) return true;
+    }
+  }
+  return false;
+}
+
 /// Fetch a tournament by id. Returns null when not found or when
 /// RLS refuses (should be always allowed post-migration, but the
 /// safe fallback lets the page render a clean "Not found" state).
