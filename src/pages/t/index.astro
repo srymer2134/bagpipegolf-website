@@ -1,0 +1,186 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+// Landing page for the tournament short-URL feature.
+//
+// Two ways in:
+//   1. Type-in form   — user heard the code verbally, types
+//                        6 chars, submits → /t/:code → resolver
+//                        302s to the leaderboard.
+//   2. Contextual err — if /t/:code fails to resolve, that page
+//                        redirects here with ?e=notfound&code=XXX
+//                        so we can show a friendly message.
+//
+// This page never talks to Supabase — it's a stateless intake form.
+// The heavy lifting (code → tournament id) lives in [id].astro.
+
+const url = new URL(Astro.request.url);
+const errCode = url.searchParams.get('code');
+const errType = url.searchParams.get('e');
+
+let errorMsg: string | null = null;
+if (errType === 'notfound' && errCode) {
+  errorMsg = `We couldn't find a live tournament for code ${errCode}. Double-check with the tournament host.`;
+} else if (errType === 'lookup' && errCode) {
+  errorMsg = `Something went wrong looking up ${errCode}. Try again in a moment.`;
+}
+---
+
+<BaseLayout title="Watch a live tournament · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Public leaderboard</p>
+    <h1 class="pagewrap__title">Watch a live tournament.</h1>
+    <p class="pagewrap__sub">
+      Enter the 6-character code from your tournament host to jump straight to the live leaderboard — no sign-in required. Perfect for a clubhouse TV, laptop, or phone browser.
+    </p>
+
+    {errorMsg && (
+      <div class="alert" role="alert">
+        {errorMsg}
+      </div>
+    )}
+
+    <form id="codeForm" class="codeform" novalidate>
+      <label for="codeInput" class="codeform__label">Tournament code</label>
+      <input
+        id="codeInput"
+        name="code"
+        type="text"
+        inputmode="text"
+        autocomplete="off"
+        autocapitalize="characters"
+        autocorrect="off"
+        spellcheck={false}
+        maxlength="6"
+        placeholder="ABC123"
+        pattern="[A-Za-z0-9]{6}"
+        aria-describedby="codeHint"
+        required
+      />
+      <p id="codeHint" class="codeform__hint">6 letters and numbers — case doesn't matter.</p>
+      <button class="btn btn--primary" type="submit">Watch live</button>
+    </form>
+
+    <details class="hint">
+      <summary>Where do I get the code?</summary>
+      <p>
+        The tournament host generates it inside the Bagpipe Golf app (Events → the tournament → Share). They'll see a 6-character code they can text or say to you. The same code works to watch on the web or to spectate inside the app.
+      </p>
+    </details>
+  </main>
+
+  <script is:inline>
+    // Client-side navigate to /t/:code. Runs entirely in the browser
+    // so we don't need to wire up an SSR POST handler.
+    const form = document.getElementById('codeForm');
+    const input = document.getElementById('codeInput');
+    if (form && input) {
+      form.addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        const raw = (input.value || '').trim().toUpperCase();
+        if (!/^[A-Z0-9]{6}$/.test(raw)) {
+          input.setCustomValidity('Enter 6 letters or numbers.');
+          input.reportValidity();
+          return;
+        }
+        input.setCustomValidity('');
+        // Preserve ?kiosk=1 default via the resolver.
+        window.location.assign(`/t/${raw}`);
+      });
+      input.addEventListener('input', () => {
+        input.setCustomValidity('');
+        // Uppercase in place so the user sees what they'll submit.
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        input.value = input.value.toUpperCase();
+        if (start !== null && end !== null) {
+          input.setSelectionRange(start, end);
+        }
+      });
+    }
+  </script>
+</BaseLayout>
+
+<style>
+  .pagewrap--narrow { max-width: 560px; }
+
+  .alert {
+    background: rgba(198, 40, 40, 0.08);
+    border: 1px solid rgba(198, 40, 40, 0.35);
+    color: #8b1e1e;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin: 12px 0 20px;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .codeform {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 24px;
+    background: var(--brand-green-soft, #f0f7f2);
+    border: 2px solid var(--brand-green, #2f7d44);
+    border-radius: 16px;
+    margin: 24px 0;
+  }
+  .codeform__label {
+    text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--brand-green-dark, #1f5b30);
+  }
+  .codeform input {
+    font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: 8px;
+    text-align: center;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(47, 125, 68, 0.4);
+    background: white;
+    color: var(--brand-green-dark, #1f5b30);
+    text-transform: uppercase;
+  }
+  .codeform input:focus {
+    outline: 2px solid var(--brand-green, #2f7d44);
+    outline-offset: 2px;
+  }
+  .codeform__hint {
+    font-size: 13px;
+    color: var(--ink-muted, #4b5b54);
+    margin: 4px 2px 12px;
+  }
+
+  .btn {
+    text-align: center;
+    padding: 14px 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+  }
+  .btn--primary {
+    background: var(--brand-green, #2f7d44);
+    color: white;
+  }
+  .btn--primary:hover { background: var(--brand-green-dark, #1f5b30); }
+
+  .hint { margin-top: 24px; }
+  .hint summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--brand-green-dark, #1f5b30);
+    padding: 12px 0;
+  }
+  .hint p {
+    padding: 4px 0 8px;
+    color: var(--ink-muted, #4b5b54);
+    line-height: 1.6;
+  }
+</style>
