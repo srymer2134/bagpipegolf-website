@@ -92,7 +92,7 @@ const DEFAULT_STROKE_INDEXES: readonly number[] = [
 /// Stroke indexes for a round's resolved tee box. Falls back to
 /// `[1..18]` when the tee box doesn't carry them (matches the
 /// Dart `BettingEngine.DEFAULT_STROKE_INDEX` behavior).
-function strokeIndexesFor(
+export function strokeIndexesFor(
   tournament: TournamentRow,
   round: TournamentRound,
 ): readonly number[] {
