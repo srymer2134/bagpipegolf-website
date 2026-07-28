@@ -10,6 +10,12 @@ import {
   formatVsPar,
   type LeaderboardRow,
 } from '../../../../lib/leaderboard';
+import {
+  buildRoundTeamStandings,
+  buildTotalTeamStandings,
+  isBestBallFormat,
+  type TeamStandingRow,
+} from '../../../../lib/teamStandings';
 
 // Public leaderboard — no auth required. RLS grants anon SELECT
 // on public.tournaments via the `web_leaderboard_public_read_
@@ -31,6 +37,12 @@ const url = new URL(Astro.request.url);
 const kiosk = url.searchParams.get('kiosk') === '1';
 const view = url.searchParams.get('view') === 'net' ? 'net' : 'gross';
 const roundIdParam = url.searchParams.get('round');
+// `?board=teams` swaps the individual leaderboard for the Best Ball
+// team standings (2-man low-net / 4-man best-2-of-4-nets). Ignored
+// when the active round isn't a Best Ball format.
+const boardParam = url.searchParams.get('board');
+const boardMode: 'individual' | 'teams' =
+  boardParam === 'teams' ? 'teams' : 'individual';
 
 const supabase = createSupabaseClient({
   request: Astro.request,
@@ -43,11 +55,17 @@ let loadError: string | null = null;
 let tournamentName = 'Tournament';
 let courseName: string | null = null;
 let rows: LeaderboardRow[] = [];
+let teamRows: TeamStandingRow[] = [];
 let ctpEntries: ReturnType<typeof extractCtpEntries> = [];
-type RoundTab = { id: string; name: string };
+type RoundTab = { id: string; name: string; format: string };
 let rounds: RoundTab[] = [];
 let activeRoundId: string | null = null;
 let anyNetAvailable = false;
+// True when EITHER the whole tournament has at least one Best Ball
+// round, OR the active round (when one is picked) is Best Ball. Drives
+// the Individual/Teams toggle visibility.
+let anyBestBall = false;
+let activeRoundIsBestBall = false;
 
 try {
   if (!id) {
@@ -59,21 +77,53 @@ try {
     } else {
       tournamentName = t.name;
       courseName = t.course_name;
-      rounds = t.rounds.map((r) => ({ id: r.id, name: r.name }));
+      rounds = t.rounds.map((r) => ({
+        id: r.id,
+        name: r.name,
+        format: r.format,
+      }));
       const validRound =
           roundIdParam != null && rounds.some((r) => r.id === roundIdParam);
       activeRoundId = validRound ? roundIdParam : null;
+      anyBestBall = rounds.some((r) => isBestBallFormat(r.format));
+      activeRoundIsBestBall = activeRoundId != null
+          && rounds.find((r) => r.id === activeRoundId)?.format != null
+          && isBestBallFormat(rounds.find((r) => r.id === activeRoundId)!.format);
 
-      rows = activeRoundId
-        ? buildRoundLeaderboard(t, activeRoundId, view)
-        : buildTotalLeaderboard(t, view);
+      // Team board only makes sense on a specific Best Ball round or
+      // when the whole tournament is Best Ball (total-view aggregate).
+      // Fall through to individual otherwise.
+      const canShowTeams = activeRoundId
+        ? activeRoundIsBestBall
+        : anyBestBall;
+      const effectiveBoard =
+        boardMode === 'teams' && canShowTeams ? 'teams' : 'individual';
+
+      if (effectiveBoard === 'teams') {
+        teamRows = activeRoundId
+          ? buildRoundTeamStandings(
+              t,
+              t.rounds.find((r) => r.id === activeRoundId)!,
+            )
+          : buildTotalTeamStandings(t);
+      } else {
+        rows = activeRoundId
+          ? buildRoundLeaderboard(t, activeRoundId, view)
+          : buildTotalLeaderboard(t, view);
+        anyNetAvailable = rows.some((r) => r.net != null);
+      }
       ctpEntries = extractCtpEntries(t);
-      anyNetAvailable = rows.some((r) => r.net != null);
     }
   }
 } catch (err: any) {
   loadError = err?.message ?? 'Could not load tournament.';
 }
+
+// Effective board (after the "only-show-teams-when-format-supports-it" guard).
+const showTeamsBoard = boardMode === 'teams'
+  && (activeRoundId
+    ? activeRoundIsBestBall
+    : anyBestBall);
 
 // Helper to build a URL for a toggle click that preserves the
 // other params (so tapping "Net" doesn't kick you out of kiosk
@@ -109,7 +159,29 @@ function buildUrl(overrides: Record<string, string | null>): string {
         {id && <TournamentSubnav id={id} active="leaderboard" />}
 
         <div class="toolbar">
-          {anyNetAvailable && (
+          {anyBestBall && (
+            <div class="segmented">
+              <a
+                class={`seg ${!showTeamsBoard ? 'seg--active' : ''}`}
+                href={buildUrl({ board: null })}
+              >
+                Individual
+              </a>
+              <a
+                class={`seg ${showTeamsBoard ? 'seg--active' : ''}`}
+                href={buildUrl({ board: 'teams' })}
+                title={
+                  activeRoundId && !activeRoundIsBestBall
+                    ? 'Team standings only available on Best Ball rounds — pick a Best Ball round to enable.'
+                    : 'Best Ball team standings'
+                }
+              >
+                Teams
+              </a>
+            </div>
+          )}
+
+          {!showTeamsBoard && anyNetAvailable && (
             <div class="segmented">
               <a
                 class={`seg ${view === 'gross' ? 'seg--active' : ''}`}
@@ -205,7 +277,7 @@ function buildUrl(overrides: Record<string, string | null>): string {
       </article>
     )}
 
-    {!loadError && !notFound && rows.length === 0 && (
+    {!loadError && !notFound && !showTeamsBoard && rows.length === 0 && (
       <article class="card">
         <h3>No scores yet</h3>
         <p>
@@ -215,7 +287,16 @@ function buildUrl(overrides: Record<string, string | null>): string {
       </article>
     )}
 
-    {!loadError && !notFound && rows.length > 0 && (
+    {!loadError && !notFound && showTeamsBoard && teamRows.length === 0 && (
+      <article class="card">
+        <h3>No team scores yet</h3>
+        <p>
+          Team standings fill in as scorekeepers enter Best Ball scores. Auto-refreshes every 30 seconds.
+        </p>
+      </article>
+    )}
+
+    {!loadError && !notFound && !showTeamsBoard && rows.length > 0 && (
       <table class="lbtable">
         <thead>
           <tr>
@@ -256,6 +337,42 @@ function buildUrl(overrides: Record<string, string | null>): string {
                 <td class={`col-vs ${vsClass}`}>
                   {vsPar == null ? '—' : formatVsPar(vsPar)}
                 </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    )}
+
+    {!loadError && !notFound && showTeamsBoard && teamRows.length > 0 && (
+      <table class="lbtable">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th class="col-name">Team</th>
+            <th class="col-thru">Holes</th>
+            <th class="col-gross">Gross</th>
+            <th class="col-net">Net</th>
+            <th class="col-vs">vs Par</th>
+          </tr>
+        </thead>
+        <tbody>
+          {teamRows.map((r) => {
+            const vsClass =
+                r.netVsPar < 0 ? 'under'
+                : r.netVsPar > 0 ? 'over'
+                : 'even';
+            return (
+              <tr>
+                <td class="col-rank">{r.rank}</td>
+                <td class="col-name">
+                  <div class="team-name">{r.teamName}</div>
+                  <div class="team-players">{r.playerNames.join(' · ')}</div>
+                </td>
+                <td class="col-thru">{r.holesPlayed}</td>
+                <td class="col-gross">{r.gross}</td>
+                <td class="col-net">{r.net}</td>
+                <td class={`col-vs ${vsClass}`}>{formatVsPar(r.netVsPar)}</td>
               </tr>
             );
           })}
@@ -435,6 +552,20 @@ function buildUrl(overrides: Record<string, string | null>): string {
   .lbtable .even {
     color: var(--ink-muted);
   }
+
+  .team-name {
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    font-size: 15px;
+  }
+  .team-players {
+    font-size: 12px;
+    color: var(--ink-muted);
+    margin-top: 2px;
+    line-height: 1.3;
+  }
+  .kiosk .team-name { font-size: 22px; }
+  .kiosk .team-players { font-size: 15px; margin-top: 4px; }
 
   .card--warn {
     border-color: #b00020;
