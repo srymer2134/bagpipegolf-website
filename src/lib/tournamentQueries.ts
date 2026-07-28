@@ -55,6 +55,19 @@ export type TournamentRound = {
   [k: string]: unknown;
 };
 
+export type TournamentFlight = {
+  id: string;
+  name: string;
+  handicapMin?: number | null;
+  handicap_min?: number | null;
+  handicapMax?: number | null;
+  handicap_max?: number | null;
+  playerIds?: string[];
+  player_ids?: string[];
+  teeName?: string | null;
+  tee_name?: string | null;
+};
+
 export type TournamentRow = {
   id: string;
   user_id: string;
@@ -70,12 +83,17 @@ export type TournamentRow = {
   tee_boxes: TournamentTeeBox[];
   scoring_mode?: string | null;
   use_net_scoring?: boolean | null;
+  /// snake_case: `skins_competitions` — array of enum strings
+  /// (`gross_skins` | `net_skins` | `super_skins`).
+  skins_competitions?: string[] | null;
+  flights?: TournamentFlight[] | null;
 };
 
 const TOURNAMENT_COLS =
   'id, user_id, name, course_name, total_holes, par_total, ' +
   'created_at, updated_at, completed_at, players, rounds, ' +
-  'tee_boxes, scoring_mode, use_net_scoring';
+  'tee_boxes, scoring_mode, use_net_scoring, ' +
+  'skins_competitions, flights';
 
 /// List tournaments owned by the currently-authenticated user.
 /// The `tournaments` RLS "owner-only" policy on authenticated
