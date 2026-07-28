@@ -40,30 +40,43 @@ if (!id) {
 const codeShape = /^[A-Za-z0-9]{6}$/;
 if (codeShape.test(id)) {
   const code = id.toUpperCase();
-  const supabase = createSupabaseClient({
-    request: Astro.request,
-    cookies: Astro.cookies,
-    locals: Astro.locals as App.Locals,
-  });
+  let realId: string | null = null;
+  try {
+    const supabase = createSupabaseClient({
+      request: Astro.request,
+      cookies: Astro.cookies,
+      locals: Astro.locals as App.Locals,
+    });
 
-  const { data, error } = await supabase
-    .from('shared_tournaments')
-    .select('tournament_state, completed')
-    .eq('join_code', code)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    // Take the first row rather than `.maybeSingle()` — combining
+    // `.order().limit(1).maybeSingle()` was producing a runtime
+    // 500 in the Cloudflare Workers adapter. Array + `[0]` is the
+    // resilient shape.
+    const { data, error } = await supabase
+      .from('shared_tournaments')
+      .select('tournament_state')
+      .eq('join_code', code)
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-  if (error) {
-    console.error('[/t/:code] lookup failed', code, error);
+    if (error) {
+      console.error('[/t/:code] lookup failed', code, error);
+      return Astro.redirect(`/t?e=lookup&code=${code}`, 302);
+    }
+
+    const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+    const state = row?.tournament_state as
+      | { tournament?: { id?: string } }
+      | null
+      | undefined;
+    realId = state?.tournament?.id ?? null;
+  } catch (err) {
+    // Never let a resolver failure return a bare 500 — the friendly
+    // /t landing page renders a "we couldn't find" alert when
+    // `?e=lookup&code=…` is present.
+    console.error('[/t/:code] resolver threw', code, err);
     return Astro.redirect(`/t?e=lookup&code=${code}`, 302);
   }
-
-  const state = data?.tournament_state as
-    | { tournament?: { id?: string } }
-    | null
-    | undefined;
-  const realId = state?.tournament?.id;
 
   if (!realId) {
     return Astro.redirect(`/t?e=notfound&code=${code}`, 302);
