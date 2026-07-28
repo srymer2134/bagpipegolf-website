@@ -1,48 +1,311 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import { getPublicTournament } from '../../../../lib/tournamentQueries';
+import { buildTotalLeaderboard, formatVsPar } from '../../../../lib/leaderboard';
+
+// Public leaderboard — no auth required. RLS grants anon SELECT
+// on public.tournaments via the `web_leaderboard_public_read_
+// tournaments` policy (migration 20260727 in the Flutter repo).
+// Sam's Ballyneal Brigade 2026-07-27 ask: "cast to large screen"
+// for TV/clubhouse viewing. Kiosk-optimised layout at the bottom.
 
 const { id } = Astro.params;
+const url = new URL(Astro.request.url);
+const kiosk = url.searchParams.get('kiosk') === '1';
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let notFound = false;
+let loadError: string | null = null;
+let tournamentName = 'Tournament';
+let courseName: string | null = null;
+let rowCount = 0;
+let rows: ReturnType<typeof buildTotalLeaderboard> = [];
+
+try {
+  if (!id) {
+    notFound = true;
+  } else {
+    const t = await getPublicTournament(supabase, id);
+    if (!t) {
+      notFound = true;
+    } else {
+      tournamentName = t.name;
+      courseName = t.course_name;
+      rows = buildTotalLeaderboard(t);
+      rowCount = rows.length;
+    }
+  }
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load tournament.';
+}
 ---
 
-<BaseLayout title="Leaderboard · Bagpipe Golf">
-  <main class="pagewrap">
-    <p class="pagewrap__eyebrow">Tournament · leaderboard</p>
-    <h1 class="pagewrap__title">Leaderboard</h1>
-    <p class="pagewrap__sub">Live gross, net, Stableford, Match Board, side pools.</p>
+<BaseLayout title={`${tournamentName} · Leaderboard · Bagpipe Golf`}>
+  <!--
+    Auto-refresh every 30s. Meta refresh (rather than JS polling)
+    keeps the page dead-simple + works even when the browser tab
+    is backgrounded on a clubhouse laptop that's plugged into an
+    HDMI TV. Preserves ?kiosk=1 across refreshes so full-screen
+    mode sticks.
+  -->
+  <meta http-equiv="refresh" content="30" slot="head" />
 
-    <TournamentSubnav id={id!} active="leaderboard" />
+  <main class={`pagewrap ${kiosk ? 'kiosk' : ''}`}>
+    {!kiosk && (
+      <>
+        <p class="pagewrap__eyebrow">Tournament · leaderboard</p>
+        <h1 class="pagewrap__title">{tournamentName}</h1>
+        {courseName && (
+          <p class="pagewrap__sub">{courseName}</p>
+        )}
+        {id && <TournamentSubnav id={id} active="leaderboard" />}
+        <div class="toolbar">
+          <a
+            class="btn btn--primary"
+            href={`?kiosk=1`}
+            title="Open kiosk mode (fullscreen-friendly big-print for TV)"
+          >
+            📺 Kiosk mode
+          </a>
+          <button
+            id="fs-btn"
+            class="btn btn--ghost"
+            type="button"
+          >
+            ⛶ Fullscreen
+          </button>
+          <span class="muted small">
+            Auto-refresh every 30s · {rowCount} player{rowCount === 1 ? '' : 's'}
+          </span>
+        </div>
+      </>
+    )}
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Stroke leaderboard</h3>
-        <p>Gross / net / Stableford with sort toggle, vs-par columns.</p>
+    {kiosk && (
+      <div class="kiosk-header">
+        <div class="kiosk-title">{tournamentName}</div>
+        {courseName && <div class="kiosk-sub">{courseName}</div>}
+        <div class="kiosk-mode-toggle">
+          <a href="?" class="btn btn--ghost small">Exit kiosk</a>
+        </div>
+      </div>
+    )}
+
+    {loadError && (
+      <article class="card card--warn">
+        <h3>Could not load leaderboard</h3>
+        <p>{loadError}</p>
       </article>
+    )}
+
+    {notFound && !loadError && (
       <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Match Board</h3>
-        <p>Cup-format awards per match — 1.0 / 0.5 / 0.0, closeout-aware.</p>
+        <h3>Tournament not found</h3>
+        <p>
+          Double-check the id in the URL. If the tournament was recently
+          created, it may take a moment to sync.
+        </p>
       </article>
+    )}
+
+    {!loadError && !notFound && rows.length === 0 && (
       <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Side pools</h3>
-        <p>Closest-to-pin, longest drive, skins.</p>
+        <h3>No scores yet</h3>
+        <p>
+          The leaderboard fills in as scorekeepers enter scores. This
+          page refreshes automatically every 30 seconds.
+        </p>
       </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Kiosk mode</h3>
-        <p>Full-screen TV view for the clubhouse.</p>
-      </article>
-    </section>
+    )}
+
+    {!loadError && !notFound && rows.length > 0 && (
+      <table class="lbtable">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th class="col-name">Player</th>
+            <th class="col-thru">Thru</th>
+            <th class="col-gross">Gross</th>
+            <th class="col-vs">vs Par</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr>
+              <td class="col-rank">{r.rank}</td>
+              <td class="col-name">{r.name}</td>
+              <td class="col-thru">{r.thru}</td>
+              <td class="col-gross">{r.gross}</td>
+              <td class={`col-vs ${r.vsPar < 0 ? 'under' : r.vsPar > 0 ? 'over' : 'even'}`}>
+                {formatVsPar(r.vsPar)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
   </main>
 </BaseLayout>
 
-<style>
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+<script>
+  // Fullscreen toggle for the "⛶ Fullscreen" button. Kept as a
+  // best-effort — Safari + Firefox variants call the same
+  // requestFullscreen API. Silently no-ops in browsers that
+  // block fullscreen (some in-app webviews).
+  const btn = document.getElementById('fs-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const el = document.documentElement as unknown as {
+        requestFullscreen?: () => Promise<void>;
+        webkitRequestFullscreen?: () => Promise<void>;
+      };
+      try {
+        (el.requestFullscreen ?? el.webkitRequestFullscreen)?.call(el);
+      } catch (e) {
+        console.warn('Fullscreen request failed', e);
+      }
+    });
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin: 12px 0 20px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-block;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .btn--primary {
+    background: var(--brand-green);
+    color: white;
+  }
+  .btn--ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--divider);
+  }
+  .btn.small {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .muted {
+    color: var(--ink-muted);
+  }
+  .small {
+    font-size: 13px;
+  }
+
+  .lbtable {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+  .lbtable th,
+  .lbtable td {
+    padding: 12px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--divider);
+  }
+  .lbtable th {
+    font-size: 12px;
+    letter-spacing: 0.6px;
+    font-weight: 800;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+  }
+  .lbtable .col-rank {
+    width: 60px;
+    font-weight: 800;
+  }
+  .lbtable .col-name {
+    font-weight: 600;
+  }
+  .lbtable .col-thru,
+  .lbtable .col-gross,
+  .lbtable .col-vs {
+    width: 90px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .lbtable .under {
+    color: #b00020;
+    font-weight: 700;
+  }
+  .lbtable .over {
+    color: var(--ink);
+  }
+  .lbtable .even {
+    color: var(--ink-muted);
+  }
+
+  .card--warn {
+    border-color: #b00020;
+  }
+
+  /* ── Kiosk mode — TV/HDMI-friendly big print ────────────── */
+  .kiosk {
+    padding: 32px 48px;
+    max-width: none;
+  }
+  .kiosk-header {
+    display: flex;
+    align-items: baseline;
+    gap: 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .kiosk-title {
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--brand-green-dark);
+    letter-spacing: -1px;
+  }
+  .kiosk-sub {
+    font-size: 22px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .kiosk-mode-toggle {
+    margin-left: auto;
+  }
+  .kiosk .lbtable th,
+  .kiosk .lbtable td {
+    padding: 16px 12px;
+    font-size: 28px;
+  }
+  .kiosk .lbtable th {
+    font-size: 18px;
+  }
+  .kiosk .lbtable .col-rank {
+    width: 90px;
+  }
+  .kiosk .lbtable .col-thru,
+  .kiosk .lbtable .col-gross,
+  .kiosk .lbtable .col-vs {
+    width: 140px;
+  }
+
+  /* Zebra striping in kiosk mode so rows scan cleanly at TV
+     viewing distance. */
+  .kiosk .lbtable tbody tr:nth-child(odd) {
+    background: rgba(0, 0, 0, 0.02);
+  }
 </style>
