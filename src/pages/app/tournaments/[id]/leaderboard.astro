@@ -1,48 +1,534 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import { getPublicTournament } from '../../../../lib/tournamentQueries';
+import {
+  buildRoundLeaderboard,
+  buildTotalLeaderboard,
+  extractCtpEntries,
+  formatVsPar,
+  type LeaderboardRow,
+} from '../../../../lib/leaderboard';
+
+// Public leaderboard — no auth required. RLS grants anon SELECT
+// on public.tournaments via the `web_leaderboard_public_read_
+// tournaments` policy (migration 20260727 in the Flutter repo).
+// Sam's Ballyneal Brigade 2026-07-27 ask: "cast to large screen"
+// for TV/clubhouse viewing. Kiosk-optimised layout at the bottom.
+//
+// View state is URL-driven so it survives the 30-second auto
+// refresh + is shareable via QR code:
+//   ?view=net       → net leaderboard (default gross)
+//   ?round=<id>     → single-round view (default TOTAL)
+//   ?kiosk=1        → big-print TV mode
+//
+// Match Board (Cup-style head-to-head) is deferred — Brigade is
+// stroke-aggregate. Add when a Cup tourney needs the web view.
 
 const { id } = Astro.params;
+const url = new URL(Astro.request.url);
+const kiosk = url.searchParams.get('kiosk') === '1';
+const view = url.searchParams.get('view') === 'net' ? 'net' : 'gross';
+const roundIdParam = url.searchParams.get('round');
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let notFound = false;
+let loadError: string | null = null;
+let tournamentName = 'Tournament';
+let courseName: string | null = null;
+let rows: LeaderboardRow[] = [];
+let ctpEntries: ReturnType<typeof extractCtpEntries> = [];
+type RoundTab = { id: string; name: string };
+let rounds: RoundTab[] = [];
+let activeRoundId: string | null = null;
+let anyNetAvailable = false;
+
+try {
+  if (!id) {
+    notFound = true;
+  } else {
+    const t = await getPublicTournament(supabase, id);
+    if (!t) {
+      notFound = true;
+    } else {
+      tournamentName = t.name;
+      courseName = t.course_name;
+      rounds = t.rounds.map((r) => ({ id: r.id, name: r.name }));
+      const validRound =
+          roundIdParam != null && rounds.some((r) => r.id === roundIdParam);
+      activeRoundId = validRound ? roundIdParam : null;
+
+      rows = activeRoundId
+        ? buildRoundLeaderboard(t, activeRoundId, view)
+        : buildTotalLeaderboard(t, view);
+      ctpEntries = extractCtpEntries(t);
+      anyNetAvailable = rows.some((r) => r.net != null);
+    }
+  }
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load tournament.';
+}
+
+// Helper to build a URL for a toggle click that preserves the
+// other params (so tapping "Net" doesn't kick you out of kiosk
+// mode or reset the round selector).
+function buildUrl(overrides: Record<string, string | null>): string {
+  const next = new URL(Astro.request.url);
+  for (const [k, v] of Object.entries(overrides)) {
+    if (v == null) next.searchParams.delete(k);
+    else next.searchParams.set(k, v);
+  }
+  return next.pathname + next.search;
+}
 ---
 
-<BaseLayout title="Leaderboard · Bagpipe Golf">
-  <main class="pagewrap">
-    <p class="pagewrap__eyebrow">Tournament · leaderboard</p>
-    <h1 class="pagewrap__title">Leaderboard</h1>
-    <p class="pagewrap__sub">Live gross, net, Stableford, Match Board, side pools.</p>
+<BaseLayout title={`${tournamentName} · Leaderboard · Bagpipe Golf`}>
+  <!--
+    Auto-refresh every 30s. Meta refresh (rather than JS polling)
+    keeps the page dead-simple + works even when the browser tab
+    is backgrounded on a clubhouse laptop that's plugged into an
+    HDMI TV. Preserves all query params across refreshes so kiosk
+    mode + sort toggle + round selector all persist.
+  -->
+  <meta http-equiv="refresh" content="30" slot="head" />
 
-    <TournamentSubnav id={id!} active="leaderboard" />
+  <main class={`pagewrap ${kiosk ? 'kiosk' : ''}`}>
+    {!kiosk && (
+      <>
+        <p class="pagewrap__eyebrow">Tournament · leaderboard</p>
+        <h1 class="pagewrap__title">{tournamentName}</h1>
+        {courseName && (
+          <p class="pagewrap__sub">{courseName}</p>
+        )}
+        {id && <TournamentSubnav id={id} active="leaderboard" />}
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Stroke leaderboard</h3>
-        <p>Gross / net / Stableford with sort toggle, vs-par columns.</p>
+        <div class="toolbar">
+          {anyNetAvailable && (
+            <div class="segmented">
+              <a
+                class={`seg ${view === 'gross' ? 'seg--active' : ''}`}
+                href={buildUrl({ view: null })}
+              >
+                Gross
+              </a>
+              <a
+                class={`seg ${view === 'net' ? 'seg--active' : ''}`}
+                href={buildUrl({ view: 'net' })}
+              >
+                Net
+              </a>
+            </div>
+          )}
+
+          <a
+            class="btn btn--primary"
+            href={buildUrl({ kiosk: '1' })}
+            title="Open kiosk mode (fullscreen-friendly big-print for TV)"
+          >
+            📺 Kiosk
+          </a>
+          <button
+            id="fs-btn"
+            class="btn btn--ghost"
+            type="button"
+          >
+            ⛶ Fullscreen
+          </button>
+          <span class="muted small">
+            Auto-refresh · 30s
+          </span>
+        </div>
+
+        {rounds.length > 1 && (
+          <div class="round-strip">
+            <a
+              class={`round-chip ${activeRoundId == null ? 'round-chip--active' : ''}`}
+              href={buildUrl({ round: null })}
+            >
+              Total
+            </a>
+            {rounds.map((r) => (
+              <a
+                class={`round-chip ${activeRoundId === r.id ? 'round-chip--active' : ''}`}
+                href={buildUrl({ round: r.id })}
+              >
+                {r.name}
+              </a>
+            ))}
+          </div>
+        )}
+      </>
+    )}
+
+    {kiosk && (
+      <div class="kiosk-header">
+        <div class="kiosk-title">{tournamentName}</div>
+        <div class="kiosk-sub">
+          {courseName && <span>{courseName}</span>}
+          {activeRoundId && (
+            <span class="kiosk-round">
+              {' · '}
+              {rounds.find((r) => r.id === activeRoundId)?.name}
+            </span>
+          )}
+          <span class="kiosk-view">
+            {' · '}
+            {view === 'net' ? 'NET' : 'GROSS'}
+          </span>
+        </div>
+        <div class="kiosk-mode-toggle">
+          <a href={buildUrl({ kiosk: null })} class="btn btn--ghost small">Exit kiosk</a>
+        </div>
+      </div>
+    )}
+
+    {loadError && (
+      <article class="card card--warn">
+        <h3>Could not load leaderboard</h3>
+        <p>{loadError}</p>
       </article>
+    )}
+
+    {notFound && !loadError && (
       <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Match Board</h3>
-        <p>Cup-format awards per match — 1.0 / 0.5 / 0.0, closeout-aware.</p>
+        <h3>Tournament not found</h3>
+        <p>
+          Double-check the id in the URL. If the tournament was recently
+          created, it may take a moment to sync.
+        </p>
       </article>
+    )}
+
+    {!loadError && !notFound && rows.length === 0 && (
       <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Side pools</h3>
-        <p>Closest-to-pin, longest drive, skins.</p>
+        <h3>No scores yet</h3>
+        <p>
+          The leaderboard fills in as scorekeepers enter scores. This
+          page refreshes automatically every 30 seconds.
+        </p>
       </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Kiosk mode</h3>
-        <p>Full-screen TV view for the clubhouse.</p>
-      </article>
-    </section>
+    )}
+
+    {!loadError && !notFound && rows.length > 0 && (
+      <table class="lbtable">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th class="col-name">Player</th>
+            <th class="col-thru">Thru</th>
+            {view === 'net' ? (
+              <>
+                <th class="col-hc">HC</th>
+                <th class="col-net">Net</th>
+                <th class="col-vs">vs Par</th>
+              </>
+            ) : (
+              <>
+                <th class="col-gross">Gross</th>
+                <th class="col-vs">vs Par</th>
+              </>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const vsPar = view === 'net' ? r.netVsPar : r.grossVsPar;
+            const primary = view === 'net' ? r.net : r.gross;
+            const vsClass =
+                vsPar == null ? 'even' : vsPar < 0 ? 'under' : vsPar > 0 ? 'over' : 'even';
+            return (
+              <tr>
+                <td class="col-rank">{r.rank}</td>
+                <td class="col-name">{r.name}</td>
+                <td class="col-thru">{r.thru}</td>
+                {view === 'net' && (
+                  <td class="col-hc">{r.courseHandicapAvg ?? '—'}</td>
+                )}
+                <td class={view === 'net' ? 'col-net' : 'col-gross'}>
+                  {primary ?? '—'}
+                </td>
+                <td class={`col-vs ${vsClass}`}>
+                  {vsPar == null ? '—' : formatVsPar(vsPar)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    )}
+
+    {!loadError && !notFound && ctpEntries.length > 0 && (
+      <section class="ctp-section">
+        <h2 class="ctp-title">Closest to Pin</h2>
+        <table class="ctptable">
+          <thead>
+            <tr>
+              <th>Round</th>
+              <th>Hole</th>
+              <th>Winner</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ctpEntries.map((c) => (
+              <tr>
+                <td>{c.roundName}</td>
+                <td>#{c.hole}</td>
+                <td>{c.winnerName}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    )}
   </main>
 </BaseLayout>
 
-<style>
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+<script>
+  const btn = document.getElementById('fs-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const el = document.documentElement as unknown as {
+        requestFullscreen?: () => Promise<void>;
+        webkitRequestFullscreen?: () => Promise<void>;
+      };
+      try {
+        (el.requestFullscreen ?? el.webkitRequestFullscreen)?.call(el);
+      } catch (e) {
+        console.warn('Fullscreen request failed', e);
+      }
+    });
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin: 12px 0 12px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-block;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .btn--primary {
+    background: var(--brand-green);
+    color: white;
+  }
+  .btn--ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--divider);
+  }
+  .btn.small {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .muted {
+    color: var(--ink-muted);
+  }
+  .small {
+    font-size: 13px;
+  }
+
+  /* Segmented Gross/Net toggle */
+  .segmented {
+    display: inline-flex;
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .seg {
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    text-decoration: none;
+    background: transparent;
+  }
+  .seg + .seg {
+    border-left: 1px solid var(--divider);
+  }
+  .seg--active {
+    background: var(--brand-green);
+    color: white;
+  }
+
+  /* Round chip strip */
+  .round-strip {
+    display: flex;
+    gap: 8px;
+    margin: 4px 0 16px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .round-chip {
+    padding: 6px 12px;
+    border: 1px solid var(--divider);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .round-chip--active {
+    background: var(--brand-green);
+    color: white;
+    border-color: var(--brand-green);
+  }
+
+  .lbtable {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+  .lbtable th,
+  .lbtable td {
+    padding: 12px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--divider);
+  }
+  .lbtable th {
+    font-size: 12px;
+    letter-spacing: 0.6px;
+    font-weight: 800;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+  }
+  .lbtable .col-rank {
+    width: 60px;
+    font-weight: 800;
+  }
+  .lbtable .col-name {
+    font-weight: 600;
+  }
+  .lbtable .col-thru,
+  .lbtable .col-hc,
+  .lbtable .col-gross,
+  .lbtable .col-net,
+  .lbtable .col-vs {
+    width: 78px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .lbtable .under {
+    color: #b00020;
+    font-weight: 700;
+  }
+  .lbtable .over {
+    color: var(--ink);
+  }
+  .lbtable .even {
+    color: var(--ink-muted);
+  }
+
+  .card--warn {
+    border-color: #b00020;
+  }
+
+  /* CTP section */
+  .ctp-section {
+    margin-top: 32px;
+  }
+  .ctp-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 8px;
+  }
+  .ctptable {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .ctptable th,
+  .ctptable td {
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--divider);
+    font-size: 14px;
+  }
+  .ctptable th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ink-muted);
+    font-weight: 800;
+  }
+
+  /* ── Kiosk mode — TV/HDMI-friendly big print ────────────── */
+  .kiosk {
+    padding: 32px 48px;
+    max-width: none;
+  }
+  .kiosk-header {
+    display: flex;
+    align-items: baseline;
+    gap: 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .kiosk-title {
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--brand-green-dark);
+    letter-spacing: -1px;
+  }
+  .kiosk-sub {
+    font-size: 22px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .kiosk-view {
+    color: var(--brand-green);
+    font-weight: 800;
+  }
+  .kiosk-mode-toggle {
+    margin-left: auto;
+  }
+  .kiosk .lbtable th,
+  .kiosk .lbtable td {
+    padding: 16px 12px;
+    font-size: 28px;
+  }
+  .kiosk .lbtable th {
+    font-size: 18px;
+  }
+  .kiosk .lbtable .col-rank {
+    width: 90px;
+  }
+  .kiosk .lbtable .col-thru,
+  .kiosk .lbtable .col-hc,
+  .kiosk .lbtable .col-gross,
+  .kiosk .lbtable .col-net,
+  .kiosk .lbtable .col-vs {
+    width: 120px;
+  }
+
+  /* Zebra striping in kiosk mode so rows scan cleanly at TV
+     viewing distance. */
+  .kiosk .lbtable tbody tr:nth-child(odd) {
+    background: rgba(0, 0, 0, 0.02);
+  }
+  .kiosk .ctp-title {
+    font-size: 26px;
+  }
+  .kiosk .ctptable th,
+  .kiosk .ctptable td {
+    font-size: 20px;
+    padding: 12px 10px;
+  }
 </style>
