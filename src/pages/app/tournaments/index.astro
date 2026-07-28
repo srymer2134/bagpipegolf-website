@@ -1,5 +1,53 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../../lib/supabase';
+import {
+  listMyTournaments,
+  isCompleted,
+  hasAnyScores,
+  type TournamentRow,
+} from '../../../lib/tournamentQueries';
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let tournaments: TournamentRow[] = [];
+let loadError: string | null = null;
+try {
+  tournaments = await listMyTournaments(supabase);
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load tournaments.';
+}
+
+// Categorize using the same signals the app relies on:
+//   completed_at != null            → Completed
+//   completed_at == null + scores   → Active
+//   completed_at == null + no scores → Upcoming
+const active: TournamentRow[] = [];
+const upcoming: TournamentRow[] = [];
+const completed: TournamentRow[] = [];
+for (const t of tournaments) {
+  if (isCompleted(t)) completed.push(t);
+  else if (hasAnyScores(t)) active.push(t);
+  else upcoming.push(t);
+}
+
+const fmtDate = (iso: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+const playerCount = (t: TournamentRow) => (t.players ?? []).length;
+const roundCount = (t: TournamentRow) => (t.rounds ?? []).length;
 ---
 
 <BaseLayout title="Tournaments · Bagpipe Golf">
@@ -7,40 +55,202 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
     <p class="pagewrap__eyebrow">Tournaments</p>
     <h1 class="pagewrap__title">Your tournaments.</h1>
     <p class="pagewrap__sub">
-      Events you're playing, directing, or have been invited to.
+      Events you're directing or playing. Click any tournament for the live leaderboard.
     </p>
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip">Active</span>
-        <h3 class="muted">No active tournaments</h3>
-        <p>Once you're scoring or running a tournament, it shows up here.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Upcoming</span>
-        <h3 class="muted">Nothing upcoming</h3>
-        <p>Events you've been added to but haven't started yet.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Completed</span>
-        <h3 class="muted">No completed tournaments yet</h3>
-        <p>Past events show up here with final standings and payouts.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--warn">Running an event</span>
-        <h3 class="muted">No tournaments to manage</h3>
-        <p>When you create one, you'll get full director controls here.</p>
-      </article>
-    </section>
+    {loadError && <div class="errorbar">⚠️ {loadError}</div>}
+
+    {tournaments.length === 0 && !loadError && (
+      <div class="empty">
+        <h3>No tournaments yet</h3>
+        <p>
+          Create a tournament in the Bagpipe Golf mobile app (Events tab → New Tournament) and it'll show up here with a live leaderboard link.
+        </p>
+      </div>
+    )}
+
+    {active.length > 0 && (
+      <section class="block">
+        <header class="block__head">
+          <h2 class="block__title">Active</h2>
+          <span class="block__count">{active.length}</span>
+        </header>
+        <div class="grid">
+          {active.map((t) => (
+            <a class="card card--active" href={`/app/tournaments/${t.id}/leaderboard`}>
+              <span class="chip chip--active">Scoring</span>
+              <h3 class="card__name">{t.name}</h3>
+              {t.course_name && <p class="card__meta">{t.course_name}</p>}
+              <p class="card__meta">
+                {playerCount(t)} players · {roundCount(t)} round{roundCount(t) === 1 ? '' : 's'}
+                {t.created_at && <> · started {fmtDate(t.created_at)}</>}
+              </p>
+              <span class="card__cta">View leaderboard →</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {upcoming.length > 0 && (
+      <section class="block">
+        <header class="block__head">
+          <h2 class="block__title">Upcoming</h2>
+          <span class="block__count">{upcoming.length}</span>
+        </header>
+        <div class="grid">
+          {upcoming.map((t) => (
+            <a class="card" href={`/app/tournaments/${t.id}/leaderboard`}>
+              <span class="chip chip--muted">Upcoming</span>
+              <h3 class="card__name">{t.name}</h3>
+              {t.course_name && <p class="card__meta">{t.course_name}</p>}
+              <p class="card__meta">
+                {playerCount(t)} players · {roundCount(t)} round{roundCount(t) === 1 ? '' : 's'}
+                {t.created_at && <> · created {fmtDate(t.created_at)}</>}
+              </p>
+              <span class="card__cta">Open leaderboard →</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {completed.length > 0 && (
+      <section class="block">
+        <header class="block__head">
+          <h2 class="block__title">Completed</h2>
+          <span class="block__count">{completed.length}</span>
+        </header>
+        <div class="grid">
+          {completed.map((t) => (
+            <a class="card card--done" href={`/app/tournaments/${t.id}/leaderboard`}>
+              <span class="chip chip--muted">Final</span>
+              <h3 class="card__name">{t.name}</h3>
+              {t.course_name && <p class="card__meta">{t.course_name}</p>}
+              <p class="card__meta">
+                {playerCount(t)} players · finished {fmtDate(t.completed_at)}
+              </p>
+              <span class="card__cta">View standings →</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
   </main>
 </BaseLayout>
 
 <style>
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+  .errorbar {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: var(--error);
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    margin-bottom: 18px;
   }
-  .card h3.muted { color: var(--ink-muted); font-weight: 600; }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+
+  .empty {
+    background: #fff;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+    padding: 32px 24px;
+    text-align: center;
+    margin-top: 24px;
+  }
+  .empty h3 {
+    color: var(--brand-green-dark);
+    margin: 0 0 8px;
+    font-size: 18px;
+  }
+  .empty p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+
+  .block { margin-top: 32px; }
+  .block:first-of-type { margin-top: 8px; }
+  .block__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .block__title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .block__count {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 18px;
+    text-decoration: none;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .card:hover {
+    border-color: var(--brand-green);
+    box-shadow: 0 4px 12px rgba(15, 61, 37, 0.08);
+  }
+  .card--active {
+    border-color: var(--brand-green);
+    background: linear-gradient(135deg, #fff 0%, #f0f7f2 100%);
+  }
+  .card--done { opacity: 0.85; }
+
+  .card__name {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 4px 0 0;
+    line-height: 1.25;
+  }
+  .card__meta {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin: 0;
+    line-height: 1.4;
+  }
+  .card__cta {
+    margin-top: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--brand-green);
+  }
+
+  .chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: rgba(47, 125, 68, 0.1);
+    color: var(--brand-green-dark);
+    align-self: flex-start;
+  }
+  .chip--active {
+    background: var(--brand-green);
+    color: white;
+  }
+  .chip--muted {
+    background: #f1f4f2;
+    color: var(--ink-muted);
+  }
 </style>
