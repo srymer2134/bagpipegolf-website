@@ -338,11 +338,16 @@ export const BALLYNEAL_BRIGADE_ID = 'tourney_1785515806605';
 
 /// Locked "Through Sat" (R1 net + Sat lower net) per player.
 /// Source: Sam's Brigade master spreadsheet 2026-08-01.
+// Values chosen so `Thru Sat − HDCP` matches Sam's spreadsheet
+// "Total NET" column exactly. 4 rows (Steve Stein, Chris Laney,
+// Ryan Gumbel, Ryan Wickles) are 1 stroke lower than the "Total
+// after 2 rounds" column would suggest — that's the reconciled
+// value per Sam's spreadsheet Total NET (2026-08-02).
 const BRIGADE_THROUGH_SAT_NET: Readonly<Record<string, number>> = {
   'p_35fbb832-5be2-422d-a595-cc841d2d52dc': 140, // Tim Halverson
-  'p_dba8ac82-56c2-4dfc-8957-492de394317d': 143, // Steve Stein
-  'p_199396d8-85b3-49de-aa06-73e796499295': 143, // Chris Laney
-  'p_b1796829-b576-48ba-89b5-d03bd8a9c0e8': 143, // Ryan Gumbel
+  'p_dba8ac82-56c2-4dfc-8957-492de394317d': 142, // Steve Stein
+  'p_199396d8-85b3-49de-aa06-73e796499295': 142, // Chris Laney
+  'p_b1796829-b576-48ba-89b5-d03bd8a9c0e8': 142, // Ryan Gumbel
   'p_a7dce2f7-95b1-4dfc-ab42-d6a39c226a55': 143, // Jeff Young
   'p_63264ade-67f6-4697-b632-2488c13aa310': 143, // Mike Papi
   'p_a41002a3-7c97-4843-9d08-aec5fb1fed80': 145, // Joe Buchholz
@@ -355,7 +360,7 @@ const BRIGADE_THROUGH_SAT_NET: Readonly<Record<string, number>> = {
   'p_1aa41f4e-1bff-4ece-bb7e-395db3052130': 150, // Bret Lampiasi
   'p_f5195759-5024-426f-988a-46a3587e98cf': 150, // Jacob Denson
   'p_9fea2500-da1a-43e4-bd77-9b804cb8b9d1': 151, // Aaron Parkington
-  'p_8d84d3e7-17c4-419c-a57c-3126eafe1516': 152, // Ryan Wickles
+  'p_8d84d3e7-17c4-419c-a57c-3126eafe1516': 151, // Ryan Wickles
   'p_1f4072be-66d2-4957-a843-6ef21201d727': 153, // Kurt Brakhage
   'p_me': 153, // Sam Rymer
   'p_f3f60a91-45aa-4a02-b600-4fb81220c5ac': 155, // Rick Marshall
