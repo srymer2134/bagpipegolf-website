@@ -103,17 +103,11 @@ try {
     } else {
       tournamentName = t.name;
       courseName = t.course_name;
-      const brigadeSpecial = isBallynealBrigade(t);
-      // Brigade R2 used a daily-HC allowance model; TD hides it
-      // from the chip strip so casual viewers don't compare its
-      // scores against R1/R3 (which use tournament-wide HCs).
-      rounds = t.rounds
-        .filter((r) => !(brigadeSpecial && r.name === 'Round 2'))
-        .map((r) => ({
-          id: r.id,
-          name: r.name,
-          format: r.format,
-        }));
+      rounds = t.rounds.map((r) => ({
+        id: r.id,
+        name: r.name,
+        format: r.format,
+      }));
       const validRound =
           roundIdParam != null && rounds.some((r) => r.id === roundIdParam);
       activeRoundId = validRound ? roundIdParam : null;
