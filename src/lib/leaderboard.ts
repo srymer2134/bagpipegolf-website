@@ -319,6 +319,134 @@ export function formatVsPar(v: number): string {
   return `${v}`;
 }
 
+// ── Ballyneal Brigade — special Total view ────────────────
+// Sam's Brigade uses a daily-HC allowance model that breaks the
+// standard per-round-net aggregate. TD assigns a fresh HC for R3
+// (the "Sunday HDCP") that's applied ONLY to R3 net; R1+R2 are
+// treated as raw gross carry-in. R2 is hidden from the top-level
+// leaderboard because its daily allowance would distort totals.
+//
+// Overall NET = (R1 gross) + (R2 gross, hidden) + (R3 gross − R3 HDCP)
+// per Sam's spreadsheet formula 2026-08-01. R3 HDCP resolved from
+// the round's `player_handicap_index_snapshot`.
+export const BALLYNEAL_BRIGADE_ID = 'tourney_1785515806605';
+
+export type BrigadeRow = {
+  rank: number;
+  playerId: string;
+  name: string;
+  r1PlusR2: number; // R1 gross + R2 gross (carry-in through Sat)
+  r3Gross: number | null; // null when R3 has no scores yet
+  r3Hdcp: number | null; // per-player R3 HC snapshot (integer)
+  overallGross: number; // r1PlusR2 + (r3Gross ?? 0)
+  overallNet: number | null; // r1PlusR2 + (r3Gross − r3Hdcp), null when hdcp missing
+};
+
+export function isBallynealBrigade(t: TournamentRow): boolean {
+  return t.id === BALLYNEAL_BRIGADE_ID;
+}
+
+function _grossForRound(round: TournamentRound, playerId: string): number {
+  let total = 0;
+  for (const phs of playerHoleScoresFor(round)) {
+    if (phs.playerId !== playerId) continue;
+    for (const s of phs.holeScores) {
+      if (s != null) total += s;
+    }
+  }
+  return total;
+}
+
+function _thruForRound(round: TournamentRound, playerId: string): number {
+  let n = 0;
+  for (const phs of playerHoleScoresFor(round)) {
+    if (phs.playerId !== playerId) continue;
+    for (const s of phs.holeScores) if (s != null) n += 1;
+  }
+  return n;
+}
+
+function _r3HdcpFor(round: TournamentRound | undefined, playerId: string): number | null {
+  if (!round) return null;
+  const raw = (round as unknown as {
+    player_handicap_index_snapshot?: Record<string, number | string>;
+    playerHandicapIndexSnapshot?: Record<string, number | string>;
+  });
+  const map = raw.player_handicap_index_snapshot ?? raw.playerHandicapIndexSnapshot;
+  if (!map || typeof map !== 'object') return null;
+  const v = map[playerId];
+  if (v == null) return null;
+  const n = typeof v === 'string' ? Number(v) : v;
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+/// Brigade-format Total leaderboard. Sort: Overall Net asc (lowest
+/// wins), ties broken by Overall Gross asc, then name.
+export function buildBrigadeTotals(
+  t: TournamentRow,
+  sortMode: 'gross' | 'net' = 'net',
+): BrigadeRow[] {
+  const r1 = t.rounds[0];
+  const r2 = t.rounds[1];
+  const r3 = t.rounds[2];
+  const rows: BrigadeRow[] = [];
+  for (const p of t.players) {
+    const r1Gross = r1 ? _grossForRound(r1, p.id) : 0;
+    const r2Gross = r2 ? _grossForRound(r2, p.id) : 0;
+    const r3ThruCount = r3 ? _thruForRound(r3, p.id) : 0;
+    const r3GrossRaw = r3 ? _grossForRound(r3, p.id) : 0;
+    const r3Gross = r3ThruCount > 0 ? r3GrossRaw : null;
+    const r3Hdcp = _r3HdcpFor(r3, p.id);
+    const r1PlusR2 = r1Gross + r2Gross;
+    const overallGross = r1PlusR2 + (r3Gross ?? 0);
+    const overallNet = r3Hdcp == null
+      ? null
+      : r1PlusR2 + ((r3Gross ?? 0) - r3Hdcp);
+    // Skip players with no carry-in and no R3 activity — hides
+    // suspended players even if roster row survives.
+    if (r1PlusR2 === 0 && r3Gross == null) continue;
+    rows.push({
+      rank: 0,
+      playerId: p.id,
+      name: p.name,
+      r1PlusR2,
+      r3Gross,
+      r3Hdcp,
+      overallGross,
+      overallNet,
+    });
+  }
+  const sorted = [...rows].sort((a, b) => {
+    if (sortMode === 'net') {
+      const av = a.overallNet ?? Number.MAX_SAFE_INTEGER;
+      const bv = b.overallNet ?? Number.MAX_SAFE_INTEGER;
+      if (av !== bv) return av - bv;
+      if (a.overallGross !== b.overallGross) return a.overallGross - b.overallGross;
+    } else {
+      if (a.overallGross !== b.overallGross) return a.overallGross - b.overallGross;
+      const av = a.overallNet ?? Number.MAX_SAFE_INTEGER;
+      const bv = b.overallNet ?? Number.MAX_SAFE_INTEGER;
+      if (av !== bv) return av - bv;
+    }
+    return a.name.localeCompare(b.name);
+  });
+  let currentRank = 0;
+  let seen = 0;
+  let lastValue: number | null = null;
+  for (const r of sorted) {
+    seen += 1;
+    const v = sortMode === 'net'
+      ? (r.overallNet ?? Number.MAX_SAFE_INTEGER)
+      : r.overallGross;
+    if (v !== lastValue) {
+      currentRank = seen;
+      lastValue = v;
+    }
+    r.rank = currentRank;
+  }
+  return sorted;
+}
+
 /// Extract every CTP winner across every round. Each entry
 /// carries the round's display name + the winning player's name
 /// (resolved from `tournament.players`). Returns [] when no
