@@ -8,15 +8,18 @@ import { handleWellKnownRequest } from './lib/wellKnown';
 const PROTECTED_PREFIXES = ['/app'];
 
 // Sub-routes under a PROTECTED_PREFIXES path that are PUBLIC and
-// bypass the auth gate. The Ballyneal Brigade 2026-07-27 public
-// leaderboard lives at `/app/tournaments/:id/leaderboard` — anyone
-// with the id (or the `/t/:id` short URL that redirects here) can
-// view without signing in. RLS on `public.tournaments` grants
-// `anon` a SELECT policy so the SSR fetch works with just the
-// anon key (see the flutter repo migration
+// bypass the auth gate. Ballyneal Brigade 2026-08-02 — Sam
+// expanded the public surface so non-player spectators can view
+// the whole tournament (overview, scorecard, calcutta, payouts,
+// leaderboard) with just the tourney id, no signin required.
+// Only `/manage` (TD-only admin surface) stays gated.
+// RLS on `public.tournaments` grants `anon` a SELECT policy so
+// the SSR fetches work with just the anon key (see the flutter
+// repo migration
 // `20260727_public_read_tournaments_for_web_leaderboard.sql`).
 const PUBLIC_APP_PATTERNS: RegExp[] = [
-  /^\/app\/tournaments\/[^/]+\/leaderboard\/?$/,
+  /^\/app\/tournaments\/[^/]+\/?$/,
+  /^\/app\/tournaments\/[^/]+\/(leaderboard|scorecard|calcutta|payouts)\/?$/,
 ];
 
 // Routes a signed-in user should be bounced AWAY from (login pages,
