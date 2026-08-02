@@ -354,7 +354,7 @@ const BRIGADE_THROUGH_SAT_NET: Readonly<Record<string, number>> = {
   'p_d8f22b8e-b998-4c3f-9c30-010ab95b9ca8': 146, // Mark Graycar
   'p_71aa299d-d6d0-4172-954b-40bcdb771311': 146, // Scott McGath
   'p_e7bfa41d-d6ef-4a4b-a11c-a2f9aff547a0': 148, // Neil Metz
-  'p_greg_nosches_2026': 148, // Greg Nosches
+  // Greg Nosches suspended from leaderboards per Sam 2026-08-02
   'p_db2a3f77-2a40-4d26-869b-c7a34ce44944': 148, // Nate Marozzi
   'p_8e65e4a3-46d5-4c22-b38f-a9f5a9252e38': 150, // John Mosby
   'p_1aa41f4e-1bff-4ece-bb7e-395db3052130': 150, // Bret Lampiasi
