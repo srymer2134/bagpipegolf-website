@@ -153,12 +153,13 @@ try {
       } else if (effectiveBoard === 'skins') {
         skinsSections = buildAllSkinsSections(t);
       } else {
-        // Brigade special-case: Total view uses the daily-HC
-        // aggregate (R2 hidden, HC applied only to R3).
+        // Brigade special-case: Total view uses the net-only
+        // Through-Sat + R3-net aggregate (R2 hidden, HC applied
+        // only to R3, no gross column since Brigade is net-only).
         if (isBallynealBrigade(t) && !activeRoundId) {
           isBrigadeTotal = true;
-          brigadeRows = buildBrigadeTotals(t, view);
-          anyNetAvailable = brigadeRows.some((r) => r.overallNet != null);
+          brigadeRows = buildBrigadeTotals(t);
+          anyNetAvailable = false; // Brigade card is net-only; hide Gross/Net toggle
         } else {
           rows = activeRoundId
             ? buildRoundLeaderboard(t, activeRoundId, view)
@@ -378,33 +379,36 @@ function buildUrl(overrides: Record<string, string | null>): string {
     {!loadError && !notFound && isBrigadeTotal && brigadeRows.length > 0 && (
       <>
         <p class="brigade-caption muted small">
-          Total = Sun HDCP applied to Round 3 only. Round 2 hidden
-          (daily allowance format). Sort: <strong>{view === 'net' ? 'Net' : 'Gross'}</strong>.
+          Net-only. <strong>Thru Sat</strong> = R1 net + lower of Sat AM/PM
+          net. Sunday HDCP applied to R3 only.
         </p>
         <table class="lbtable">
           <thead>
             <tr>
               <th class="col-rank">#</th>
               <th class="col-name">Player</th>
-              <th class="col-num">Total</th>
+              <th class="col-num">Thru Sat</th>
               <th class="col-num">R3</th>
-              <th class="col-num">Gross</th>
               <th class="col-num">HDCP</th>
               <th class="col-num">Net</th>
             </tr>
           </thead>
           <tbody>
-            {brigadeRows.map((r) => (
-              <tr>
-                <td class="col-rank">{r.rank}</td>
-                <td class="col-name">{r.name}</td>
-                <td class="col-num">{r.r1PlusR2}</td>
-                <td class="col-num">{r.r3Gross ?? '—'}</td>
-                <td class="col-num"><strong>{r.overallGross}</strong></td>
-                <td class="col-num">{r.r3Hdcp ?? '—'}</td>
-                <td class="col-num"><strong>{r.overallNet ?? '—'}</strong></td>
-              </tr>
-            ))}
+            {brigadeRows.map((r) => {
+              const r3NetDisplay = r.r3Net == null
+                ? '—'
+                : r.r3Net > 0 ? `+${r.r3Net}` : `${r.r3Net}`;
+              return (
+                <tr>
+                  <td class="col-rank">{r.rank}</td>
+                  <td class="col-name">{r.name}</td>
+                  <td class="col-num">{r.throughSat}</td>
+                  <td class="col-num">{r3NetDisplay}</td>
+                  <td class="col-num">{r.r3Hdcp ?? '—'}</td>
+                  <td class="col-num"><strong>{r.totalNet}</strong></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </>

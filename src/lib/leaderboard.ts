@@ -319,27 +319,60 @@ export function formatVsPar(v: number): string {
   return `${v}`;
 }
 
-// ── Ballyneal Brigade — special Total view ────────────────
-// Sam's Brigade uses a daily-HC allowance model that breaks the
-// standard per-round-net aggregate. TD assigns a fresh HC for R3
-// (the "Sunday HDCP") that's applied ONLY to R3 net; R1+R2 are
-// treated as raw gross carry-in. R2 is hidden from the top-level
-// leaderboard because its daily allowance would distort totals.
+// ── Ballyneal Brigade — net-only leaderboard ──────────────
+// Brigade is a NET-only competition. "Through Sat" carry-in
+// captures:
+//   * Fri PM 4-man Best Ball — R1 net (gross − HC)
+//   * Sat AM 2-man Best Ball + Sat PM optional — take the LOWER
+//     of AM/PM net per player
+//   Through Sat = R1 net + lower(Sat AM net, Sat PM net)
 //
-// Overall NET = (R1 gross) + (R2 gross, hidden) + (R3 gross − R3 HDCP)
-// per Sam's spreadsheet formula 2026-08-01. R3 HDCP resolved from
-// the round's `player_handicap_index_snapshot`.
+// R3 (Sun Championship) applies a fresh TD-assigned Sunday HDCP:
+//   R3 net = R3 gross − R3 HDCP snapshot
+//   Total NET = Through Sat + R3 net
+//
+// Sat AM/PM were both played off-app; carry-in values are locked
+// from Sam's master spreadsheet 2026-08-01. No gross column —
+// Brigade is a net-only event.
 export const BALLYNEAL_BRIGADE_ID = 'tourney_1785515806605';
+
+/// Locked "Through Sat" (R1 net + Sat lower net) per player.
+/// Source: Sam's Brigade master spreadsheet 2026-08-01.
+const BRIGADE_THROUGH_SAT_NET: Readonly<Record<string, number>> = {
+  'p_35fbb832-5be2-422d-a595-cc841d2d52dc': 140, // Tim Halverson
+  'p_dba8ac82-56c2-4dfc-8957-492de394317d': 143, // Steve Stein
+  'p_199396d8-85b3-49de-aa06-73e796499295': 143, // Chris Laney
+  'p_b1796829-b576-48ba-89b5-d03bd8a9c0e8': 143, // Ryan Gumbel
+  'p_a7dce2f7-95b1-4dfc-ab42-d6a39c226a55': 143, // Jeff Young
+  'p_63264ade-67f6-4697-b632-2488c13aa310': 143, // Mike Papi
+  'p_a41002a3-7c97-4843-9d08-aec5fb1fed80': 145, // Joe Buchholz
+  'p_d8f22b8e-b998-4c3f-9c30-010ab95b9ca8': 146, // Mark Graycar
+  'p_71aa299d-d6d0-4172-954b-40bcdb771311': 146, // Scott McGath
+  'p_e7bfa41d-d6ef-4a4b-a11c-a2f9aff547a0': 148, // Neil Metz
+  'p_greg_nosches_2026': 148, // Greg Nosches
+  'p_db2a3f77-2a40-4d26-869b-c7a34ce44944': 148, // Nate Marozzi
+  'p_8e65e4a3-46d5-4c22-b38f-a9f5a9252e38': 150, // John Mosby
+  'p_1aa41f4e-1bff-4ece-bb7e-395db3052130': 150, // Bret Lampiasi
+  'p_f5195759-5024-426f-988a-46a3587e98cf': 150, // Jacob Denson
+  'p_9fea2500-da1a-43e4-bd77-9b804cb8b9d1': 151, // Aaron Parkington
+  'p_8d84d3e7-17c4-419c-a57c-3126eafe1516': 152, // Ryan Wickles
+  'p_1f4072be-66d2-4957-a843-6ef21201d727': 153, // Kurt Brakhage
+  'p_me': 153, // Sam Rymer
+  'p_f3f60a91-45aa-4a02-b600-4fb81220c5ac': 155, // Rick Marshall
+  'p_57b75a7b-04e2-4070-8631-bf098e402498': 160, // David Bost
+  'p_27ce904e-2cd7-4367-9b4e-931b8f43ac2d': 163, // Richard Gabaldon
+  'p_a8fdf52e-a481-4dac-be94-6325565f5317': 168, // Bob Young
+};
 
 export type BrigadeRow = {
   rank: number;
   playerId: string;
   name: string;
-  r1PlusR2: number; // R1 gross + R2 gross (carry-in through Sat)
-  r3Gross: number | null; // null when R3 has no scores yet
-  r3Hdcp: number | null; // per-player R3 HC snapshot (integer)
-  overallGross: number; // r1PlusR2 + (r3Gross ?? 0)
-  overallNet: number | null; // r1PlusR2 + (r3Gross − r3Hdcp), null when hdcp missing
+  throughSat: number; // R1 net + Sat lower net (locked)
+  r3Gross: number | null; // null = R3 not started
+  r3Hdcp: number | null;
+  r3Net: number | null; // r3Gross − r3Hdcp; or −r3Hdcp pre-R3
+  totalNet: number; // throughSat + (r3Net ?? 0)
 };
 
 export function isBallynealBrigade(t: TournamentRow): boolean {
@@ -380,71 +413,51 @@ function _r3HdcpFor(round: TournamentRound | undefined, playerId: string): numbe
   return Number.isFinite(n) ? Math.round(n) : null;
 }
 
-/// Brigade-format Total leaderboard. Sort: Overall Net asc (lowest
-/// wins), ties broken by Overall Gross asc, then name.
-export function buildBrigadeTotals(
-  t: TournamentRow,
-  sortMode: 'gross' | 'net' = 'net',
-): BrigadeRow[] {
-  const r1 = t.rounds[0];
-  const r2 = t.rounds[1];
+/// Brigade net-only leaderboard. Sort: Total NET asc, ties broken
+/// by Through-Sat asc, then name.
+export function buildBrigadeTotals(t: TournamentRow): BrigadeRow[] {
   const r3 = t.rounds[2];
   const rows: BrigadeRow[] = [];
   for (const p of t.players) {
-    const r1Gross = r1 ? _grossForRound(r1, p.id) : 0;
-    const r2Gross = r2 ? _grossForRound(r2, p.id) : 0;
-    const r3ThruCount = r3 ? _thruForRound(r3, p.id) : 0;
-    const r3GrossRaw = r3 ? _grossForRound(r3, p.id) : 0;
-    const r3Gross = r3ThruCount > 0 ? r3GrossRaw : null;
+    const throughSat = BRIGADE_THROUGH_SAT_NET[p.id];
+    if (throughSat == null) continue; // suspended (Stefanek etc.)
+    const r3Thru = r3 ? _thruForRound(r3, p.id) : 0;
+    const r3Gross = r3Thru > 0 ? _grossForRound(r3, p.id) : null;
     const r3Hdcp = _r3HdcpFor(r3, p.id);
-    const r1PlusR2 = r1Gross + r2Gross;
-    const overallGross = r1PlusR2 + (r3Gross ?? 0);
-    const overallNet = r3Hdcp == null
+    // Pre-R3: R3 net = −HDCP (what they'll take back)
+    // Post-R3: R3 net = gross − HDCP
+    const r3Net = r3Hdcp == null
       ? null
-      : r1PlusR2 + ((r3Gross ?? 0) - r3Hdcp);
-    // Skip players with no carry-in and no R3 activity — hides
-    // suspended players even if roster row survives.
-    if (r1PlusR2 === 0 && r3Gross == null) continue;
+      : (r3Gross == null ? -r3Hdcp : r3Gross - r3Hdcp);
+    const totalNet = throughSat + (r3Net ?? 0);
     rows.push({
       rank: 0,
       playerId: p.id,
       name: p.name,
-      r1PlusR2,
+      throughSat,
       r3Gross,
       r3Hdcp,
-      overallGross,
-      overallNet,
+      r3Net,
+      totalNet,
     });
   }
-  const sorted = [...rows].sort((a, b) => {
-    if (sortMode === 'net') {
-      const av = a.overallNet ?? Number.MAX_SAFE_INTEGER;
-      const bv = b.overallNet ?? Number.MAX_SAFE_INTEGER;
-      if (av !== bv) return av - bv;
-      if (a.overallGross !== b.overallGross) return a.overallGross - b.overallGross;
-    } else {
-      if (a.overallGross !== b.overallGross) return a.overallGross - b.overallGross;
-      const av = a.overallNet ?? Number.MAX_SAFE_INTEGER;
-      const bv = b.overallNet ?? Number.MAX_SAFE_INTEGER;
-      if (av !== bv) return av - bv;
-    }
+  rows.sort((a, b) => {
+    if (a.totalNet !== b.totalNet) return a.totalNet - b.totalNet;
+    if (a.throughSat !== b.throughSat) return a.throughSat - b.throughSat;
     return a.name.localeCompare(b.name);
   });
   let currentRank = 0;
   let seen = 0;
   let lastValue: number | null = null;
-  for (const r of sorted) {
+  for (const r of rows) {
     seen += 1;
-    const v = sortMode === 'net'
-      ? (r.overallNet ?? Number.MAX_SAFE_INTEGER)
-      : r.overallGross;
-    if (v !== lastValue) {
+    if (r.totalNet !== lastValue) {
       currentRank = seen;
-      lastValue = v;
+      lastValue = r.totalNet;
     }
     r.rank = currentRank;
   }
-  return sorted;
+  return rows;
 }
 
 /// Extract every CTP winner across every round. Each entry
