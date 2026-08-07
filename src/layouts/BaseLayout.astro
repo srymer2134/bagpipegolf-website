@@ -23,7 +23,11 @@ const {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Direct JPG favicon — earlier SVG hack that used <image href> to
+         embed the JPG failed because browsers don't fetch external
+         references inside SVG favicons. Direct JPG works everywhere. -->
+    <link rel="icon" type="image/jpeg" href="/bagpipe-golf-logo.jpg" />
+    <link rel="apple-touch-icon" href="/bagpipe-golf-logo.jpg" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta property="og:title" content={title} />
