@@ -52,11 +52,16 @@ const roundCount = (t: TournamentRow) => (t.rounds ?? []).length;
 
 <BaseLayout title="Tournaments · Bagpipe Golf">
   <main class="pagewrap">
-    <p class="pagewrap__eyebrow">Tournaments</p>
-    <h1 class="pagewrap__title">Your tournaments.</h1>
-    <p class="pagewrap__sub">
-      Events you're directing or playing. Click any tournament for the live leaderboard.
-    </p>
+    <div class="pagehead">
+      <div>
+        <p class="pagewrap__eyebrow">Tournaments</p>
+        <h1 class="pagewrap__title">Your tournaments.</h1>
+        <p class="pagewrap__sub">
+          Events you're directing or playing. Click any tournament for the live leaderboard.
+        </p>
+      </div>
+      <a href="/app/tournaments/new" class="btn btn--primary">New tournament</a>
+    </div>
 
     {loadError && <div class="errorbar">⚠️ {loadError}</div>}
 
@@ -64,8 +69,9 @@ const roundCount = (t: TournamentRow) => (t.rounds ?? []).length;
       <div class="empty">
         <h3>No tournaments yet</h3>
         <p>
-          Create a tournament in the Bagpipe Golf mobile app (Events tab → New Tournament) and it'll show up here with a live leaderboard link.
+          Create your first tournament right here, or from the mobile app (Events tab → New Tournament).
         </p>
+        <a href="/app/tournaments/new" class="btn btn--primary" style="margin-top: 12px;">Create a tournament</a>
       </div>
     )}
 
@@ -140,6 +146,19 @@ const roundCount = (t: TournamentRow) => (t.rounds ?? []).length;
 </BaseLayout>
 
 <style>
+  .pagehead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 8px;
+  }
+  .pagehead > div { min-width: 0; }
+  .pagehead .pagewrap__sub { margin-bottom: 0; }
+  @media (max-width: 720px) {
+    .pagehead { flex-direction: column; align-items: stretch; }
+  }
+
   .errorbar {
     background: #FEF2F2;
     border: 1px solid #FECACA;

@@ -4,6 +4,7 @@
 type Runtime = import('@astrojs/cloudflare').Runtime<{
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
+  RAILWAY_API_URL: string;
   ASSETS: Fetcher;
 }>;
 

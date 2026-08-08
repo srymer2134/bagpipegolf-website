@@ -1,7 +1,59 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../lib/supabase';
 
 const user = Astro.locals.user!;
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+type ProfileRow = {
+  id: string;
+  display_name: string | null;
+  handicap: number | null;
+  home_course_id: string | null;
+  handicap_source: string | null;
+  handicap_updated_at: string | null;
+  bagpipe_suggested_handicap: number | null;
+};
+
+let profile: ProfileRow | null = null;
+let loadError: string | null = null;
+try {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(
+      'id, display_name, handicap, home_course_id, handicap_source, handicap_updated_at, bagpipe_suggested_handicap',
+    )
+    .eq('id', user.id)
+    .maybeSingle();
+  if (error) throw error;
+  profile = (data ?? null) as ProfileRow | null;
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load profile.';
+}
+
+const displayName = profile?.display_name ?? '';
+const handicap = profile?.handicap ?? null;
+const homeCourse = profile?.home_course_id ?? '';
+const handicapSource = profile?.handicap_source ?? 'manual';
+
+const saved = Astro.url.searchParams.get('saved') === '1';
+const errMsg = Astro.url.searchParams.get('err');
+
+const fmtHandicap = (h: number | null): string => {
+  if (h == null) return '—';
+  if (h === 0) return '0.0';
+  return (h > 0 ? '+' : '') + h.toFixed(1);
+};
+
+const handicapSourceLabel: Record<string, string> = {
+  manual: 'Manual (you set it)',
+  bagpipe_auto: 'Bagpipe auto (computed from your rounds)',
+  bagpipe_nudge: 'Bagpipe nudge (suggested, awaiting your accept)',
+};
 ---
 
 <BaseLayout title="Profile · Bagpipe Golf">
@@ -9,25 +61,93 @@ const user = Astro.locals.user!;
     <p class="pagewrap__eyebrow">Profile</p>
     <h1 class="pagewrap__title">Your profile.</h1>
     <p class="pagewrap__sub">
-      Matches the profile editor in the mobile app. Edits sync everywhere.
+      Edits sync everywhere — the mobile app reads the same profile row.
     </p>
+
+    {loadError && <div class="banner banner--err">{loadError}</div>}
+    {saved && <div class="banner banner--ok">Profile saved.</div>}
+    {errMsg && !saved && <div class="banner banner--err">{errMsg}</div>}
 
     <section class="grid grid--2">
       <article class="card">
         <h3>Account</h3>
         <dl class="kv">
           <dt>Email</dt><dd>{user.email}</dd>
+          <dt>Display name</dt><dd>{displayName || <span class="muted">Not set</span>}</dd>
+          <dt>Handicap</dt><dd>{fmtHandicap(handicap)}</dd>
+          <dt>Handicap source</dt>
+          <dd>{handicapSourceLabel[handicapSource] ?? handicapSource}</dd>
+          {profile?.bagpipe_suggested_handicap != null && (
+            <>
+              <dt>Bagpipe suggestion</dt>
+              <dd>{fmtHandicap(profile.bagpipe_suggested_handicap)}</dd>
+            </>
+          )}
         </dl>
       </article>
+
       <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Golfer</h3>
-        <p>Display name, handicap index, home course, GHIN number.</p>
+        <h3>Edit</h3>
+        <form method="post" action="/api/profile/update" class="form">
+          <label class="field">
+            <span class="field__label">Display name</span>
+            <input
+              type="text"
+              name="display_name"
+              required
+              maxlength="60"
+              value={displayName}
+              autocomplete="name"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Handicap index</span>
+            <input
+              type="number"
+              name="handicap"
+              step="0.1"
+              min="-10"
+              max="54"
+              value={handicap ?? ''}
+              inputmode="decimal"
+            />
+            <span class="field__hint">
+              Manual override. If your handicap source is Bagpipe auto, this will be overwritten on your next completed round.
+            </span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Home course</span>
+            <input
+              type="text"
+              name="home_course"
+              value={homeCourse}
+              placeholder="Optional (course id or free text)"
+              autocomplete="off"
+            />
+          </label>
+
+          <button type="submit" class="btn btn--primary">Save</button>
+        </form>
       </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
+    </section>
+
+    <section class="grid grid--3" style="margin-top: 24px;">
+      <article class="card card--muted">
+        <span class="chip chip--muted">Mobile app only</span>
         <h3>Notifications</h3>
-        <p>Push / email / SMS / in-app toggles per category.</p>
+        <p>Push / email / SMS toggles per category live in the iOS + Android app under Profile → Notifications.</p>
+      </article>
+      <article class="card card--muted">
+        <span class="chip chip--muted">Mobile app only</span>
+        <h3>Biometric unlock</h3>
+        <p>Face ID / Touch ID is a device-local setting — manage it inside the mobile app.</p>
+      </article>
+      <article class="card card--muted">
+        <span class="chip chip--muted">Mobile app only</span>
+        <h3>Delete account</h3>
+        <p>Full account deletion runs from the mobile app so we can confirm on the same device that holds your session.</p>
       </article>
     </section>
   </main>
@@ -37,10 +157,58 @@ const user = Astro.locals.user!;
   .card h3 {
     font-size: 17px;
     color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+    margin: 8px 0 12px;
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
-  .kv { display: grid; grid-template-columns: 100px 1fr; gap: 6px 14px; margin: 4px 0 0; }
+  .card--muted { opacity: 0.85; }
+  .card--muted p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .kv {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 6px 14px;
+    margin: 0;
+  }
   .kv dt { color: var(--ink-muted); font-size: 13px; }
   .kv dd { margin: 0; color: var(--ink); font-size: 14px; }
+  .muted { color: var(--ink-hint); }
+
+  .form { display: flex; flex-direction: column; gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .field__hint { font-size: 12px; color: var(--ink-muted); }
+  .field input {
+    font: inherit;
+    padding: 10px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+  }
+  .field input:focus {
+    outline: none;
+    border-color: var(--brand-green);
+    box-shadow: 0 0 0 3px rgba(26, 92, 56, 0.14);
+  }
+
+  .banner {
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .banner--ok {
+    background: #E8F5EE;
+    color: var(--brand-green-dark);
+    border: 1px solid #A7D3B7;
+  }
+  .banner--err {
+    background: #FEF2F2;
+    color: var(--error);
+    border: 1px solid #FECACA;
+  }
 </style>
