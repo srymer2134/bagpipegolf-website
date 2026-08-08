@@ -1,0 +1,456 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../../lib/supabase';
+
+// PUBLIC_APP_PATTERNS in middleware.ts matches
+// `/app/tournaments/<id>` (opened up for spectator viewing of
+// live tournaments) which also matches `/app/tournaments/new` at
+// the same depth. Page-level auth guard here backfills the check
+// so the create form still redirects unauthenticated users.
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect('/login?next=/app/tournaments/new', 302);
+}
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+type ProfilePrefill = {
+  display_name: string | null;
+  handicap: number | null;
+};
+let prefill: ProfilePrefill = { display_name: null, handicap: null };
+try {
+  const { data } = await supabase
+    .from('profiles')
+    .select('display_name, handicap')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (data) prefill = data as ProfilePrefill;
+} catch {
+  // Profile fetch failure is non-fatal — the form still works with
+  // empty defaults and the user can type their name/handicap in.
+}
+
+const errMsg = Astro.url.searchParams.get('err');
+
+const defaultTotalHoles = 18;
+const parIndices = Array.from({ length: defaultTotalHoles }, (_, i) => i + 1);
+---
+
+<BaseLayout title="New tournament · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Tournaments</p>
+    <h1 class="pagewrap__title">Create a tournament.</h1>
+    <p class="pagewrap__sub">
+      Sets up the event with a scorable Round 1. Add more players + rounds from the mobile app.
+    </p>
+
+    {errMsg && <div class="banner banner--err">{decodeURIComponent(errMsg)}</div>}
+
+    <form
+      id="new-tourney-form"
+      method="post"
+      action="/api/tournaments/create"
+      class="form"
+    >
+      <label class="field">
+        <span class="field__label">Name</span>
+        <input
+          type="text"
+          name="name"
+          required
+          maxlength="80"
+          placeholder="Sunday Blitz, Fall Cup, …"
+        />
+      </label>
+
+      <div class="field">
+        <span class="field__label">Course</span>
+        <div class="search">
+          <input
+            type="text"
+            id="course-search"
+            autocomplete="off"
+            placeholder="Search a course (or type a name)"
+            aria-describedby="course-search-hint"
+          />
+          <ul id="course-results" class="search__results" role="listbox" hidden></ul>
+          <span id="course-search-hint" class="field__hint">
+            Powered by the same course database the mobile app uses (curated venues + upstream). Type at least 2 letters.
+          </span>
+        </div>
+        <input type="hidden" name="course_id" id="course_id" value="" />
+        <input type="hidden" name="course_name" id="course_name" value="" />
+        <input type="hidden" name="course_rating" id="course_rating" value="" />
+        <input type="hidden" name="slope_rating" id="slope_rating" value="" />
+      </div>
+
+      <div class="row">
+        <label class="field field--sm">
+          <span class="field__label">Holes</span>
+          <select name="total_holes" id="total_holes">
+            <option value="9">9</option>
+            <option value="18" selected>18</option>
+          </select>
+        </label>
+      </div>
+
+      <fieldset class="pars">
+        <legend class="field__label">Pars (per hole)</legend>
+        <p class="field__hint">
+          Defaults to par-4. Adjust any hole; the total updates automatically.
+          If you pick a curated course above we auto-fill the pars for you.
+        </p>
+        <div id="pars-grid" class="pars__grid">
+          {parIndices.map((h) => (
+            <label class="par">
+              <span class="par__num">{h}</span>
+              <input
+                type="number"
+                name={`par_${h}`}
+                data-par-input
+                min="3"
+                max="6"
+                value="4"
+                inputmode="numeric"
+              />
+            </label>
+          ))}
+        </div>
+        <div class="pars__totals">
+          Total par: <strong id="par-total">72</strong>
+        </div>
+      </fieldset>
+
+      <div class="row">
+        <label class="field">
+          <span class="field__label">Your display name</span>
+          <input
+            type="text"
+            name="creator_name"
+            value={prefill.display_name ?? ''}
+            required
+            maxlength="60"
+          />
+        </label>
+        <label class="field field--sm">
+          <span class="field__label">Your handicap</span>
+          <input
+            type="number"
+            name="creator_handicap"
+            step="0.1"
+            min="-10"
+            max="54"
+            value={prefill.handicap ?? 18}
+            inputmode="decimal"
+          />
+        </label>
+      </div>
+
+      <div class="actions">
+        <a href="/app/tournaments" class="btn btn--ghost">Cancel</a>
+        <button type="submit" class="btn btn--primary">Create tournament</button>
+      </div>
+    </form>
+  </main>
+</BaseLayout>
+
+<script>
+  const form = document.getElementById('new-tourney-form') as HTMLFormElement | null;
+  const searchInput = document.getElementById('course-search') as HTMLInputElement | null;
+  const resultsEl = document.getElementById('course-results') as HTMLUListElement | null;
+  const totalHolesEl = document.getElementById('total_holes') as HTMLSelectElement | null;
+  const parsGrid = document.getElementById('pars-grid') as HTMLDivElement | null;
+  const parTotalEl = document.getElementById('par-total') as HTMLElement | null;
+  const courseIdInput = document.getElementById('course_id') as HTMLInputElement | null;
+  const courseNameInput = document.getElementById('course_name') as HTMLInputElement | null;
+  const courseRatingInput = document.getElementById('course_rating') as HTMLInputElement | null;
+  const slopeRatingInput = document.getElementById('slope_rating') as HTMLInputElement | null;
+
+  if (!form || !searchInput || !resultsEl || !totalHolesEl || !parsGrid || !parTotalEl) {
+    // Progressive enhancement: without JS the plain <select> + par inputs
+    // still submit. Bail out of the enhanced UI.
+  } else {
+    function recomputeParTotal() {
+      const inputs = parsGrid!.querySelectorAll<HTMLInputElement>('input[data-par-input]');
+      let total = 0;
+      inputs.forEach((i) => {
+        const n = Number(i.value);
+        if (Number.isFinite(n)) total += n;
+      });
+      parTotalEl!.textContent = String(total);
+    }
+
+    function rebuildParsGrid(count: number, presetPars?: number[]) {
+      parsGrid!.innerHTML = '';
+      for (let h = 1; h <= count; h++) {
+        const label = document.createElement('label');
+        label.className = 'par';
+        const num = document.createElement('span');
+        num.className = 'par__num';
+        num.textContent = String(h);
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.name = `par_${h}`;
+        input.min = '3';
+        input.max = '6';
+        input.inputMode = 'numeric';
+        input.dataset.parInput = 'true';
+        const preset = presetPars?.[h - 1];
+        input.value = String(preset && preset >= 3 && preset <= 6 ? preset : 4);
+        label.appendChild(num);
+        label.appendChild(input);
+        parsGrid!.appendChild(label);
+      }
+      recomputeParTotal();
+    }
+
+    parsGrid!.addEventListener('input', (e) => {
+      const t = e.target as HTMLInputElement;
+      if (t && t.matches('input[data-par-input]')) recomputeParTotal();
+    });
+
+    totalHolesEl!.addEventListener('change', () => {
+      const n = Number(totalHolesEl!.value);
+      rebuildParsGrid(n === 9 ? 9 : 18);
+    });
+
+    // ── Course search (debounced fetch to server proxy) ──────
+    let searchAbort: AbortController | null = null;
+    let debounceTimer: number | null = null;
+    let lastQuery = '';
+
+    function closeResults() {
+      resultsEl!.hidden = true;
+      resultsEl!.innerHTML = '';
+    }
+
+    function renderResults(items: any[]) {
+      resultsEl!.innerHTML = '';
+      if (items.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'search__empty';
+        li.textContent = 'No matches. You can just type a name below and continue.';
+        resultsEl!.appendChild(li);
+        resultsEl!.hidden = false;
+        return;
+      }
+      for (const c of items) {
+        const li = document.createElement('li');
+        li.className = 'search__item';
+        li.setAttribute('role', 'option');
+        li.tabIndex = 0;
+        const title = document.createElement('span');
+        title.className = 'search__title';
+        const club = c.club_name ?? c.clubName ?? '';
+        const course = c.course_name ?? c.courseName ?? '';
+        title.textContent = club && course && club !== course ? `${club} — ${course}` : (course || club || 'Unnamed');
+        const meta = document.createElement('span');
+        meta.className = 'search__meta';
+        meta.textContent = c.location ?? [c.city, c.state].filter(Boolean).join(', ');
+        li.appendChild(title);
+        if (meta.textContent) li.appendChild(meta);
+        const pick = () => {
+          const displayName = title.textContent ?? '';
+          searchInput!.value = displayName;
+          courseIdInput!.value = String(c.id ?? '');
+          courseNameInput!.value = displayName;
+          const parsFromApi = Array.isArray(c.pars) ? (c.pars as number[]).map((n) => Number(n)) : null;
+          const holes = parsFromApi && parsFromApi.length ? parsFromApi.length : Number(totalHolesEl!.value);
+          if (holes === 9 || holes === 18) {
+            totalHolesEl!.value = String(holes);
+          }
+          rebuildParsGrid(holes === 9 ? 9 : 18, parsFromApi ?? undefined);
+          const cr = Number(c.course_rating ?? c.courseRating);
+          const sr = Number(c.slope_rating ?? c.slopeRating);
+          courseRatingInput!.value = Number.isFinite(cr) ? String(cr) : '';
+          slopeRatingInput!.value = Number.isFinite(sr) ? String(sr) : '';
+          closeResults();
+        };
+        li.addEventListener('click', pick);
+        li.addEventListener('keydown', (e) => {
+          if ((e as KeyboardEvent).key === 'Enter') { e.preventDefault(); pick(); }
+        });
+        resultsEl!.appendChild(li);
+      }
+      resultsEl!.hidden = false;
+    }
+
+    async function runSearch(q: string) {
+      if (searchAbort) searchAbort.abort();
+      searchAbort = new AbortController();
+      try {
+        const res = await fetch(`/api/courses/search?q=${encodeURIComponent(q)}`, {
+          signal: searchAbort.signal,
+          headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) {
+          renderResults([]);
+          return;
+        }
+        const body = await res.json();
+        renderResults(Array.isArray(body.courses) ? body.courses : []);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        renderResults([]);
+      }
+    }
+
+    searchInput!.addEventListener('input', () => {
+      const q = searchInput!.value.trim();
+      courseIdInput!.value = '';
+      courseNameInput!.value = q;
+      courseRatingInput!.value = '';
+      slopeRatingInput!.value = '';
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      if (q.length < 2) {
+        closeResults();
+        return;
+      }
+      if (q === lastQuery) return;
+      lastQuery = q;
+      debounceTimer = window.setTimeout(() => runSearch(q), 250);
+    });
+
+    document.addEventListener('click', (e) => {
+      const t = e.target as Node;
+      if (!resultsEl!.contains(t) && t !== searchInput) closeResults();
+    });
+
+    searchInput!.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeResults();
+    });
+  }
+</script>
+
+<style>
+  .form { display: flex; flex-direction: column; gap: 18px; }
+  .row { display: flex; gap: 14px; }
+  .row > * { flex: 1; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field--sm { max-width: 160px; flex: 0 0 auto; }
+  .field__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .field__hint { font-size: 12px; color: var(--ink-muted); }
+  .field input, .field select, .search input {
+    font: inherit;
+    padding: 10px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    width: 100%;
+  }
+  .field input:focus, .field select:focus, .search input:focus {
+    outline: none;
+    border-color: var(--brand-green);
+    box-shadow: 0 0 0 3px rgba(26, 92, 56, 0.14);
+  }
+
+  .search { position: relative; }
+  .search__results {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(15, 61, 37, 0.12);
+    max-height: 320px;
+    overflow-y: auto;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 20;
+  }
+  .search__item {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .search__item:hover, .search__item:focus {
+    background: var(--brand-green-pale);
+    outline: none;
+  }
+  .search__title { font-weight: 700; color: var(--brand-green-dark); font-size: 15px; }
+  .search__meta { color: var(--ink-muted); font-size: 12px; }
+  .search__empty {
+    padding: 10px 12px;
+    color: var(--ink-muted);
+    font-size: 14px;
+  }
+
+  .pars {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pars legend { padding: 0 6px; }
+  .pars__grid {
+    display: grid;
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+    gap: 8px;
+  }
+  @media (max-width: 720px) {
+    .pars__grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  }
+  .par { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .par__num {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink-muted);
+    letter-spacing: 0.06em;
+  }
+  .par input {
+    width: 100%;
+    text-align: center;
+    padding: 8px 4px;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    font: inherit;
+    background: #fff;
+  }
+  .par input:focus {
+    outline: none;
+    border-color: var(--brand-green);
+  }
+  .pars__totals {
+    font-size: 14px;
+    color: var(--ink);
+    align-self: flex-end;
+  }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+
+  .banner {
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .banner--err {
+    background: #FEF2F2;
+    color: var(--error);
+    border: 1px solid #FECACA;
+  }
+</style>
