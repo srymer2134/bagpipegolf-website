@@ -75,6 +75,31 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </div>
     </section>
 
+    <!-- ───────── For buddies trips ───────── -->
+    <section class="buddies" id="buddies">
+      <div class="buddies__inner">
+        <span class="buddies__chip">Buddies Trip Ready</span>
+        <h2 class="section__title buddies__title">Made for the trip of the year.</h2>
+        <p class="buddies__lead">
+          <strong>Buddies trip customizable templates.</strong>
+          Ryder-Cup-style Cups across every course, cumulative team scoring,
+          live standings for the whole group &mdash; pre-loaded and ready
+          in under a minute. Pick your format, pick your teams, hand out
+          the join code. The app handles the rest.
+        </p>
+        <ul class="bullets bullets--dark">
+          <li>Team Cups across 3, 4, or 5 rounds &mdash; front / back / overall segments</li>
+          <li>Custom formats: match play, best ball, scramble, alternate shot, Nassau, skins</li>
+          <li>Handicaps handled &mdash; mixed-skill trips stay fair</li>
+          <li>Live share codes so spouses, brothers-in-law, and the guy who bailed can watch the money in real time</li>
+          <li>Post-trip recap the group forwards home &mdash; the moment that gets people planning next year</li>
+        </ul>
+        <a class="btn btn--primary" href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf%20for%20my%20buddies%20trip">
+          Plan your trip &rarr;
+        </a>
+      </div>
+    </section>
+
     <!-- ───────── For directors ───────── -->
     <section class="directors" id="directors">
       <div class="directors__inner">
@@ -241,6 +266,49 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     margin: 0 0 8px;
   }
   .card p { margin: 0; color: var(--ink-muted); }
+
+  /* ── Buddies trips ─────────────────────────────────── */
+  .buddies {
+    background: var(--brand-green-pale);
+    padding: 72px 24px;
+  }
+  .buddies__inner {
+    max-width: 760px;
+    margin: 0 auto;
+    text-align: left;
+  }
+  .buddies__chip {
+    display: inline-block;
+    background: var(--brand-green-dark);
+    color: var(--brand-green-pale);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+  }
+  .buddies__title {
+    text-align: left;
+    margin-bottom: 16px;
+  }
+  .buddies__lead {
+    font-size: 18px;
+    color: var(--ink);
+    margin: 0 0 20px;
+    line-height: 1.5;
+  }
+  .buddies__lead strong {
+    color: var(--brand-green-dark);
+    font-weight: 800;
+  }
+  .bullets--dark li {
+    color: var(--ink);
+  }
+  .bullets--dark li::before {
+    color: var(--brand-green);
+  }
 
   /* ── Directors ─────────────────────────────────────── */
   .directors {
