@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Bad Birdie High — Season 3 · National Leaderboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <!-- ── Masthead ─────────────────────────────────────────────── -->
+  <header class="mast">
+    <div class="mast__inner">
+      <div class="mast__brand">
+        <div class="mast__logoWrap">
+          <img class="mast__logo" src="./assets/bad-birdie-logo.png" alt="Bad Birdie" />
+          <span class="mast__logoBadge">HIGH</span>
+        </div>
+        <div class="mast__type">
+          <div class="mast__wordmark">BAD BIRDIE HIGH</div>
+          <div class="mast__subtitle">SEASON 3 · NATIONAL LEADERBOARD</div>
+        </div>
+      </div>
+      <div class="mast__meta">
+        <div class="mast__chip">LIVE · WEEK 8</div>
+        <div class="mast__powered">
+          <span>Powered by</span>
+          <img src="./assets/bagpipe-golf-logo.jpg" alt="Bagpipe Golf" />
+          <strong>Bagpipe Golf</strong>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Tabs ─────────────────────────────────────────────────── -->
+  <nav class="tabs">
+    <div class="tabs__inner">
+      <button class="tab tab--active" data-tab="individual">Individual</button>
+      <button class="tab" data-tab="teams">Team Standings</button>
+      <button class="tab" data-tab="tournament">Live Tournament</button>
+      <button class="tab" data-tab="coach">Coach Dashboard</button>
+      <button class="tab" data-tab="content">Content · Social</button>
+    </div>
+  </nav>
+
+  <main class="stage">
+
+    <!-- ── INDIVIDUAL LEADERBOARD ─────────────────────────────── -->
+    <section class="view view--active" id="view-individual">
+      <div class="view__inner">
+        <div class="view__head">
+          <div>
+            <h1 class="view__title">National Individual Leaderboard</h1>
+            <p class="view__sub">Ranked by season net-scoring average &middot; Cup points from event finishes (season race) &middot; <span id="individual-count">100 players</span></p>
+          </div>
+          <div class="filters">
+            <button class="filter filter--active" data-filter="all">All</button>
+            <button class="filter" data-filter="boys">Boys</button>
+            <button class="filter" data-filter="girls">Girls</button>
+            <button class="filter" data-filter="seniors">Seniors</button>
+          </div>
+        </div>
+
+        <div class="table table--individual">
+          <div class="table__head">
+            <div class="th th--rank">#</div>
+            <div class="th th--player">Player</div>
+            <div class="th th--school">School</div>
+            <div class="th th--num">HCP</div>
+            <div class="th th--num">Rds</div>
+            <div class="th th--num">Avg</div>
+            <div class="th th--num">vs Par</div>
+            <div class="th th--num">Best</div>
+            <div class="th th--num">Cup Pts</div>
+            <div class="th th--form">Form</div>
+          </div>
+          <div class="table__body" id="individual-rows"></div>
+        </div>
+
+        <div class="callout">
+          <div class="callout__label">BAD BIRDIE HIGH CUP</div>
+          <div class="callout__body">
+            Season-long race for the Cup. Every scored event awards points — bigger events, more points. Top 24 boys + top 24 girls at season's end qualify for the <strong>Bad Birdie High Cup Finals</strong> at Corona del Sol (Nov 22–23). Champion earns a sponsor exemption to the following spring's Taco Bell × Bad Birdie Invitational.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── TEAM STANDINGS ─────────────────────────────────────── -->
+    <section class="view" id="view-teams">
+      <div class="view__inner">
+        <div class="view__head">
+          <div>
+            <h1 class="view__title">Team Standings</h1>
+            <p class="view__sub">Season 3 &middot; points from head-to-head matches (3 W / 1 T) &middot; <span id="teams-count">12 schools</span></p>
+          </div>
+          <div class="filters">
+            <button class="filter filter--active" data-filter="overall">All</button>
+            <button class="filter" data-filter="east">East</button>
+            <button class="filter" data-filter="west">West</button>
+            <button class="filter" data-filter="central">Central</button>
+          </div>
+        </div>
+
+        <div class="table table--teams">
+          <div class="table__head">
+            <div class="th th--rank">#</div>
+            <div class="th th--player">School</div>
+            <div class="th th--school">State</div>
+            <div class="th th--num">Players</div>
+            <div class="th th--num">Matches</div>
+            <div class="th th--num">W-L-T</div>
+            <div class="th th--num">Points</div>
+            <div class="th th--num">Avg</div>
+            <div class="th th--form">Trend</div>
+          </div>
+          <div class="table__body" id="teams-rows"></div>
+        </div>
+
+        <!-- Season timeline for the featured team -->
+        <div class="timeline">
+          <div class="timeline__label">
+            <div class="timeline__eyebrow">FEATURED · PONTE VEDRA HIGH</div>
+            <div class="timeline__title">Season timeline</div>
+          </div>
+          <div class="timeline__row" id="season-timeline"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── LIVE TOURNAMENT VIEW ──────────────────────────────── -->
+    <section class="view" id="view-tournament">
+      <div class="view__inner">
+        <div class="view__head">
+          <div>
+            <div class="event__eyebrow">🏆 REGIONAL CHAMPIONSHIP</div>
+            <h1 class="view__title">Bad Birdie High Regional Championship</h1>
+            <p class="view__sub">Sept 14–15 · Grayhawk GC, Scottsdale AZ · 54-hole stroke play · Round 2 in progress · 100 players / 12 schools</p>
+          </div>
+          <div class="event__status">
+            <div class="event__statusChip event__statusChip--live">R2 · IN PROGRESS</div>
+            <div class="event__cutLine">Cut line after R2: <strong>+6</strong> · Top 60 &amp; ties</div>
+          </div>
+        </div>
+
+        <!-- Team leaderboard: Best 4 of 5 scores per school -->
+        <div class="event__teams">
+          <div class="event__panelHead">TEAM LEADERBOARD · Best 4 of 5</div>
+          <div class="table table--tourney-teams">
+            <div class="table__head">
+              <div class="th th--rank">#</div>
+              <div class="th th--player">School</div>
+              <div class="th th--num">Counting</div>
+              <div class="th th--num">Total</div>
+              <div class="th th--num">vs Par</div>
+            </div>
+            <div class="table__body" id="tourney-teams-rows"></div>
+          </div>
+        </div>
+
+        <div class="event__players">
+          <div class="event__panelHead">INDIVIDUAL LEADERBOARD · Top 60</div>
+          <div class="table table--tournament">
+            <div class="table__head">
+              <div class="th th--rank">#</div>
+              <div class="th th--player">Player</div>
+              <div class="th th--school">School</div>
+              <div class="th th--num">R1</div>
+              <div class="th th--num">R2</div>
+              <div class="th th--num">Thru</div>
+              <div class="th th--num">Total</div>
+              <div class="th th--num">vs Par</div>
+            </div>
+            <div class="table__body" id="tournament-rows"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── COACH DASHBOARD ────────────────────────────────────── -->
+    <section class="view" id="view-coach">
+      <div class="view__inner">
+        <div class="view__head coach__head">
+          <div>
+            <div class="coach__eyebrow">COACH DASHBOARD</div>
+            <h1 class="view__title">Ponte Vedra High School Golf</h1>
+            <p class="view__sub">Coach James O'Neill &middot; 9 players &middot; Week 8 of 12</p>
+          </div>
+          <div class="filters">
+            <button class="filter filter--active">Team</button>
+            <button class="filter">Individual</button>
+            <button class="filter">Season</button>
+          </div>
+        </div>
+
+        <div class="cards">
+          <div class="card">
+            <div class="card__label">Team Avg</div>
+            <div class="card__value">76.4</div>
+            <div class="card__delta card__delta--good">▼ 1.2 vs W7</div>
+          </div>
+          <div class="card">
+            <div class="card__label">Season Record</div>
+            <div class="card__value">6-1-0</div>
+            <div class="card__delta card__delta--good">3rd nationally</div>
+          </div>
+          <div class="card">
+            <div class="card__label">This Week</div>
+            <div class="card__value">at Corona del Sol</div>
+            <div class="card__delta">Fri Aug 15 · 3:30 PM</div>
+          </div>
+          <div class="card">
+            <div class="card__label">Team FIR</div>
+            <div class="card__value">64%</div>
+            <div class="card__delta card__delta--good">▲ 3% vs season</div>
+          </div>
+          <div class="card">
+            <div class="card__label">Team GIR</div>
+            <div class="card__value">51%</div>
+            <div class="card__delta card__delta--good">▲ 2% vs season</div>
+          </div>
+          <div class="card">
+            <div class="card__label">Avg Putts</div>
+            <div class="card__value">31.2</div>
+            <div class="card__delta card__delta--bad">▲ 0.4 vs season</div>
+          </div>
+        </div>
+
+        <div class="table table--roster">
+          <div class="table__head">
+            <div class="th th--rank">#</div>
+            <div class="th th--player">Player</div>
+            <div class="th th--num">Yr</div>
+            <div class="th th--num">HCP</div>
+            <div class="th th--num">Rds</div>
+            <div class="th th--num">Avg</div>
+            <div class="th th--num">Best</div>
+            <div class="th th--num">FIR%</div>
+            <div class="th th--num">GIR%</div>
+            <div class="th th--num">Putts</div>
+            <div class="th th--form">Form</div>
+          </div>
+          <div class="table__body" id="roster-rows"></div>
+        </div>
+
+        <div class="coach__foot">
+          Every Monday 8am, coach receives a <strong>Bagpipe Coach Digest</strong> email: team recap, player-of-the-week, injuries / eligibility flags, upcoming match brief. Auto-generated by Bagpipe from the week's live rounds.
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CONTENT / SOCIAL VIEW ───────────────────────────────── -->
+    <section class="view" id="view-content">
+      <div class="view__inner">
+        <div class="view__head">
+          <div>
+            <div class="event__eyebrow">📸 BRAND · CONTENT</div>
+            <h1 class="view__title">Content Feed &amp; Social</h1>
+            <p class="view__sub">Auto-drafted captions, shareable graphics, and the weekly headline story — every hook Bad Birdie's brand team can post from a single dashboard.</p>
+          </div>
+        </div>
+
+        <!-- Headline card -->
+        <div class="headline">
+          <div class="headline__eyebrow">🎙 THIS WEEK'S HEADLINE</div>
+          <div class="headline__title">Ponte Vedra's <em>Ellie Torres</em> takes the Cup lead with a 68 at Championship R1.</div>
+          <div class="headline__body">
+            Sophomore. Not on any preseason watchlist. Now sitting 320 points clear of the field. Playing in a first-year varsity uniform &mdash; that Bad Birdie sent last September.
+          </div>
+          <div class="headline__cta">
+            <button class="btn btn--pink">Draft the Instagram post →</button>
+            <button class="btn btn--ghost">Push to newsletter</button>
+            <button class="btn btn--ghost">Download graphic pack</button>
+          </div>
+        </div>
+
+        <!-- Sample social captions -->
+        <div class="captions" id="captions"></div>
+
+        <div class="callout">
+          <div class="callout__label">EVERY EVENT AUTO-GENERATES</div>
+          <div class="callout__body">
+            Alex &amp; team receive a weekly <strong>Content Digest</strong> with 5-10 shareable moments from the season: player spotlights, upset watches, milestone rounds, match previews. Formatted for IG, X, and email. Powered by Bagpipe, edited by your team.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <div class="foot__left">
+        <img src="./assets/bagpipe-golf-logo.jpg" alt="Bagpipe Golf" />
+        <div>
+          <div class="foot__wordmark">Bagpipe Golf</div>
+          <div class="foot__tag">Live scoring, tournament management, and season standings for the modern golf program.</div>
+        </div>
+      </div>
+      <div class="foot__right">
+        <div class="foot__attr">Mock leaderboard for demonstration &middot; not a live event.</div>
+        <div class="foot__attr foot__attr--muted">Names / scores / records / dates are illustrative. School list is real — sourced from badbirdiegolf.com/pages/high-school-program.</div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./data.js"></script>
+</body>
+</html>
+</content>
