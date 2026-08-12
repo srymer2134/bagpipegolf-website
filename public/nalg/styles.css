@@ -1,0 +1,668 @@
+/* ── NALG Denver Invitational — Bagpipe scoreboard ─────────────
+   Classic golf palette: deep green, cream, gold, navy accents.
+   Serif for the marquee (Playfair Display), sans for tables. */
+
+:root {
+  --nalg-green:      #0B4E30;
+  --nalg-green-dark: #073820;
+  --nalg-green-mid:  #2E7D32;
+  --nalg-green-pale: #E8F0E4;
+  --nalg-gold:       #C9A24E;
+  --nalg-gold-dark:  #8B6E2A;
+  --nalg-cream:      #F8F5EE;
+  --nalg-navy:       #1E3A5F;
+
+  --nalg-ink:    #1A2620;
+  --nalg-body:   #2E3D34;
+  --nalg-mid:    #5E6B62;
+  --nalg-muted:  #8B968E;
+  --nalg-line:   #D9DBD5;
+
+  --bg-green: #1A5C38;
+  --bg-green-dark: #0F3D25;
+
+  --good: #16A34A;
+  --bad:  #DC2626;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--nalg-cream);
+  color: var(--nalg-body);
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+  line-height: 1.4;
+}
+img { display: block; max-width: 100%; }
+
+/* ── Masthead ─────────────────────────────────────────────────── */
+.mast {
+  background: linear-gradient(180deg, var(--nalg-green-dark) 0%, var(--nalg-green) 100%);
+  color: #fff;
+  padding: 24px 24px 26px;
+  border-bottom: 5px solid var(--nalg-gold);
+}
+.mast__inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.mast__brand {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.mast__logo {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
+  border: 2px solid var(--nalg-gold);
+}
+.mast__eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--nalg-gold);
+  margin-bottom: 4px;
+}
+.mast__wordmark {
+  font-family: 'Playfair Display', 'Times New Roman', serif;
+  font-weight: 800;
+  font-size: 36px;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  color: #fff;
+}
+.mast__subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.8);
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+.mast__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.mast__chip {
+  background: var(--nalg-gold);
+  color: var(--nalg-green-dark);
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  padding: 6px 12px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.mast__chip::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nalg-green-dark);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.mast__powered {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.mast__powered img {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  object-fit: contain;
+  background: #fff;
+  padding: 2px;
+}
+.mast__powered strong {
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────── */
+.tabs {
+  background: #fff;
+  border-bottom: 1px solid var(--nalg-line);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.tabs__inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tab {
+  background: transparent;
+  border: none;
+  padding: 18px 20px 15px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nalg-mid);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.tab:hover { color: var(--nalg-green); }
+.tab--active {
+  color: var(--nalg-green-dark);
+  border-bottom-color: var(--nalg-gold);
+}
+
+/* ── Stage ────────────────────────────────────────────────────── */
+.stage {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.view { display: none; }
+.view--active { display: block; }
+
+.view__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.view__title {
+  font-family: 'Playfair Display', serif;
+  font-weight: 800;
+  font-size: 34px;
+  color: var(--nalg-green-dark);
+  margin: 0 0 6px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.view__sub {
+  margin: 0;
+  color: var(--nalg-mid);
+  font-size: 13px;
+}
+.event__eyebrow {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  color: var(--nalg-gold-dark);
+  margin-bottom: 6px;
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter {
+  background: #fff;
+  border: 1px solid var(--nalg-line);
+  padding: 8px 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nalg-mid);
+  border-radius: 20px;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: all 0.12s ease;
+}
+.filter:hover { border-color: var(--nalg-green); color: var(--nalg-green); }
+.filter--active {
+  background: var(--nalg-green-dark);
+  color: #fff;
+  border-color: var(--nalg-green-dark);
+}
+
+/* ── Tables ───────────────────────────────────────────────────── */
+.table {
+  background: #fff;
+  border: 1px solid var(--nalg-line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.table__head {
+  display: grid;
+  background: var(--nalg-green-pale);
+  border-bottom: 2px solid var(--nalg-green);
+  padding: 12px 0;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nalg-green-dark);
+}
+.row {
+  display: grid;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--nalg-line);
+  align-items: center;
+  transition: background 0.08s ease;
+  font-size: 14px;
+}
+.row:last-child { border-bottom: none; }
+.row:hover { background: var(--nalg-cream); }
+
+.table--overall .table__head,
+.table--overall .row {
+  grid-template-columns: 70px 1.6fr 1.8fr 60px 70px 70px 80px 80px 80px;
+  padding-left: 16px;
+  padding-right: 16px;
+  gap: 12px;
+}
+.table--round .table__head,
+.table--round .row {
+  grid-template-columns: 70px 1.5fr 2fr 90px 90px 100px;
+  padding-left: 16px;
+  padding-right: 16px;
+  gap: 12px;
+}
+
+.th--rank, .th--num { text-align: right; }
+
+.cell { font-variant-numeric: tabular-nums; }
+.cell--rank {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: var(--nalg-mid);
+  text-align: right;
+}
+.cell--rank-top { color: var(--nalg-gold-dark); font-weight: 800; }
+.cell--player { font-weight: 600; color: var(--nalg-ink); }
+.cell--school { color: var(--nalg-mid); font-size: 13px; }
+.cell--num { text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+.cell--num-strong { font-weight: 700; color: var(--nalg-ink); }
+.cell--num-good { color: var(--good); font-weight: 700; }
+.cell--num-bad  { color: var(--bad);  font-weight: 700; }
+
+.rank-medal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-family: 'Playfair Display', serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  margin-left: auto;
+}
+.rank-medal--1 { background: var(--nalg-gold); color: var(--nalg-green-dark); }
+.rank-medal--2 { background: #B8B8B8; }
+.rank-medal--3 { background: #C77B47; }
+
+/* ── Flight badges ────────────────────────────────────────────── */
+.flight-badge {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+  letter-spacing: 0.06em;
+  color: #fff;
+}
+.flight-badge--championship { background: var(--nalg-green); }
+.flight-badge--first { background: var(--nalg-green-mid); }
+.flight-badge--second { background: #5D8C41; color: #fff; }
+.flight-badge--senior { background: var(--nalg-gold-dark); }
+
+/* ── Course info card ─────────────────────────────────────────── */
+.course {
+  background: #fff;
+  border: 1px solid var(--nalg-line);
+  border-left: 4px solid var(--nalg-gold);
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin-bottom: 20px;
+}
+.course__head { margin-bottom: 14px; }
+.course__name {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--nalg-green-dark);
+}
+.course__loc {
+  font-size: 12.5px;
+  color: var(--nalg-mid);
+  margin-top: 3px;
+}
+.course__stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (max-width: 700px) {
+  .course__stats { grid-template-columns: repeat(2, 1fr); }
+}
+.course__stat {
+  background: var(--nalg-green-pale);
+  border-radius: 6px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.course__statLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--nalg-green-dark);
+  text-transform: uppercase;
+}
+.course__statValue {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--nalg-green-dark);
+  margin-top: 2px;
+  line-height: 1.1;
+}
+
+/* ── Per-hole par card ────────────────────────────────────────── */
+.parcard {
+  background: var(--nalg-cream);
+  border: 1px solid var(--nalg-line);
+  border-radius: 6px;
+  padding: 12px;
+}
+.parcard__head {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--nalg-green-dark);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.parcard__row {
+  display: grid;
+  grid-template-columns: 60px repeat(9, 1fr) 40px repeat(9, 1fr) 40px 40px;
+  gap: 2px;
+  margin-bottom: 3px;
+}
+.parcard__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--nalg-mid);
+  padding: 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.parcard__cell {
+  text-align: center;
+  padding: 6px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fff;
+  border-radius: 3px;
+  color: var(--nalg-ink);
+}
+.parcard__cell--head {
+  background: var(--nalg-green-dark);
+  color: #fff;
+  font-size: 10px;
+}
+.parcard__cell--total {
+  background: var(--nalg-gold);
+  color: var(--nalg-green-dark);
+  font-weight: 800;
+  font-size: 11px;
+}
+@media (max-width: 900px) {
+  .parcard { overflow-x: auto; }
+  .parcard__row { min-width: 700px; }
+}
+
+/* ── Callout ──────────────────────────────────────────────────── */
+.callout {
+  margin-top: 20px;
+  background: #fff;
+  border: 2px solid var(--nalg-gold);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 20px;
+  align-items: center;
+}
+@media (max-width: 700px) {
+  .callout { grid-template-columns: 1fr; }
+}
+.callout__label {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--nalg-gold-dark);
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.callout__body {
+  font-size: 13.5px;
+  color: var(--nalg-body);
+  line-height: 1.55;
+}
+.callout__body strong { color: var(--nalg-green-dark); font-weight: 700; }
+
+/* ── Flights grid ─────────────────────────────────────────────── */
+.flights {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .flights { grid-template-columns: 1fr; }
+}
+.flight-card {
+  background: #fff;
+  border: 1px solid var(--nalg-line);
+  border-top: 4px solid var(--nalg-green);
+  border-radius: 8px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.flight-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--nalg-line);
+  padding-bottom: 10px;
+  margin-bottom: 8px;
+}
+.flight-card__name {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--nalg-green-dark);
+  line-height: 1;
+}
+.flight-card__meta {
+  font-size: 11px;
+  color: var(--nalg-mid);
+  font-weight: 500;
+}
+.flight-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 60px 60px 70px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--nalg-line);
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+.flight-row:last-child { border-bottom: none; }
+.flight-row--head {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--nalg-mid);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--nalg-line);
+}
+.flight-row__rank {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: var(--nalg-mid);
+  text-align: right;
+}
+.flight-row__name { color: var(--nalg-ink); font-weight: 600; }
+.flight-row__hcp, .flight-row__total, .flight-row__vspar {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.flight-row__total { font-weight: 700; color: var(--nalg-ink); }
+.flight-card__foot {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--nalg-muted);
+  text-align: center;
+  font-style: italic;
+}
+
+/* ── Tournament info cards ────────────────────────────────────── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) {
+  .cards { grid-template-columns: 1fr; }
+}
+.card--info {
+  background: #fff;
+  border: 1px solid var(--nalg-line);
+  border-left: 4px solid var(--nalg-gold);
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+.card__label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--nalg-gold-dark);
+  text-transform: uppercase;
+}
+.card__value {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--nalg-green-dark);
+  margin-top: 4px;
+  line-height: 1.1;
+}
+.card__delta {
+  font-size: 12px;
+  color: var(--nalg-mid);
+  margin-top: 6px;
+}
+
+.event__narrative {
+  background: #fff;
+  border: 1px solid var(--nalg-line);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+.event__narrative h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  color: var(--nalg-green-dark);
+  margin: 0 0 8px;
+  font-weight: 800;
+}
+.event__narrative p {
+  color: var(--nalg-body);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.event__narrative strong { color: var(--nalg-green-dark); font-weight: 700; }
+
+/* ── Footer ───────────────────────────────────────────────────── */
+.foot {
+  background: var(--nalg-green-dark);
+  color: rgba(255,255,255,0.75);
+  padding: 24px;
+  margin-top: 32px;
+  border-top: 5px solid var(--nalg-gold);
+}
+.foot__inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.foot__left { display: flex; align-items: center; gap: 14px; }
+.foot__left img {
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: #fff;
+  padding: 4px;
+}
+.foot__wordmark {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.foot__tag {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  max-width: 520px;
+  margin-top: 2px;
+}
+.foot__right { text-align: right; }
+.foot__attr { font-size: 11.5px; color: rgba(255,255,255,0.55); }
+.foot__attr--muted { color: rgba(255,255,255,0.4); margin-top: 4px; }
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .mast__wordmark { font-size: 26px; }
+  .view__title { font-size: 26px; }
+  .mast__meta { align-items: flex-start; }
+  .foot__inner, .foot__right { text-align: left; }
+}
