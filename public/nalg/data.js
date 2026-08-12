@@ -125,9 +125,20 @@ function simulateRound(player, course) {
   return { gross, net, courseHcp, teeName: tee.name, par };
 }
 
+// Helper: cumulative par through the first N holes of a course
+function parThru(course, n) {
+  if (n <= 0) return 0;
+  return course.menPars.slice(0, n).reduce((s, x) => s + x, 0);
+}
+
 // Generate Round 1 (complete) and Round 2 (in progress — ~70% finished)
 for (const p of PLAYERS) {
   p.r1 = simulateRound(p, COURSE_CITY_PARK);
+  p.r1.thru = 18;
+  // R1 vs par is measured against THIS player's tee par (Senior plays par-72,
+  // all other flights play par-70 at City Park), so pull from the round.
+  p.r1VsPar = p.r1.gross - p.r1.par;
+
   const r2 = simulateRound(p, COURSE_WALNUT_CREEK);
   // R2 status — 70% finished, 25% mid-round, 5% not yet started
   const rnd = rng();
@@ -148,10 +159,28 @@ for (const p of PLAYERS) {
     p.r2 = null;
     p.r2Status = '—';
   }
-  // Overall total = r1 + (r2 completed only)
+
+  // R2 vs par is measured against par-through-holes-played at Walnut Creek
+  // (all Walnut Creek tees are par 72 with the same hole-by-hole pars, so
+  // partial par is well-defined from menPars).
+  if (p.r2) {
+    p.r2ParThru = parThru(COURSE_WALNUT_CREEK, p.r2.thru);
+    p.r2VsPar = p.r2.gross - p.r2ParThru;
+  } else {
+    p.r2ParThru = 0;
+    p.r2VsPar = 0;
+  }
+
+  // Overall total gross = r1 + played holes of r2
   p.totalGross = p.r1.gross + (p.r2 ? p.r2.gross : 0);
   p.totalNet = p.r1.net + (p.r2 ? p.r2.net : 0);
-  p.totalVsPar = p.totalGross - (COURSE_CITY_PARK.parMen + (p.r2 ? COURSE_WALNUT_CREEK.parMen : 0));
+  // Overall vs par = (R1 gross - R1 par) + (R2 gross - R2 par-through-N)
+  //  ≡ totalGross - (R1 par + par-through-N of R2)
+  // NOT total gross - (full par of both courses). That was the bug that
+  // produced impossible negatives like -26 when R1 was +7.
+  p.totalVsPar = p.r1VsPar + p.r2VsPar;
+  // Total holes played across both rounds
+  p.holesPlayed = 18 + (p.r2 ? p.r2.thru : 0);
 }
 
 // ── Renderers
@@ -166,14 +195,19 @@ const rankMedal = (rank) => {
   return `<span class="cell cell--rank">${rank}</span>`;
 };
 
-// Overall (2-day cumulative, filterable by flight)
+// Overall (2-day cumulative, filterable by flight).
+// Sort by TOTAL vs-par (par-through-holes-played), not raw gross —
+// a player thru 27 holes at +2 should rank above a player thru 36
+// at +5, even though their gross totals differ. Tiebreak: fewer holes
+// played wins on ties (rewards the leader who's still going).
 let currentFlightFilter = 'all';
 function renderOverall() {
   let list = [...PLAYERS];
   if (currentFlightFilter !== 'all') {
     list = list.filter(p => p.flight === currentFlightFilter);
   }
-  list.sort((a, b) => a.totalGross - b.totalGross);
+  // Tiebreak: lower R1 gross (fully-completed round) wins.
+  list.sort((a, b) => a.totalVsPar - b.totalVsPar || a.r1.gross - b.r1.gross);
 
   const rows = list.map((p, i) => {
     const rank = i + 1;
@@ -224,27 +258,22 @@ function renderDay1() {
 }
 
 function renderDay2() {
-  // Only include players who have started R2
-  const list = PLAYERS.filter(p => p.r2 || p.r2Status !== '—')
-    .sort((a, b) => {
-      if (!a.r2 && !b.r2) return 0;
-      if (!a.r2) return 1;
-      if (!b.r2) return -1;
-      return a.r2.gross - b.r2.gross;
-    });
+  // Only include players who have started R2. Sort by R2 vs-par so a
+  // partial round can be leader-worthy without penalizing them for
+  // holes they haven't played yet.
+  const list = PLAYERS.filter(p => p.r2)
+    .sort((a, b) => a.r2VsPar - b.r2VsPar);
   const rows = list.map((p, i) => {
     const rank = i + 1;
-    const parForFlight = COURSE_WALNUT_CREEK.tees[p.flight].par;
-    const grossStr = p.r2 ? p.r2.gross : '—';
-    const netStr = p.r2 ? p.r2.net : '—';
     const flightLabel = FLIGHTS.find(f => f.id === p.flight).name;
+    // vs par is against par-through-holes-played, not full 72.
     return `
       <div class="row">
         <div class="cell cell--rank ${rank <= 3 ? 'cell--rank-top' : ''}">${rank <= 3 ? rankMedal(rank) : rank}</div>
         <div class="cell cell--player">${p.first} ${p.last}</div>
         <div class="cell cell--school"><span class="flight-badge flight-badge--${p.flight}">${flightLabel}</span> <span style="color:var(--nalg-muted);font-size:12px;">· ${COURSE_WALNUT_CREEK.tees[p.flight].name}</span></div>
-        <div class="cell cell--num cell--num-strong">${grossStr}</div>
-        <div class="cell cell--num">${netStr}</div>
+        <div class="cell cell--num cell--num-strong">${p.r2.gross}</div>
+        <div class="cell cell--num ${vsParClass(p.r2VsPar)}">${vsParStr(p.r2VsPar)}</div>
         <div class="cell cell--num">${p.r2Status}</div>
       </div>
     `;
@@ -257,7 +286,7 @@ function renderFlights() {
   const html = FLIGHTS.map(f => {
     const roster = PLAYERS
       .filter(p => p.flight === f.id)
-      .sort((a, b) => a.totalGross - b.totalGross)
+      .sort((a, b) => a.totalVsPar - b.totalVsPar || a.r1.gross - b.r1.gross)
       .slice(0, 5); // top 5 per flight
     const rows = roster.map((p, i) => {
       const rank = i + 1;
