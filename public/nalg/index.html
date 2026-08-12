@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>NALG Denver Invitational — Aug 29–30 · Live Leaderboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,800;1,600&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <!-- ── Masthead ─────────────────────────────────────────────── -->
+  <header class="mast">
+    <div class="mast__inner">
+      <div class="mast__brand">
+        <img class="mast__logo" src="./assets/nalg-logo.jpg" alt="NALG" />
+        <div class="mast__type">
+          <div class="mast__eyebrow">NATIONAL ASSOCIATION OF LEFT-HANDED GOLFERS</div>
+          <div class="mast__wordmark">NALG Denver Invitational</div>
+          <div class="mast__subtitle">August 29–30, 2026 · 36-Hole Stroke Play</div>
+        </div>
+      </div>
+      <div class="mast__meta">
+        <div class="mast__chip">LIVE · DAY 2 · R2 THRU 12</div>
+        <div class="mast__powered">
+          <span>Presented by</span>
+          <img src="./assets/bagpipe-golf-logo.jpg" alt="Bagpipe Golf" />
+          <strong>Bagpipe Golf</strong>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Tabs ─────────────────────────────────────────────────── -->
+  <nav class="tabs">
+    <div class="tabs__inner">
+      <button class="tab tab--active" data-tab="overall">Overall Leaderboard</button>
+      <button class="tab" data-tab="day1">Day 1 · City Park</button>
+      <button class="tab" data-tab="day2">Day 2 · Walnut Creek</button>
+      <button class="tab" data-tab="flights">Flights &amp; Divisions</button>
+      <button class="tab" data-tab="event">Tournament Info</button>
+    </div>
+  </nav>
+
+  <main class="stage">
+
+    <!-- ── OVERALL LEADERBOARD ────────────────────────────────── -->
+    <section class="view view--active" id="view-overall">
+      <div class="view__inner">
+        <div class="view__head">
+          <div>
+            <h1 class="view__title">Overall Leaderboard</h1>
+            <p class="view__sub">72 players &middot; 36 holes stroke play &middot; two-day cumulative &middot; <span id="overall-count">72 players</span></p>
+          </div>
+          <div class="filters">
+            <button class="filter filter--active" data-filter="all">All Flights</button>
+            <button class="filter" data-filter="championship">Championship</button>
+            <button class="filter" data-filter="first">First</button>
+            <button class="filter" data-filter="second">Second</button>
+            <button class="filter" data-filter="senior">Senior</button>
+          </div>
+        </div>
+
+        <div class="table table--overall">
+          <div class="table__head">
+            <div class="th th--rank">Pos</div>
+            <div class="th th--player">Player</div>
+            <div class="th th--school">City · Flight</div>
+            <div class="th th--num">HCP</div>
+            <div class="th th--num">R1</div>
+            <div class="th th--num">R2</div>
+            <div class="th th--num">Thru</div>
+            <div class="th th--num">Total</div>
+            <div class="th th--num">vs Par</div>
+          </div>
+          <div class="table__body" id="overall-rows"></div>
+        </div>
+
+        <div class="callout">
+          <div class="callout__label">CUT LINE</div>
+          <div class="callout__body">Top 40 &amp; ties after R1 advance to Sunday's championship pairings at Walnut Creek. All flights play both days regardless of cut.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── DAY 1 · CITY PARK ───────────────────────────────────── -->
+    <section class="view" id="view-day1">
+      <div class="view__inner">
+        <div class="view__head">
+          <div>
+            <div class="event__eyebrow">FRIDAY · AUGUST 29</div>
+            <h1 class="view__title">Day 1 · City Park Golf Course</h1>
+            <p class="view__sub">Denver, CO &middot; Tom Schoeder / iCON 2020 rebuild &middot; Par 70 (M) / 72 (W) &middot; Bronze tees for Championship, Gold for First+Second, Silver for Senior</p>
+          </div>
+        </div>
+
+        <!-- Course info card -->
+        <div class="course">
+          <div class="course__head">
+            <div class="course__name">City Park Golf Course</div>
+            <div class="course__loc">3181 E 23rd Ave, Denver, CO · Public muni · Denver Golf</div>
+          </div>
+          <div class="course__stats">
+            <div class="course__stat">
+              <div class="course__statLabel">Par</div>
+              <div class="course__statValue">70/72</div>
+            </div>
+            <div class="course__stat">
+              <div class="course__statLabel">Rating (Bronze)</div>
+              <div class="course__statValue">70.2</div>
+            </div>
+            <div class="course__stat">
+              <div class="course__statLabel">Slope (Bronze)</div>
+              <div class="course__statValue">120</div>
+            </div>
+            <div class="course__stat">
+              <div class="course__statLabel">Tees</div>
+              <div class="course__statValue">8</div>
+            </div>
+          </div>
+          <div class="course__pars" id="city-park-pars"></div>
+        </div>
+
+        <div class="table table--round">
+          <div class="table__head">
+            <div class="th th--rank">Pos</div>
+            <div class="th th--player">Player</div>
+            <div class="th th--school">Flight</div>
+            <div class="th th--num">Gross</div>
+            <div class="th th--num">Net</div>
+            <div class="th th--num">vs Par</div>
+          </div>
+          <div class="table__body" id="day1-rows"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── DAY 2 · WALNUT CREEK ────────────────────────────────── -->
+    <section class="view" id="view-day2">
+      <div class="view__inner">
+        <div class="view__head">
+          <div>
+            <div class="event__eyebrow">SATURDAY · AUGUST 30 · IN PROGRESS</div>
+            <h1 class="view__title">Day 2 · Walnut Creek Golf Preserve</h1>
+            <p class="view__sub">Westminster, CO &middot; 41st Audubon Signature Sanctuary &middot; Par 72 &middot; Tee 1 for Championship, Tee 2 for First, Tee 2/3 for Second, Tee 3 for Senior</p>
+          </div>
+        </div>
+
+        <div class="course">
+          <div class="course__head">
+            <div class="course__name">Walnut Creek Golf Preserve</div>
+            <div class="course__loc">10555 Westminster Blvd, Westminster, CO · Public muni · City of Westminster</div>
+          </div>
+          <div class="course__stats">
+            <div class="course__stat">
+              <div class="course__statLabel">Par</div>
+              <div class="course__statValue">72</div>
+            </div>
+            <div class="course__stat">
+              <div class="course__statLabel">Rating (Tee 1)</div>
+              <div class="course__statValue">75.2</div>
+            </div>
+            <div class="course__stat">
+              <div class="course__statLabel">Slope (Tee 1)</div>
+              <div class="course__statValue">137</div>
+            </div>
+            <div class="course__stat">
+              <div class="course__statLabel">Tees</div>
+              <div class="course__statValue">7</div>
+            </div>
+          </div>
+          <div class="course__pars" id="walnut-creek-pars"></div>
+        </div>
+
+        <div class="table table--round">
+          <div class="table__head">
+            <div class="th th--rank">Pos</div>
+            <div class="th th--player">Player</div>
+            <div class="th th--school">Flight</div>
+            <div class="th th--num">Gross</div>
+            <div class="th th--num">Net</div>
+            <div class="th th--num">Thru</div>
+          </div>
+          <div class="table__body" id="day2-rows"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── FLIGHTS & DIVISIONS ─────────────────────────────────── -->
+    <section class="view" id="view-flights">
+      <div class="view__inner">
+        <div class="view__head">
+          <div>
+            <h1 class="view__title">Flights &amp; Divisions</h1>
+            <p class="view__sub">Four flights, gross-scoring format &middot; separate purses per flight &middot; medalist award for low overall gross &amp; low net</p>
+          </div>
+        </div>
+
+        <div class="flights" id="flights-grid"></div>
+      </div>
+    </section>
+
+    <!-- ── TOURNAMENT INFO ─────────────────────────────────────── -->
+    <section class="view" id="view-event">
+      <div class="view__inner">
+        <div class="view__head">
+          <div>
+            <h1 class="view__title">Tournament Information</h1>
+            <p class="view__sub">NALG Denver Invitational &middot; presented by Bagpipe Golf &middot; hosted by NALG Denver Chapter</p>
+          </div>
+        </div>
+
+        <div class="cards cards--info">
+          <div class="card card--info">
+            <div class="card__label">FORMAT</div>
+            <div class="card__value">36-Hole Stroke Play</div>
+            <div class="card__delta">Two-day cumulative &middot; flighted &middot; gross &amp; net</div>
+          </div>
+          <div class="card card--info">
+            <div class="card__label">DAY 1 · AUG 29</div>
+            <div class="card__value">City Park GC</div>
+            <div class="card__delta">Denver &middot; 7:30 AM tee off (shotgun start)</div>
+          </div>
+          <div class="card card--info">
+            <div class="card__label">DAY 2 · AUG 30</div>
+            <div class="card__value">Walnut Creek</div>
+            <div class="card__delta">Westminster &middot; 7:00 AM tee off (Championship first)</div>
+          </div>
+          <div class="card card--info">
+            <div class="card__label">FIELD</div>
+            <div class="card__value">72 players</div>
+            <div class="card__delta">All left-handed &middot; 4 flights</div>
+          </div>
+          <div class="card card--info">
+            <div class="card__label">PURSE</div>
+            <div class="card__value">$18,400</div>
+            <div class="card__delta">Distributed across flights &middot; gross &amp; net winners</div>
+          </div>
+          <div class="card card--info">
+            <div class="card__label">MEDALIST</div>
+            <div class="card__value">Low Gross</div>
+            <div class="card__delta">$2,500 + NALG trophy &middot; qualifies for 2027 nationals</div>
+          </div>
+        </div>
+
+        <div class="event__narrative">
+          <h3>About the NALG Denver Invitational</h3>
+          <p>
+            Hosted by the Denver chapter of the <strong>National Association of Left-Handed Golfers</strong>
+            (est. 1936), the Denver Invitational is a two-day, 36-hole championship at two of the region's
+            best-conditioned munis. Field capped at 72 for tight pairings and no double-tee starts.
+          </p>
+          <p>
+            All scoring, live standings, pairings, and per-flight settlement is powered by
+            <strong>Bagpipe Golf</strong>. Groups score themselves via the Bagpipe app; TDs finalize each
+            round from the clubhouse. Spectators follow every group in real time via the share codes
+            on the pairings sheet.
+          </p>
+          <h3 style="margin-top:20px;">Weather &amp; Conditions</h3>
+          <p>
+            Both days forecast partly cloudy, highs 82–86°F. Light morning wind out of the north (5–10 mph)
+            picking up to 12–18 mph in the afternoon. Greens stimped at 11.0. Firm fairways, receptive greens.
+          </p>
+        </div>
+
+        <div class="callout">
+          <div class="callout__label">POWERED BY</div>
+          <div class="callout__body">
+            Every hole entered on Bagpipe. Every settlement calculated hole-by-hole. Every leaderboard live for spectators.
+            <strong>Bagpipe Golf</strong> is the on-course scoring, tournament, and settlement platform &mdash; built for events exactly like this one.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <div class="foot__left">
+        <img src="./assets/bagpipe-golf-logo.jpg" alt="Bagpipe Golf" />
+        <div>
+          <div class="foot__wordmark">Bagpipe Golf</div>
+          <div class="foot__tag">Live scoring, tournament management, and settlement for the modern golf event.</div>
+        </div>
+      </div>
+      <div class="foot__right">
+        <div class="foot__attr">Mock leaderboard for demonstration &middot; not a live event.</div>
+        <div class="foot__attr foot__attr--muted">Players / scores / times fabricated. Course data (par, rating, slope, tees) is real &mdash; from the app's curated course library.</div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./data.js"></script>
+</body>
+</html>
