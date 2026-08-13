@@ -129,4 +129,3 @@ export function createSupabaseFromApi(ctx: APIContext): SupabaseClient {
     locals: ctx.locals as App.Locals,
   });
 }
-</content>
