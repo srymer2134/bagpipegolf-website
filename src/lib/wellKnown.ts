@@ -25,11 +25,29 @@ const IOS_APP_ID = '5X8U8RN3FJ.com.taybuta.bagpipe';
 
 // Android production package, mirrored from android/app/build.gradle.kts
 // `applicationId`. The SHA-256 fingerprint is intentionally a sentinel
-// placeholder until the production release key (or the Play app-signing
-// cert if Bagpipe Golf goes on Play Store) is generated — Android
-// silently falls back to the "chooser" UX in the meantime instead of
-// auto-launching. Swap this value in a follow-up PR once the cert is
-// minted; surface the fingerprint via `keytool -list -v -keystore ...`.
+// placeholder — Bagpipe Golf is iOS-first pre-launch (TestFlight-only
+// per fairwayiq-flutter/CLAUDE.md) so no Android release keystore exists
+// yet. Android silently falls back to the "chooser" UX in the meantime
+// instead of auto-launching, which is acceptable while no Android users
+// exist. iOS Universal Links via the AASA above work regardless.
+//
+// When Android does ship, swap in the real SHA-256:
+//
+//   • Upload key (pre–Play App Signing):
+//       keytool -list -v \
+//         -keystore /path/to/release.jks \
+//         -alias upload -storepass '<pw>'
+//     Take the "SHA256:" line, strip spaces → colons every 2 chars.
+//
+//   • Play App Signing (production, once on the Play Store):
+//       Play Console → your app → Setup → App integrity →
+//       App signing → "App signing key certificate SHA-256".
+//     This value REPLACES the upload-key value above once Play is
+//     re-signing on the server; keep both if you also want links
+//     to work for pre-Play internal APKs.
+//
+// Reference: docs/handoffs/SHARE_INVITE_UNIVERSAL_LINK_BRIEF.md
+// (fairwayiq-flutter) — the Casey blocker item.
 const ANDROID_PACKAGE = 'com.taybuta.bagpipe';
 const ANDROID_SHA256_PLACEHOLDER =
   'AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:' +
@@ -42,11 +60,17 @@ const APPLE_APP_SITE_ASSOCIATION = {
         appIDs: [IOS_APP_ID],
         components: [
           {
-            // Tournament-invite handoff. iOS routes a tap on
-            // `https://bagpipegolf.com/join/<CODE>` straight into the
-            // app's `/tourney/join?code=<CODE>` route.
+            // Universal-link invite handoff. iOS routes a tap on
+            // `https://bagpipegolf.com/join/<CODE>` into the app's
+            // `_resolveAndRouteJoinCode` helper, which does an async
+            // lookup and routes league-first (post PR #960): a code
+            // that hits a league goes to `/league/join?code=<CODE>`
+            // (auto-submit), miss falls through to `/tourney/join?code=`.
+            // Path pattern deliberately stays flat + wildcard so we
+            // don't have to bump this file when new share surfaces
+            // (bets, calcuttas) join the router.
             '/': '/join/*',
-            comment: 'Tournament-invite deep-link → /tourney/join?code=<CODE>',
+            comment: 'Invite deep-link (league-first, tourney fallback) → _resolveAndRouteJoinCode',
           },
         ],
       },
