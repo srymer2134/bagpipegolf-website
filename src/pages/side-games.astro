@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import AppLinkBanner from '../components/AppLinkBanner.astro';
 
 // Content sourced from the Flutter repo's canonical `docs/HOWTO_SIDE_GAMES.md`
 // (2026-08-19). If the game catalog on the app changes, update both docs in the
@@ -264,6 +265,13 @@ const totalCount = games.length;
       you haven't heard of. Stack as many as you want on the same round; the
       settlement engine keeps every dollar honest.
     </p>
+
+    <AppLinkBanner
+      singular="game"
+      plural="games"
+      appPath="/app/side-games"
+      productLabel="side games"
+    />
 
     <section class="principles">
       {

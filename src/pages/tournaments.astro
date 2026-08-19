@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import AppLinkBanner from '../components/AppLinkBanner.astro';
 
 // Content sourced from the Flutter repo's canonical `docs/HOWTO_TOURNAMENTS.md`
 // (2026-08-19). Format list + handicap allowances should stay in sync with the
@@ -152,6 +153,13 @@ const buddiesTemplates: BuddiesTemplate[] = [
       Shotgun pairings. Leaderboards, payouts, Calcutta. Built for TDs who
       want to score the round instead of babysit a spreadsheet.
     </p>
+
+    <AppLinkBanner
+      singular="tournament"
+      plural="tournaments"
+      appPath="/app/tournaments"
+      productLabel="tournament formats"
+    />
 
     <section class="formats">
       <div class="section-head">
