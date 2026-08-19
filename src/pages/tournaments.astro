@@ -105,13 +105,12 @@ const formats: Format[] = [
   },
 ];
 
-// Buddies Trip Templates — a placeholder section. The Ryder Cup preset is real
-// today; Scarecrow Cup and BallyBrigade are real events the founders + partners
-// run in-person and are aspirational templates. Marked "coming soon" so we're
-// not making product promises.
+// Buddies Trip Templates — three shipping presets that turn multi-day
+// team-match trips into a single wizard flow. Ryder Cup shipped first;
+// Scarecrow Cup and Ballyneal Brigade followed with the Cup composition
+// arc + live Brigade scoreboard.
 interface BuddiesTemplate {
   name: string;
-  status: 'shipping' | 'coming soon';
   body: string;
   detail: string;
 }
@@ -119,27 +118,24 @@ interface BuddiesTemplate {
 const buddiesTemplates: BuddiesTemplate[] = [
   {
     name: 'Ryder Cup',
-    status: 'shipping',
     body:
       '5 sessions over 3 days. Foursomes, Four-Ball, and Singles match play — the classic biennial format, adapted for a weekend among friends.',
     detail:
-      'Ships as a template today. Applies Match Points scoring and adds a Team Rosters step to the wizard.',
+      'Applies Match Points scoring and adds a Team Rosters step to the wizard.',
   },
   {
     name: 'Scarecrow Cup',
-    status: 'coming soon',
     body:
-      'Fall harvest-season cup. Custom point weightings across matches with a tiebreaker off-app on the practice green — because sometimes the score card doesn\'t settle it and the putter has to.',
+      'Fall harvest-season cup. Custom point weightings across matches with a tiebreaker off-app on the practice green — because sometimes the scorecard does not settle it and the putter has to.',
     detail:
-      'Template coming with a preset session grid, team-composer, and Cup Scoreboard tied to your league.',
+      'Preset session grid, Cup composition with team composer, and a live Cup Scoreboard tied to your league.',
   },
   {
     name: 'Ballyneal Brigade',
-    status: 'coming soon',
     body:
-      'Multi-day team competition designed around a destination course. Rotates formats (foursomes → best-ball → singles) and layers a live-updated Brigade scoreboard the whole clubhouse can watch.',
+      'Multi-day team competition designed around a destination course. Rotates formats (foursomes → best-ball → singles) with a live-updated Brigade scoreboard the whole clubhouse can watch.',
     detail:
-      'Template will surface the "one board for the whole trip" experience so the group can rally around a single number.',
+      'One board for the whole trip — net-only leaderboard, round-strip chips, and Thru-Sat carry-in built in.',
   },
 ];
 ---
@@ -222,13 +218,12 @@ const buddiesTemplates: BuddiesTemplate[] = [
 
     <section class="buddies">
       <div class="section-head">
-        <span class="chip chip--warn">Buddies Trip Templates</span>
+        <span class="chip">Buddies Trip Templates</span>
         <h2>The trips your crew already knows.</h2>
         <p class="section-sub">
           Pre-baked multi-day templates for the cup-style tournaments people
-          actually plan around. Pick a template, drop in your roster, and
-          Bagpipe runs the pairings, points, and scoreboard for the whole
-          trip.
+          actually plan around. Pick one, drop in your roster, and Bagpipe
+          runs the pairings, points, and live scoreboard for the whole trip.
         </p>
       </div>
 
@@ -238,11 +233,6 @@ const buddiesTemplates: BuddiesTemplate[] = [
             <article class="bcard">
               <header class="bcard__head">
                 <h3>{t.name}</h3>
-                {t.status === 'shipping' ? (
-                  <span class="chip">Ships today</span>
-                ) : (
-                  <span class="chip chip--warn">Coming soon</span>
-                )}
               </header>
               <p class="bcard__body">{t.body}</p>
               <p class="bcard__detail">{t.detail}</p>
@@ -252,8 +242,8 @@ const buddiesTemplates: BuddiesTemplate[] = [
       </div>
 
       <p class="buddies__note">
-        Have a home-course tradition you'd like templated? Tell us — the
-        Ryder Cup preset is the first, not the last.
+        Have a home-course tradition you would like templated? Tell us —
+        these three are the start, not the finish.
       </p>
     </section>
 
