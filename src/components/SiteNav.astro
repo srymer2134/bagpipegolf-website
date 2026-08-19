@@ -13,29 +13,21 @@ const pathname = new URL(Astro.request.url).pathname;
 type NavLink = { href: string; label: string };
 type NavGroup = { title: string; links: NavLink[] };
 
-// Primary horizontal nav — a small, opinionated set of the most-used
-// destinations. Rest of the sitemap lives in the Menu panel.
-//
-// Signed-in labels use "My …" so users can distinguish personal-scoped
-// app pages (their active games) from the product marketing pages
-// (what side games / tournaments / leagues ARE). Before 2026-08-19 both
-// carried the same label — coaches complained they couldn't find the
-// marketing content once signed in.
-const primaryLinks: NavLink[] = isSignedIn
-  ? [
-      { href: '/app', label: 'Dashboard' },
-      { href: '/app/history', label: 'Rounds' },
-      { href: '/app/side-games', label: 'My games' },
-      { href: '/app/tournaments', label: 'My tournaments' },
-      { href: '/app/leagues', label: 'My leagues' },
-    ]
-  : [
-      { href: '/features', label: 'Features' },
-      { href: '/tournaments', label: 'Tournaments' },
-      { href: '/side-games', label: 'Side games' },
-      { href: '/leagues', label: 'Leagues' },
-      { href: '/pricing', label: 'Pricing' },
-    ];
+// Primary horizontal nav — same marketing links regardless of auth
+// state. Signed-in users still need to reach product marketing pages
+// (to share links with friends, browse features, read about a new
+// format) — the earlier "My games / My tournaments / My leagues"
+// signed-in variant hid the marketing surfaces from anyone with an
+// account. Standard SaaS pattern: marketing site shows marketing
+// links; a Dashboard button on the right takes signed-in users into
+// the app.
+const primaryLinks: NavLink[] = [
+  { href: '/features', label: 'Features' },
+  { href: '/tournaments', label: 'Tournaments' },
+  { href: '/side-games', label: 'Side games' },
+  { href: '/leagues', label: 'Leagues' },
+  { href: '/pricing', label: 'Pricing' },
+];
 
 // Menu panel — grouped sitemap. Five groups for both auth states so the
 // panel reads consistently regardless of sign-in:
@@ -110,7 +102,7 @@ const isActive = (href: string) =>
 
 <nav class="sitenav">
   <div class="sitenav__inner">
-    <a class="sitenav__brand" href={isSignedIn ? '/app' : '/'}>
+    <a class="sitenav__brand" href="/">
       <img
         src="/bagpipe-golf-logo.jpg"
         alt=""
@@ -173,6 +165,7 @@ const isActive = (href: string) =>
         {
           isSignedIn ? (
             <form method="post" action="/api/auth/signout" class="sitenav__signoutform">
+              <a class="btn btn--primary btn--sm" href="/app">Dashboard</a>
               <span class="sitenav__user">{user!.email}</span>
               <button type="submit" class="btn btn--ghost btn--sm">Sign out</button>
             </form>
