@@ -106,48 +106,90 @@ const formats: Format[] = [
 ];
 
 // Buddies Trip Templates — three shipping presets that turn multi-day
-// team-match trips into a single wizard flow. Ryder Cup shipped first;
-// Scarecrow Cup and Ballyneal Brigade followed with the Cup composition
-// arc + live Brigade scoreboard.
+// team-match trips into a single wizard flow. Round-by-round breakdowns
+// mirror the canonical specs in the Flutter repo:
+//
+//   Ryder Cup Classic:       lib/features/tourney/screens/new_tournament_screen.dart
+//                            kRyderCupVariants[classic]
+//                            "5 sessions · Foursomes / Four-Ball / Singles · 5 pts (1 per session)"
+//   Scarecrow Cup:           kRyderCupVariants[scarecrowCup]
+//                            "5 sessions across 2 courses · Best Ball / Best 3 of 4 /
+//                             High-Low / Twelves / Singles · points 6/3/6/6/12 = 33 total"
+//   Ballyneal Brigade:       ballynealBrigadeRoundSpecs() at line 174
+//
+// Keep these in sync with the app — if a preset's round order or point
+// weighting changes in the wizard, update here in the same PR.
+
+interface BuddiesRound {
+  session: string;    // "Session 1" | "Round 1" | "Fri PM" …
+  format: string;
+  points?: string;    // "6 pts" — omit for point-per-session cups
+}
+
 interface BuddiesTemplate {
   name: string;
-  body: string;
-  detail: string;
+  tagline: string;      // one-line big-picture pitch
+  rounds: BuddiesRound[];
+  meta: string;         // aggregate line under the round list
+  detail: string;       // fine-print / what the template auto-configures
 }
 
 const buddiesTemplates: BuddiesTemplate[] = [
   {
     name: 'Ryder Cup',
-    body:
-      '5 sessions over 3 days. Foursomes, Four-Ball, and Singles match play — the classic biennial format, adapted for a weekend among friends.',
+    tagline:
+      'The classic 5-session team match — three days, alternating formats, singles to close.',
+    rounds: [
+      { session: 'Session 1', format: 'Foursomes (Alternate Shot)' },
+      { session: 'Session 2', format: 'Four-Ball (Best Ball)' },
+      { session: 'Session 3', format: 'Foursomes' },
+      { session: 'Session 4', format: 'Four-Ball' },
+      { session: 'Session 5', format: 'Singles Match Play' },
+    ],
+    meta: '5 sessions · 3 days · 5 points (1 per session)',
     detail:
       'Applies Match Points scoring and adds a Team Rosters step to the wizard.',
   },
   {
     name: 'Scarecrow Cup',
-    body:
-      'Fall harvest-season cup. Custom point weightings across matches with a tiebreaker off-app on the practice green — because sometimes the scorecard does not settle it and the putter has to.',
+    tagline:
+      '5 sessions across 2 courses. Every round scores different points — the weight of the day changes as the trip unfolds.',
+    rounds: [
+      { session: 'Round 1', format: 'Best Ball', points: '6 pts' },
+      { session: 'Round 2', format: 'Best Three of Four', points: '3 pts' },
+      { session: 'Round 3', format: 'High-Low', points: '6 pts' },
+      { session: 'Round 4', format: 'Twelves', points: '6 pts' },
+      { session: 'Round 5', format: 'Singles', points: '12 pts' },
+    ],
+    meta: '5 rounds · 2 courses · 33 points total',
     detail:
-      'Preset session grid, Cup composition with team composer, and a live Cup Scoreboard tied to your league.',
+      'Preset session grid, Cup composition with team composer, and a live Cup Scoreboard. Practice-green tiebreaker off-app when it comes down to it.',
   },
   {
     name: 'Ballyneal Brigade',
-    body:
-      'Multi-day team competition designed around a destination course. Rotates formats (foursomes → best-ball → singles) with a live-updated Brigade scoreboard the whole clubhouse can watch.',
+    tagline:
+      'Weekend Ballyneal event. Team Best Ball Friday and Saturday, optional afternoon round, individual Championship Sunday.',
+    rounds: [
+      { session: 'Fri PM', format: '4-Man Best Ball' },
+      { session: 'Sat AM', format: '2-Man Best Ball' },
+      { session: 'Sat PM', format: 'Optional (Individual stroke play)' },
+      { session: 'Sun AM', format: 'Championship (Individual stroke play)' },
+    ],
+    meta: '4 rounds · Team + Individual Championship aggregate',
     detail:
-      'One board for the whole trip — net-only leaderboard, round-strip chips, and Thru-Sat carry-in built in.',
+      'One board for the whole trip — net-only leaderboard, round-strip chips, and Thru-Sat carry-in for the Championship. Optional Sat PM opts skipped players out of the aggregate cleanly.',
   },
 ];
 ---
 
-<BaseLayout title="Tournaments · Bagpipe Golf" description="Every tournament format Bagpipe Golf runs — Stroke Play, Best Ball, Scramble, Foursomes, Match Play, and more — plus templates for the trips your crew already knows.">
+<BaseLayout title="Tournaments · Bagpipe Golf" description="Eleven tournament formats, three Buddies Trip Cup templates (Ryder Cup, Scarecrow Cup, Ballyneal Brigade), and a wizard to build your own — every pairing, point, and payout handled on your phone.">
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">Tournaments</p>
-    <h1 class="pagewrap__title">Run your member-guest from a phone.</h1>
+    <h1 class="pagewrap__title">The tournament engine for your best golf trip.</h1>
     <p class="pagewrap__sub">
-      Eleven formats. Flighted gross / net / Stableford. Cup match-points.
-      Shotgun pairings. Leaderboards, payouts, Calcutta. Built for TDs who
-      want to score the round instead of babysit a spreadsheet.
+      Eleven formats. Three shipping Cup templates. And a wizard to design
+      the trip your crew has been running on spreadsheets for years. Bagpipe
+      handles pairings, points, and payouts — you show up and play.
     </p>
 
     <AppLinkBanner
@@ -219,11 +261,11 @@ const buddiesTemplates: BuddiesTemplate[] = [
     <section class="buddies">
       <div class="section-head">
         <span class="chip">Buddies Trip Templates</span>
-        <h2>The trips your crew already knows.</h2>
+        <h2>Three cup templates. Pick one, drop in your roster, tee off.</h2>
         <p class="section-sub">
-          Pre-baked multi-day templates for the cup-style tournaments people
-          actually plan around. Pick one, drop in your roster, and Bagpipe
-          runs the pairings, points, and live scoreboard for the whole trip.
+          Multi-day team-match trips are the reason golf gets scheduled a
+          year in advance. Every round, format, and point weight is preset —
+          the wizard takes 90 seconds instead of 90 minutes.
         </p>
       </div>
 
@@ -234,17 +276,70 @@ const buddiesTemplates: BuddiesTemplate[] = [
               <header class="bcard__head">
                 <h3>{t.name}</h3>
               </header>
-              <p class="bcard__body">{t.body}</p>
+              <p class="bcard__tagline">{t.tagline}</p>
+              <ol class="bcard__rounds">
+                {
+                  t.rounds.map((r) => (
+                    <li class="bcard__round">
+                      <span class="bcard__roundlabel">{r.session}</span>
+                      <span class="bcard__roundformat">{r.format}</span>
+                      {r.points && (
+                        <span class="bcard__roundpoints">{r.points}</span>
+                      )}
+                    </li>
+                  ))
+                }
+              </ol>
+              <p class="bcard__meta">{t.meta}</p>
               <p class="bcard__detail">{t.detail}</p>
             </article>
           ))
         }
       </div>
+    </section>
 
-      <p class="buddies__note">
-        Have a home-course tradition you would like templated? Tell us —
-        these three are the start, not the finish.
-      </p>
+    <section class="build-own">
+      <div class="build-own__grid">
+        <div class="build-own__copy">
+          <span class="chip">Design Your Own</span>
+          <h2>Build a Cup for the trip you actually run.</h2>
+          <p>
+            Not on the list? Build it. Any round count, any format
+            combination, any point weighting — the wizard turns it into
+            a preset you can reuse next year.
+          </p>
+          <ul class="build-own__bullets">
+            <li>Pick 1–8 rounds, mix any formats round by round.</li>
+            <li>Set your own point value per session — flat, weighted, whatever.</li>
+            <li>Team composer, live Cup scoreboard, printable scorecard packs.</li>
+            <li>Save it, name it, share the invite link.</li>
+          </ul>
+          <div class="build-own__ctas">
+            <a class="btn btn--primary" href="/signup">Create account · Start designing</a>
+            <a class="btn btn--ghost" href="/features">See what else is in the box</a>
+          </div>
+        </div>
+        <div class="build-own__preview" aria-hidden="true">
+          <div class="preview-round">
+            <span class="preview-round__label">Round 1</span>
+            <span class="preview-round__format">Your format</span>
+            <span class="preview-round__points">? pts</span>
+          </div>
+          <div class="preview-round">
+            <span class="preview-round__label">Round 2</span>
+            <span class="preview-round__format">Your format</span>
+            <span class="preview-round__points">? pts</span>
+          </div>
+          <div class="preview-round">
+            <span class="preview-round__label">Round 3</span>
+            <span class="preview-round__format">Your format</span>
+            <span class="preview-round__points">? pts</span>
+          </div>
+          <div class="preview-round preview-round--faded">
+            <span class="preview-round__label">+ Add round</span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="cta">
@@ -377,11 +472,18 @@ const buddiesTemplates: BuddiesTemplate[] = [
   .bcard {
     background: #fff;
     border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 20px 22px;
+    border-radius: 16px;
+    padding: 22px 22px 20px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(15, 61, 37, 0.04);
+    transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  }
+  .bcard:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15, 61, 37, 0.10);
+    border-color: rgba(26, 92, 56, 0.28);
   }
   .bcard__head {
     display: flex;
@@ -391,31 +493,209 @@ const buddiesTemplates: BuddiesTemplate[] = [
     flex-wrap: wrap;
   }
   .bcard__head h3 {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 800;
     color: var(--brand-green-dark);
     margin: 0;
+    letter-spacing: -0.01em;
   }
-  .bcard__body {
-    margin: 0;
+  .bcard__tagline {
+    margin: 0 0 4px;
     color: var(--ink);
     font-size: 15px;
-    line-height: 1.55;
+    line-height: 1.5;
+  }
+  .bcard__rounds {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .bcard__round {
+    display: grid;
+    grid-template-columns: 76px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--brand-green-pale);
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .bcard__roundlabel {
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    font-size: 10.5px;
+  }
+  .bcard__roundformat {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .bcard__roundpoints {
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    background: #fff;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+  }
+  .bcard__meta {
+    margin: 4px 0 0;
+    color: var(--brand-green-dark);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
   .bcard__detail {
     margin: 0;
     color: var(--ink-muted);
     font-size: 13px;
     line-height: 1.5;
-    padding-top: 6px;
+    padding-top: 10px;
     border-top: 1px solid var(--line);
   }
 
-  .buddies__note {
-    margin: 20px 0 0;
-    color: var(--ink-muted);
-    font-size: 14px;
+  /* ── Design Your Own Cup ─────────────────────────────────── */
+  .build-own {
+    margin-top: 40px;
+    padding: 40px 32px;
+    background: var(--brand-green-dark);
+    border-radius: 20px;
+    color: #fff;
+  }
+  .build-own__grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+  @media (max-width: 880px) {
+    .build-own { padding: 32px 24px; }
+    .build-own__grid { grid-template-columns: 1fr; gap: 28px; }
+  }
+
+  .build-own__copy .chip {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    margin-bottom: 12px;
+  }
+  .build-own__copy h2 {
+    font-size: clamp(24px, 3vw, 32px);
+    font-weight: 800;
+    color: #fff;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+  .build-own__copy > p {
+    margin: 0 0 16px;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .build-own__bullets {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .build-own__bullets li {
+    padding-left: 22px;
+    position: relative;
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .build-own__bullets li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    top: 0;
+    font-weight: 800;
+    color: #fff;
+  }
+  .build-own__ctas {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .build-own__ctas .btn--primary {
+    background: #fff;
+    color: var(--brand-green-dark);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  }
+  .build-own__ctas .btn--primary:hover {
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--brand-green-dark);
+  }
+  .build-own__ctas .btn--ghost {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+  .build-own__ctas .btn--ghost:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-color: #fff;
+  }
+
+  .build-own__preview {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    border: 1px dashed rgba(255, 255, 255, 0.28);
+  }
+  .preview-round {
+    display: grid;
+    grid-template-columns: 72px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .preview-round__label {
+    font-weight: 800;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 10.5px;
+  }
+  .preview-round__format {
+    color: rgba(255, 255, 255, 0.82);
+    font-weight: 600;
     font-style: italic;
+  }
+  .preview-round__points {
+    font-weight: 800;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.16);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11.5px;
+  }
+  .preview-round--faded {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.22);
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .preview-round--faded .preview-round__label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.70);
+    letter-spacing: 0;
+    text-transform: none;
   }
 
   .cta {
