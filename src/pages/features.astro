@@ -7,12 +7,14 @@ const groups = [
     body: 'GHIN-style notation, per-hole FIR / GIR / putts, course handicap math done for you. Career stats roll up automatically.',
   },
   {
-    title: '30 side games',
+    title: '31 side games',
     body: 'Skins, Nassau, Wolf, Vegas, Stableford, Hammer, Bingo Bango Bongo, Scotch, Six-Six-Six and more — hole-by-hole, zero-sum settlement.',
+    href: '/side-games',
   },
   {
     title: 'Tournaments',
     body: 'Flighted gross / net / Stableford, Cup match-points, shotgun pairings, leaderboards, payouts. Run your member-guest from a phone.',
+    href: '/tournaments',
   },
   {
     title: 'Leagues',
@@ -44,6 +46,11 @@ const groups = [
           <article class="card">
             <h3>{g.title}</h3>
             <p>{g.body}</p>
+            {g.href && (
+              <a class="card__more" href={g.href}>
+                Learn more <span aria-hidden="true">→</span>
+              </a>
+            )}
           </article>
         ))
       }
@@ -59,4 +66,13 @@ const groups = [
     margin: 0 0 6px;
   }
   .card p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+  .card__more {
+    display: inline-block;
+    margin-top: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--brand-green);
+    text-decoration: none;
+  }
+  .card__more:hover { color: var(--brand-green-dark); }
 </style>
