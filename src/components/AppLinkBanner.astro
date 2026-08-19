@@ -1,0 +1,139 @@
+---
+// AppLinkBanner — a top-of-page CTA on marketing detail pages
+// (/side-games, /tournaments, /leagues) that surfaces the personal
+// app version of the same thing.
+//
+// Two states, driven by Astro.locals.user (populated by middleware.ts):
+//   - Signed in  → prominent "Jump into your active X →" link into the
+//     matching /app/... surface. Removes the "where's the app?" hunt
+//     that surfaced in feedback 2026-08-19.
+//   - Signed out → dual-CTA prompt (Create account · Sign in) framed
+//     as "start using this today" rather than a paywall.
+//
+// Kept as a single component so the copy and styling stay consistent
+// across the three marketing detail pages. Copy is parameterized by
+// [singular]/[plural] so "your side games" / "your tournament" /
+// "your league" all read naturally.
+
+interface Props {
+  singular: string;   // "game" | "tournament" | "league"
+  plural: string;     // "games" | "tournaments" | "leagues"
+  appPath: string;    // "/app/side-games" | "/app/tournaments" | "/app/leagues"
+  productLabel: string; // "side games" | "tournaments" | "leagues" — capitalized in copy
+}
+
+const { singular, plural, appPath, productLabel } = Astro.props;
+const user = Astro.locals.user ?? null;
+const isSignedIn = !!user;
+---
+
+{isSignedIn ? (
+  <a href={appPath} class="applink applink--in">
+    <div class="applink__body">
+      <span class="applink__eyebrow">Your {plural}</span>
+      <span class="applink__title">Jump into your active {plural}</span>
+      <span class="applink__sub">Live scoring, standings, and settlement — right where you left off.</span>
+    </div>
+    <span class="applink__arrow" aria-hidden="true">→</span>
+  </a>
+) : (
+  <section class="applink applink--out">
+    <div class="applink__body">
+      <span class="applink__eyebrow">New to Bagpipe?</span>
+      <span class="applink__title">Create an account to start your first {singular}.</span>
+      <span class="applink__sub">Free to sign up. All {productLabel} included. Never doing skins on a napkin again.</span>
+    </div>
+    <div class="applink__ctas">
+      <a href="/signup" class="btn btn--primary btn--sm">Create account</a>
+      <a href="/login" class="btn btn--ghost btn--sm">Sign in</a>
+    </div>
+  </section>
+)}
+
+<style>
+  .applink {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px 24px;
+    border-radius: 16px;
+    margin: 4px 0 32px;
+    text-decoration: none;
+  }
+  .applink--in {
+    background: linear-gradient(135deg, var(--brand-green) 0%, var(--brand-green-dark) 100%);
+    color: #fff;
+    border: 1px solid var(--brand-green-dark);
+    box-shadow: 0 4px 14px rgba(26, 92, 56, 0.20);
+    transition: transform 0.06s ease, box-shadow 0.12s ease;
+  }
+  .applink--in:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(26, 92, 56, 0.28);
+  }
+  .applink--out {
+    background: var(--brand-green-pale);
+    border: 1px solid rgba(26, 92, 56, 0.18);
+    color: var(--ink);
+  }
+
+  .applink__body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .applink__eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 11px;
+    font-weight: 800;
+    opacity: 0.85;
+  }
+  .applink--in .applink__eyebrow { color: rgba(255, 255, 255, 0.85); }
+  .applink--out .applink__eyebrow { color: var(--brand-green-dark); }
+
+  .applink__title {
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: -0.005em;
+  }
+  .applink--in .applink__title { color: #fff; }
+  .applink--out .applink__title { color: var(--brand-green-dark); }
+
+  .applink__sub {
+    font-size: 14px;
+    line-height: 1.45;
+    margin-top: 2px;
+  }
+  .applink--in .applink__sub { color: rgba(255, 255, 255, 0.90); }
+  .applink--out .applink__sub { color: var(--ink-muted); }
+
+  .applink__arrow {
+    font-size: 28px;
+    font-weight: 700;
+    flex-shrink: 0;
+    color: #fff;
+    transition: transform 0.12s ease;
+  }
+  .applink--in:hover .applink__arrow { transform: translateX(4px); }
+
+  .applink__ctas {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .applink {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 20px 20px;
+    }
+    .applink__arrow { align-self: flex-end; }
+  }
+</style>

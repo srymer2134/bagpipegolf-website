@@ -1,0 +1,423 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AppLinkBanner from '../components/AppLinkBanner.astro';
+
+// Content sourced from the Flutter repo's canonical
+// `docs/LEAGUE_MODE_DECISIONS.md` (2026-08-19). Keep in sync with the
+// engine — new points models / weekly formats / sub rules / playoff
+// sizes should surface here in the same PR they land in the app.
+
+interface Format {
+  name: string;
+  body: string;
+}
+
+const weeklyFormats: Format[] = [
+  {
+    name: 'Stroke Play',
+    body: 'Standard gross / net stroke play. WHS-cap-friendly.',
+  },
+  {
+    name: 'Scramble',
+    body: 'Team format — captain picks the best drive; everyone plays their next shot from there.',
+  },
+  {
+    name: 'Best Ball',
+    body: '2- or 4-person teams playing their own ball; low team score per hole counts.',
+  },
+  {
+    name: 'Stableford',
+    body: 'Points per hole — eagle 4, birdie 3, par 2, bogey 1, double+ 0.',
+  },
+  {
+    name: 'Match Play',
+    body: '1-on-1 hole-by-hole; win the hole for +1 to the match, ties halve.',
+  },
+  {
+    name: 'Other / Custom',
+    body: 'Alternate shot, greensomes, chapman, whatever the week calls for.',
+  },
+];
+
+interface PointsModel {
+  name: string;
+  body: string;
+  when: string;
+}
+
+const pointsModels: PointsModel[] = [
+  {
+    name: 'Position points',
+    body: 'Finish-place points: N for 1st, N-1 for 2nd, and so on. The default. Rewards consistency across the season.',
+    when: 'When you want every week to count equally.',
+  },
+  {
+    name: 'Stroke aggregate',
+    body: 'Cumulative net or gross strokes across the season; lowest total wins. Every stroke matters, every week.',
+    when: 'When your league is one long stroke-play showdown.',
+  },
+];
+
+interface SubRule {
+  name: string;
+  body: string;
+}
+
+const subRules: SubRule[] = [
+  {
+    name: 'Regular keeps sub',
+    body: 'The absent regular is credited with whatever the sub scores. Standard for most member leagues.',
+  },
+  {
+    name: 'Blind default',
+    body: 'The sub keeps their own row; the regular takes a documented default (min points, event worst).',
+  },
+  {
+    name: 'Sub takes it, regular zero',
+    body: 'The sub earns whatever they score; the absent regular takes a zero for the week.',
+  },
+];
+
+interface Advanced {
+  title: string;
+  body: string;
+  eyebrow: string;
+}
+
+const advanced: Advanced[] = [
+  {
+    eyebrow: 'Weekly pairings',
+    title: 'Circle-method round-robin, one tap.',
+    body:
+      'Generate the season\'s pairings once — everyone plays with everyone in a 2-person rotation. Groups of 3+ use a per-slot rotation offset. Commissioner triggers, doesn\'t auto-fire.',
+  },
+  {
+    eyebrow: 'Flighting',
+    title: 'Live flights based on standings.',
+    body:
+      'Set a flight count. Equal-size tiers by rank, or set manual cutoffs. Flights recompute on every standings read — never stale, never persisted.',
+  },
+  {
+    eyebrow: 'Playoffs',
+    title: 'Single-elim brackets: 2, 4, or 8.',
+    body:
+      'Pick the size at season start. Round 0 seeds 1-vs-K, 2-vs-(K-1). Only winner picks persist; the bracket derives.',
+  },
+  {
+    eyebrow: 'Season standings',
+    title: 'Standings compute live from every scored event.',
+    body:
+      'Aggregates each bound tournament\'s leaderboard, applies your substitute rule, ranks by points or strokes. No stored leaderboard, no stale data, no reconciliation script.',
+  },
+  {
+    eyebrow: 'Coach Dashboard',
+    title: 'Team-scope view for school + club leagues.',
+    body:
+      'Owner or coach role sees a roster-first dashboard: team average, season W-L-T, per-player rank, form dots. Live from the same standings compute — no separate data path.',
+  },
+];
+---
+
+<BaseLayout title="Leagues · Bagpipe Golf" description="Recurring-season leagues — weekly formats, substitute rules, flighting, playoffs, and standings that compute live. Built for member leagues, corporate outings, and school teams.">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Leagues</p>
+    <h1 class="pagewrap__title">A season, not a napkin.</h1>
+    <p class="pagewrap__sub">
+      Weekly events bound to a recurring schedule. Substitute rules, partner
+      rotation, flighting, playoffs, cumulative standings — every league
+      concept you'd normally track in a spreadsheet, computed live from the
+      scores as they come in.
+    </p>
+
+    <AppLinkBanner
+      singular="league"
+      plural="leagues"
+      appPath="/app/leagues"
+      productLabel="league features"
+    />
+
+    <section class="hero-band">
+      <div class="hero-band__grid">
+        <div class="hero-band__cell">
+          <span class="hero-band__num">6</span>
+          <span class="hero-band__label">Weekly formats</span>
+        </div>
+        <div class="hero-band__cell">
+          <span class="hero-band__num">2</span>
+          <span class="hero-band__label">Points models</span>
+        </div>
+        <div class="hero-band__cell">
+          <span class="hero-band__num">3</span>
+          <span class="hero-band__label">Substitute rules</span>
+        </div>
+        <div class="hero-band__cell">
+          <span class="hero-band__num">2 · 4 · 8</span>
+          <span class="hero-band__label">Playoff sizes</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Points model</h2>
+        <p class="section-sub">
+          Pick how the season resolves. You pick once at league setup;
+          standings apply it live.
+        </p>
+      </div>
+      <div class="grid grid--2">
+        {
+          pointsModels.map((m) => (
+            <article class="card card--tall">
+              <h3>{m.name}</h3>
+              <p>{m.body}</p>
+              <p class="card__when"><strong>Best when:</strong> {m.when}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Weekly format</h2>
+        <p class="section-sub">
+          Each week's slot picks its own format. Mix and match across the
+          season; standings still add up.
+        </p>
+      </div>
+      <div class="grid grid--3">
+        {
+          weeklyFormats.map((f) => (
+            <article class="card">
+              <h3>{f.name}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))
+        }
+      </div>
+      <aside class="callout">
+        <strong>Mixed-format guardrail.</strong>
+        When Stroke aggregate meets multiple weekly formats, the standings
+        card flags a caveat ("mixed format — strokes may not roll up cleanly").
+        The math still runs; the label just tells the truth.
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Substitute rules</h2>
+        <p class="section-sub">
+          Real leagues have absences. Bagpipe treats subs as first-class
+          instead of an off-app afterthought.
+        </p>
+      </div>
+      <div class="grid grid--3">
+        {
+          subRules.map((r) => (
+            <article class="card">
+              <h3>{r.name}</h3>
+              <p>{r.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>The rest of the mechanics</h2>
+        <p class="section-sub">
+          Everything a season commissioner actually reaches for — none of
+          the spreadsheet.
+        </p>
+      </div>
+      <div class="advanced">
+        {
+          advanced.map((a) => (
+            <article class="advcard">
+              <span class="advcard__eyebrow">{a.eyebrow}</span>
+              <h3>{a.title}</h3>
+              <p>{a.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="cta">
+      <h2>Ready to start a season?</h2>
+      <p>Set up a league, invite the roster, schedule the weeks. Bagpipe runs the standings.</p>
+      <div class="cta__row">
+        <a class="btn btn--primary" href="/signup">Create account</a>
+        <a class="btn btn--ghost" href="/tournaments">See tournament formats</a>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .hero-band {
+    background: linear-gradient(180deg, var(--brand-green-pale) 0%, #fff 100%);
+    border: 1px solid rgba(26, 92, 56, 0.15);
+    border-radius: 18px;
+    padding: 26px 28px;
+    margin: 4px 0 40px;
+  }
+  .hero-band__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    align-items: stretch;
+  }
+  @media (max-width: 720px) {
+    .hero-band__grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .hero-band__cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    text-align: center;
+  }
+  .hero-band__num {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+  .hero-band__label {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-muted);
+  }
+
+  .section { margin-top: 48px; }
+  .section-head {
+    margin-bottom: 20px;
+  }
+  .section-head h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .section-sub {
+    color: var(--ink-muted);
+    margin: 0;
+    font-size: 15px;
+    max-width: 68ch;
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card h3 {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .card p {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .card__when {
+    color: var(--ink-muted);
+    font-size: 13px;
+    padding-top: 4px;
+    border-top: 1px dashed var(--line);
+    margin-top: 4px;
+  }
+  .card--tall { min-height: 160px; }
+
+  .callout {
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: #FEF3C7;
+    border-radius: 12px;
+    color: #78350F;
+    font-size: 14px;
+    line-height: 1.55;
+    border: 1px solid #FDE68A;
+  }
+  .callout strong { color: #78350F; }
+
+  .advanced {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+  @media (max-width: 720px) {
+    .advanced { grid-template-columns: 1fr; }
+  }
+  .advcard {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--brand-green);
+    border-radius: 12px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .advcard__eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--brand-green);
+  }
+  .advcard h3 {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .advcard p {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .cta {
+    margin-top: 56px;
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--brand-green-pale);
+    border-radius: 20px;
+  }
+  .cta h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 8px;
+  }
+  .cta p {
+    color: var(--ink);
+    margin: 0 0 20px;
+    font-size: 16px;
+  }
+  .cta__row {
+    display: inline-flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+</style>

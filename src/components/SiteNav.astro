@@ -13,20 +13,64 @@ const pathname = new URL(Astro.request.url).pathname;
 type NavLink = { href: string; label: string };
 type NavGroup = { title: string; links: NavLink[] };
 
+// Primary horizontal nav — a small, opinionated set of the most-used
+// destinations. Rest of the sitemap lives in the Menu panel.
+//
+// Signed-in labels use "My …" so users can distinguish personal-scoped
+// app pages (their active games) from the product marketing pages
+// (what side games / tournaments / leagues ARE). Before 2026-08-19 both
+// carried the same label — coaches complained they couldn't find the
+// marketing content once signed in.
 const primaryLinks: NavLink[] = isSignedIn
   ? [
       { href: '/app', label: 'Dashboard' },
       { href: '/app/history', label: 'Rounds' },
-      { href: '/app/side-games', label: 'Side games' },
-      { href: '/app/tournaments', label: 'Tournaments' },
-      { href: '/app/leagues', label: 'Leagues' },
+      { href: '/app/side-games', label: 'My games' },
+      { href: '/app/tournaments', label: 'My tournaments' },
+      { href: '/app/leagues', label: 'My leagues' },
     ]
   : [
       { href: '/features', label: 'Features' },
-      { href: '/for-hosts', label: 'For Hosts' },
-      { href: '/for-players', label: 'For Players' },
+      { href: '/tournaments', label: 'Tournaments' },
+      { href: '/side-games', label: 'Side games' },
+      { href: '/leagues', label: 'Leagues' },
       { href: '/pricing', label: 'Pricing' },
     ];
+
+// Menu panel — grouped sitemap. Five groups for both auth states so the
+// panel reads consistently regardless of sign-in:
+//
+//   Play      — user's app-scoped pages (signed-in only)
+//   Explore   — marketing detail pages (Tournaments, Side games, Leagues)
+//   Product   — top-level marketing + audience landings
+//   Help      — FAQ + Support
+//   Legal     — Privacy + Terms
+//
+// Every marketing detail page is discoverable from either auth state via
+// the Explore group.
+const exploreLinks: NavLink[] = [
+  { href: '/tournaments', label: 'Tournaments' },
+  { href: '/side-games', label: 'Side games' },
+  { href: '/leagues', label: 'Leagues' },
+];
+
+const productLinks: NavLink[] = [
+  { href: '/', label: 'Home' },
+  { href: '/features', label: 'Features' },
+  { href: '/for-hosts', label: 'For Hosts' },
+  { href: '/for-players', label: 'For Players' },
+  { href: '/pricing', label: 'Pricing' },
+];
+
+const helpLinks: NavLink[] = [
+  { href: '/faq', label: 'FAQ' },
+  { href: '/support', label: 'Support' },
+];
+
+const legalLinks: NavLink[] = [
+  { href: '/privacy', label: 'Privacy' },
+  { href: '/terms', label: 'Terms' },
+];
 
 const menuGroups: NavGroup[] = isSignedIn
   ? [
@@ -35,55 +79,20 @@ const menuGroups: NavGroup[] = isSignedIn
         links: [
           { href: '/app', label: 'Dashboard' },
           { href: '/app/history', label: 'Round history' },
-          { href: '/app/side-games', label: 'Side games' },
+          { href: '/app/side-games', label: 'My games' },
           { href: '/app/tournaments', label: 'My tournaments' },
           { href: '/app/leagues', label: 'My leagues' },
-        ],
-      },
-      {
-        title: 'Account',
-        links: [
           { href: '/app/profile', label: 'Profile' },
         ],
       },
-      {
-        title: 'Product',
-        links: [
-          { href: '/', label: 'Home' },
-          { href: '/features', label: 'Features' },
-          { href: '/for-hosts', label: 'For Hosts' },
-          { href: '/for-players', label: 'For Players' },
-          { href: '/pricing', label: 'Pricing' },
-        ],
-      },
-      {
-        title: 'Help',
-        links: [
-          { href: '/faq', label: 'FAQ' },
-          { href: '/support', label: 'Support' },
-        ],
-      },
-      {
-        title: 'Legal',
-        links: [
-          { href: '/privacy', label: 'Privacy' },
-          { href: '/terms', label: 'Terms' },
-        ],
-      },
+      { title: 'Explore', links: exploreLinks },
+      { title: 'Product', links: productLinks },
+      { title: 'Help', links: helpLinks },
+      { title: 'Legal', links: legalLinks },
     ]
   : [
-      {
-        title: 'Product',
-        links: [
-          { href: '/', label: 'Home' },
-          { href: '/features', label: 'Features' },
-          { href: '/tournaments', label: 'Tournaments' },
-          { href: '/side-games', label: 'Side games' },
-          { href: '/for-hosts', label: 'For Hosts' },
-          { href: '/for-players', label: 'For Players' },
-          { href: '/pricing', label: 'Pricing' },
-        ],
-      },
+      { title: 'Explore', links: exploreLinks },
+      { title: 'Product', links: productLinks },
       {
         title: 'Account',
         links: [
@@ -91,20 +100,8 @@ const menuGroups: NavGroup[] = isSignedIn
           { href: '/signup', label: 'Create account' },
         ],
       },
-      {
-        title: 'Help',
-        links: [
-          { href: '/faq', label: 'FAQ' },
-          { href: '/support', label: 'Support' },
-        ],
-      },
-      {
-        title: 'Legal',
-        links: [
-          { href: '/privacy', label: 'Privacy' },
-          { href: '/terms', label: 'Terms' },
-        ],
-      },
+      { title: 'Help', links: helpLinks },
+      { title: 'Legal', links: legalLinks },
     ];
 
 const isActive = (href: string) =>
