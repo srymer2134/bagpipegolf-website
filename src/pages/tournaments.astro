@@ -1,0 +1,447 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Content sourced from the Flutter repo's canonical `docs/HOWTO_TOURNAMENTS.md`
+// (2026-08-19). Format list + handicap allowances should stay in sync with the
+// engine — update both docs in the same PR when a new format ships.
+
+interface Format {
+  name: string;
+  kind: 'individual' | 'team';
+  players?: string;
+  body: string;
+  allowance?: string;
+}
+
+const formats: Format[] = [
+  {
+    name: 'Stroke Play',
+    kind: 'individual',
+    body:
+      'Each player records gross strokes per hole; the lowest 18-hole total wins. Net = gross minus course handicap. WHS caps any hole at net double bogey.',
+    allowance: '95% Course Handicap',
+  },
+  {
+    name: 'Match Play (Singles)',
+    kind: 'individual',
+    body:
+      '1-on-1 hole by hole. Win the hole = +1. The match ends when one side leads by more holes than remain (e.g. 4&3). Net match play applies 100% of the handicap difference on the lowest-index holes.',
+  },
+  {
+    name: 'Stableford',
+    kind: 'individual',
+    body:
+      'Points format: bogey=1, par=2, birdie=3, eagle=4, double-eagle=5; double-bogey or worse=0. Net Stableford applies handicap before scoring.',
+    allowance: '95% Course Handicap',
+  },
+  {
+    name: 'Modified Stableford',
+    kind: 'individual',
+    body:
+      'Stableford with a custom table that rewards aggressive play. PGA Tour Barracuda uses: eagle +5, birdie +2, par 0, bogey −1, double-or-worse −3.',
+  },
+  {
+    name: 'Best Ball / Four-Ball',
+    kind: 'team',
+    players: '2-person teams',
+    body:
+      'Each player plays their own ball; the lower of the two team scores counts as the team hole score. Handicap applied BEFORE comparing (net per hole, not low gross). Common at member-guest events.',
+    allowance: '85% Course Handicap (each player)',
+  },
+  {
+    name: 'Scramble',
+    kind: 'team',
+    players: '4-person default (2 and 3 supported)',
+    body:
+      'All teammates tee off; the captain picks the best drive; everyone plays their next shot from there until holed. One team gross per hole. Texas Scramble adds a minimum-drives rule (each player\'s drive used at least 3 times) — organize manually.',
+    allowance: '4 players: 25%A + 20%B + 15%C + 10%D (70% total)',
+  },
+  {
+    name: 'Foursomes (Alternate Shot)',
+    kind: 'team',
+    players: '2-person teams',
+    body:
+      'Partners alternate STROKES on a single ball. One partner tees off odd holes, the other even. Traditional, punishing, and gorgeous when it works.',
+    allowance: '(low + high) × 50%',
+  },
+  {
+    name: 'Greensomes (Modified Alternate)',
+    kind: 'team',
+    players: '2-person teams',
+    body:
+      'Both partners tee off; pick the better drive; the partner whose drive was NOT chosen plays the second. Alternate strokes from there.',
+    allowance: '60% low + 40% high Course Handicap',
+  },
+  {
+    name: 'Pinehurst (Chapman)',
+    kind: 'team',
+    players: '2-person teams',
+    body:
+      'Both partners tee off, then SWAP balls for the second shot. After the two seconds, pick one ball; the OTHER partner plays the third, and they alternate to the hole.',
+    allowance: '60% low + 40% high',
+  },
+  {
+    name: 'Bloodsome (Reverse Scramble)',
+    kind: 'team',
+    players: '2-person teams',
+    body:
+      'Worst-drive variant of Foursomes. Both partners tee off; the captain picks the WORSE drive; the team plays alternate shot from there. Punishing but memorable.',
+    allowance: '50% of combined Course Handicaps',
+  },
+  {
+    name: 'Round Robin',
+    kind: 'team',
+    players: '4 players',
+    body:
+      'Partners rotate every 6 holes so every pairing plays together once. Holes 1–6: AB vs CD. 7–12: AC vs BD. 13–18: AD vs BC. Each 6-hole segment is its own match.',
+  },
+  {
+    name: 'Six-Six-Six',
+    kind: 'team',
+    players: '4 players',
+    body:
+      'Same rotation as Round Robin — three 6-hole segments — but best-ball scoring within each segment rather than match play.',
+  },
+];
+
+// Buddies Trip Templates — a placeholder section. The Ryder Cup preset is real
+// today; Scarecrow Cup and BallyBrigade are real events the founders + partners
+// run in-person and are aspirational templates. Marked "coming soon" so we're
+// not making product promises.
+interface BuddiesTemplate {
+  name: string;
+  status: 'shipping' | 'coming soon';
+  body: string;
+  detail: string;
+}
+
+const buddiesTemplates: BuddiesTemplate[] = [
+  {
+    name: 'Ryder Cup',
+    status: 'shipping',
+    body:
+      '5 sessions over 3 days. Foursomes, Four-Ball, and Singles match play — the classic biennial format, adapted for a weekend among friends.',
+    detail:
+      'Ships as a template today. Applies Match Points scoring and adds a Team Rosters step to the wizard.',
+  },
+  {
+    name: 'Scarecrow Cup',
+    status: 'coming soon',
+    body:
+      'Fall harvest-season cup. Custom point weightings across matches with a tiebreaker off-app on the practice green — because sometimes the score card doesn\'t settle it and the putter has to.',
+    detail:
+      'Template coming with a preset session grid, team-composer, and Cup Scoreboard tied to your league.',
+  },
+  {
+    name: 'Ballyneal Brigade',
+    status: 'coming soon',
+    body:
+      'Multi-day team competition designed around a destination course. Rotates formats (foursomes → best-ball → singles) and layers a live-updated Brigade scoreboard the whole clubhouse can watch.',
+    detail:
+      'Template will surface the "one board for the whole trip" experience so the group can rally around a single number.',
+  },
+];
+---
+
+<BaseLayout title="Tournaments · Bagpipe Golf" description="Every tournament format Bagpipe Golf runs — Stroke Play, Best Ball, Scramble, Foursomes, Match Play, and more — plus templates for the trips your crew already knows.">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Tournaments</p>
+    <h1 class="pagewrap__title">Run your member-guest from a phone.</h1>
+    <p class="pagewrap__sub">
+      Eleven formats. Flighted gross / net / Stableford. Cup match-points.
+      Shotgun pairings. Leaderboards, payouts, Calcutta. Built for TDs who
+      want to score the round instead of babysit a spreadsheet.
+    </p>
+
+    <section class="formats">
+      <div class="section-head">
+        <h2>Tournament formats</h2>
+        <p class="section-sub">
+          Each round of a multi-round tournament picks its own format
+          independently. Handicap allowances follow USGA defaults; the
+          leaderboard reads the configured allowance when computing Net.
+        </p>
+      </div>
+
+      <h3 class="grouptitle">Individual formats</h3>
+      <div class="fgrid">
+        {
+          formats.filter((f) => f.kind === 'individual').map((f) => (
+            <article class="fcard">
+              <header class="fcard__head">
+                <h4>{f.name}</h4>
+                <span class="chip chip--muted">Individual</span>
+              </header>
+              <p>{f.body}</p>
+              {f.allowance && (
+                <p class="fcard__meta">
+                  <span class="fcard__metalabel">Allowance:</span> {f.allowance}
+                </p>
+              )}
+            </article>
+          ))
+        }
+      </div>
+
+      <h3 class="grouptitle">Team formats</h3>
+      <div class="fgrid">
+        {
+          formats.filter((f) => f.kind === 'team').map((f) => (
+            <article class="fcard">
+              <header class="fcard__head">
+                <h4>{f.name}</h4>
+                <span class="chip chip--muted">{f.players ?? 'Team'}</span>
+              </header>
+              <p>{f.body}</p>
+              {f.allowance && (
+                <p class="fcard__meta">
+                  <span class="fcard__metalabel">Allowance:</span> {f.allowance}
+                </p>
+              )}
+            </article>
+          ))
+        }
+      </div>
+
+      <aside class="callout">
+        <strong>Why a "team" round still tracks per-player stats.</strong>
+        Even in Best Ball or Scramble you can enter each player's per-hole gross
+        — the leaderboard derives the team gross as the MIN of members per hole.
+        Necessary when a side bet (FIRs, Skins, Greenies) needs per-player
+        data alongside the team format.
+      </aside>
+    </section>
+
+    <section class="buddies">
+      <div class="section-head">
+        <span class="chip chip--warn">Buddies Trip Templates</span>
+        <h2>The trips your crew already knows.</h2>
+        <p class="section-sub">
+          Pre-baked multi-day templates for the cup-style tournaments people
+          actually plan around. Pick a template, drop in your roster, and
+          Bagpipe runs the pairings, points, and scoreboard for the whole
+          trip.
+        </p>
+      </div>
+
+      <div class="bgrid">
+        {
+          buddiesTemplates.map((t) => (
+            <article class="bcard">
+              <header class="bcard__head">
+                <h3>{t.name}</h3>
+                {t.status === 'shipping' ? (
+                  <span class="chip">Ships today</span>
+                ) : (
+                  <span class="chip chip--warn">Coming soon</span>
+                )}
+              </header>
+              <p class="bcard__body">{t.body}</p>
+              <p class="bcard__detail">{t.detail}</p>
+            </article>
+          ))
+        }
+      </div>
+
+      <p class="buddies__note">
+        Have a home-course tradition you'd like templated? Tell us — the
+        Ryder Cup preset is the first, not the last.
+      </p>
+    </section>
+
+    <section class="cta">
+      <h2>Ready to run one?</h2>
+      <p>Sign up, pick a format, invite your crew. The whole thing lives on your phone.</p>
+      <div class="cta__row">
+        <a class="btn btn--primary" href="/signup">Create account</a>
+        <a class="btn btn--ghost" href="/side-games">Explore side games</a>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .section-head {
+    margin: 24px 0 20px;
+  }
+  .section-head h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 8px 0 8px;
+  }
+  .section-sub {
+    color: var(--ink-muted);
+    margin: 0;
+    font-size: 15px;
+    max-width: 68ch;
+  }
+
+  .grouptitle {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--ink-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin: 32px 0 12px;
+  }
+
+  .fgrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+  @media (max-width: 720px) {
+    .fgrid { grid-template-columns: 1fr; }
+  }
+
+  .fcard {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .fcard__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .fcard__head h4 {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .fcard p {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .fcard__meta {
+    color: var(--ink-muted);
+    font-size: 13px;
+  }
+  .fcard__metalabel {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--brand-green);
+    margin-right: 4px;
+  }
+
+  .callout {
+    margin-top: 20px;
+    padding: 18px 22px;
+    background: var(--brand-green-pale);
+    border-radius: 12px;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .callout strong {
+    color: var(--brand-green-dark);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .buddies {
+    margin-top: 56px;
+    padding: 40px 32px;
+    background: linear-gradient(180deg, #fff 0%, var(--paper-tint) 100%);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+  }
+  .buddies .section-head {
+    text-align: left;
+    margin-top: 0;
+  }
+  .buddies .section-head .chip {
+    margin-bottom: 12px;
+  }
+
+  .bgrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+  }
+  @media (max-width: 880px) {
+    .bgrid { grid-template-columns: 1fr; }
+  }
+
+  .bcard {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .bcard__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .bcard__head h3 {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .bcard__body {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .bcard__detail {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: 13px;
+    line-height: 1.5;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+  }
+
+  .buddies__note {
+    margin: 20px 0 0;
+    color: var(--ink-muted);
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  .cta {
+    margin-top: 56px;
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--brand-green-pale);
+    border-radius: 20px;
+  }
+  .cta h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 8px;
+  }
+  .cta p {
+    color: var(--ink);
+    margin: 0 0 20px;
+    font-size: 16px;
+  }
+  .cta__row {
+    display: inline-flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+</style>
