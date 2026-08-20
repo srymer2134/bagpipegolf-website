@@ -179,10 +179,26 @@ const buddiesTemplates: BuddiesTemplate[] = [
     detail:
       'One board for the whole trip — net-only leaderboard, round-strip chips, and Thru-Sat carry-in for the Championship. Optional Sat PM opts skipped players out of the aggregate cleanly.',
   },
+  {
+    name: 'Bandon Dunes Cup',
+    tagline:
+      'Round-count-driven — you pick 2–12 rounds, the template pre-populates the schedule. Every core team format rotates through, Singles always closes.',
+    rounds: [
+      { session: 'R1', format: 'Best Ball (Pacific Dunes)', points: '4 pts' },
+      { session: 'R2', format: 'Bramble (Old Mac)', points: '3 pts' },
+      { session: 'R3', format: 'Yellow Ball (Sheep Ranch)', points: '3 pts' },
+      { session: 'R4', format: 'Foursomes (Bandon Trails)', points: '5 pts' },
+      { session: 'R5', format: 'Best 2 of 4 (Bandon Dunes)', points: '4 pts' },
+      { session: 'R6', format: 'Singles Match Play', points: '12 pts' },
+    ],
+    meta: '2–12 rounds · signature 6-round shape shown · 31 points total · Team Cup points, Gross + Net',
+    detail:
+      'TD picks the round count first, then applies the Bandon template. Every round is editable after — swap formats, courses, or point weights. Never Scramble; Bramble and Yellow Ball carry the fun-team-round slot instead. Supports 4–48 players.',
+  },
 ];
 ---
 
-<BaseLayout title="Tournaments · Bagpipe Golf" description="Eleven tournament formats, three Buddies Trip Cup templates (Ryder Cup, Scarecrow Cup, Ballyneal Brigade), and a wizard to build your own — every pairing, point, and payout handled on your phone.">
+<BaseLayout title="Tournaments · Bagpipe Golf" description="Eleven tournament formats, four Buddies Trip Cup templates (Ryder Cup, Scarecrow Cup, Ballyneal Brigade, Bandon Dunes Cup), and a wizard to build your own — every pairing, point, and payout handled on your phone.">
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">Tournaments</p>
     <h1 class="pagewrap__title">The tournament engine for your best golf trip.</h1>
