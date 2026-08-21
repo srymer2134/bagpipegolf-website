@@ -1,4 +1,4 @@
-// NALG Colorado Classic — Bagpipe Golf scoreboard demo
+// NALG · The 2026 Colorado Lefty Classic — Bagpipe Golf scoreboard demo
 // ────────────────────────────────────────────────────────────
 // Real course data (City Park + Walnut Creek) pulled from the
 // Bagpipe curated_courses.dart library. 72 fabricated left-handed
