@@ -1,4 +1,4 @@
-// NALG Denver Invitational — Bagpipe Golf scoreboard demo
+// NALG Colorado Classic — Bagpipe Golf scoreboard demo
 // ────────────────────────────────────────────────────────────
 // Real course data (City Park + Walnut Creek) pulled from the
 // Bagpipe curated_courses.dart library. 72 fabricated left-handed
