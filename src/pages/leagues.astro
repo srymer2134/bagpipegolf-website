@@ -239,6 +239,24 @@ const advanced: Advanced[] = [
       </div>
     </section>
 
+    <section class="section">
+      <div class="section-head">
+        <h2>Coaching a school team?</h2>
+        <p class="section-sub">
+          Bagpipe Schools brings the same league mechanics to high
+          school and college programs — with a Coach Portal built for
+          the roster, the season stats, and the playoff picture.
+        </p>
+      </div>
+      <a class="schools-cta" href="/leagues/schools">
+        <span class="schools-cta__eyebrow">New · Schools</span>
+        <span class="schools-cta__title">See Bagpipe Schools →</span>
+        <span class="schools-cta__sub">
+          In pilot with select high schools; college rollout coming soon.
+        </span>
+      </a>
+    </section>
+
     <section class="cta">
       <h2>Ready to start a season?</h2>
       <p>Set up a league, invite the roster, schedule the weeks. Bagpipe runs the standings.</p>
@@ -388,6 +406,46 @@ const advanced: Advanced[] = [
     color: var(--ink);
     font-size: 15px;
     line-height: 1.5;
+  }
+
+  .schools-cta {
+    display: block;
+    text-decoration: none;
+    background: var(--brand-green-pale);
+    border: 1px solid rgba(26, 92, 56, 0.25);
+    border-left: 4px solid var(--brand-green);
+    border-radius: 14px;
+    padding: 22px 24px;
+    color: var(--ink);
+    transition: transform 0.08s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+  }
+  .schools-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(26, 92, 56, 0.14);
+    border-color: var(--brand-green);
+    background: #ddedd8;
+    color: var(--ink);
+  }
+  .schools-cta__eyebrow {
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--brand-green);
+    margin-bottom: 4px;
+  }
+  .schools-cta__title {
+    display: block;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin-bottom: 4px;
+  }
+  .schools-cta__sub {
+    display: block;
+    color: var(--ink-muted);
+    font-size: 14px;
   }
 
   .cta {

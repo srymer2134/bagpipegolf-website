@@ -1,0 +1,362 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+// Marketing page for the school-team feature. In pilot with Bad Birdie
+// High as of 2026-08-21; broader rollout to high school + college
+// programs is next. The "Coach Portal" here is the outward-facing
+// name for the in-app Coach Dashboard (see the Flutter app's
+// `isSchoolLeague()` predicate + `partnerBrand: 'bad_birdie'` flag).
+
+interface CoachFeature {
+  name: string;
+  body: string;
+}
+
+const coachFeatures: CoachFeature[] = [
+  {
+    name: 'Live team scoreboard',
+    body:
+      'Every match, every player\'s score, aggregated to a team result. Filter by opponent, week, or player.',
+  },
+  {
+    name: 'Per-player stats',
+    body:
+      'Scoring average, up/down trend, best-and-worst rounds, matches played, season W-L. Every player\'s page tells the same story a spreadsheet would — computed live from the scores.',
+  },
+  {
+    name: 'Season standings',
+    body:
+      'Team record, individual leaderboard, playoff picture. Standings recompute the moment a match wraps.',
+  },
+  {
+    name: 'Roster management',
+    body:
+      'Batch invite via CSV, roster caps, sub-in rules. Coach owns the list; players own their own scoring.',
+  },
+];
+
+interface PlayerFeature {
+  name: string;
+  body: string;
+}
+
+const playerFeatures: PlayerFeature[] = [
+  {
+    name: 'The scorecard your coach expects',
+    body:
+      'GHIN-style notation, per-hole stats, tap-to-enter. Coach sees the score the moment it\'s committed.',
+  },
+  {
+    name: 'Your season on one screen',
+    body:
+      'Rounds played, average, best/worst, current standing. No spreadsheet, no waiting for the coach to update a whiteboard.',
+  },
+  {
+    name: 'Match-day mode',
+    body:
+      'Team match this week? The app knows. Live score against your assigned opponent; coach\'s portal updates live.',
+  },
+];
+
+interface Format {
+  name: string;
+  body: string;
+}
+
+const weeklyFormats: Format[] = [
+  {
+    name: 'Stroke Play',
+    body: 'Standard gross / net. Every stroke counts toward the team total.',
+  },
+  {
+    name: 'Match Play',
+    body: 'Head-to-head hole-by-hole against your assigned opponent.',
+  },
+  {
+    name: 'Team match play',
+    body: 'School vs school; win / loss / halve rolls up to a team result.',
+  },
+  {
+    name: 'Best Ball',
+    body: '2-person team, each plays their own ball; low score per hole counts.',
+  },
+];
+---
+
+<BaseLayout
+  title="Bagpipe Schools · Leagues · Bagpipe Golf"
+  description="Coach Portal, live team + individual stats, season standings — Bagpipe Golf for high school and college teams. In pilot with select high schools; broader release coming soon."
+>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Leagues · Schools</p>
+    <div class="title-row">
+      <h1 class="pagewrap__title">Golf for teams. Coached from your phone.</h1>
+      <span class="chip chip--pilot">Coming soon</span>
+    </div>
+    <p class="pagewrap__sub">
+      The scorecard, matches, and season standings your program already
+      runs — plus a Coach Portal for tracking every player's numbers. In
+      pilot now with select high schools; broader release for high school
+      and college coming soon.
+    </p>
+
+    <section class="hero-band">
+      <div class="hero-band__grid">
+        <div class="hero-band__cell">
+          <span class="hero-band__num">In pilot</span>
+          <span class="hero-band__label">Bad Birdie High school teams</span>
+        </div>
+        <div class="hero-band__cell">
+          <span class="hero-band__num">Team + individual</span>
+          <span class="hero-band__label">Stats tracked per player, live</span>
+        </div>
+        <div class="hero-band__cell">
+          <span class="hero-band__num">Coach + player</span>
+          <span class="hero-band__label">Two roles, one league</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>What the Coach Portal shows</h2>
+        <p class="section-sub">
+          Roster on the left, standings on the right, every player one
+          tap away. Built for the coach who's also the driver, the
+          ranger, and the parent liaison.
+        </p>
+      </div>
+      <div class="grid grid--2">
+        {
+          coachFeatures.map((f) => (
+            <article class="card card--tall">
+              <h3>{f.name}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>What the player sees</h2>
+        <p class="section-sub">
+          Same app the coach uses — tuned to the player's job: turn in
+          a clean scorecard, know where you stand.
+        </p>
+      </div>
+      <div class="grid grid--3">
+        {
+          playerFeatures.map((f) => (
+            <article class="card">
+              <h3>{f.name}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>For High School</h2>
+      </div>
+      <p class="section-body">
+        Small teams, packed schedules, and a coach who's also the
+        driver, the ranger, and the parent liaison. Bagpipe Schools
+        handles score entry, standings, and playoff bracketing so the
+        coach can coach. Roster caps and CSV import mean a 12-player
+        varsity + 8-player JV is set up in one sitting.
+      </p>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>For College</h2>
+      </div>
+      <p class="section-body">
+        Match play, stroke play, and tournament stops across the
+        season. Coach Portal follows every player across every event;
+        season leaderboards roll up automatically. Import your roster
+        once — every match adds to the picture.
+      </p>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Weekly formats supported</h2>
+        <p class="section-sub">
+          The formats every school program actually plays.
+        </p>
+      </div>
+      <div class="grid grid--2 formats-grid">
+        {
+          weeklyFormats.map((f) => (
+            <article class="card">
+              <h3>{f.name}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="cta">
+      <h2>Coaching a school team? Get on the list.</h2>
+      <p>
+        We're bringing high schools and colleges online in waves. Tell
+        us about your program and we'll reach out with an invite.
+      </p>
+      <div class="cta__row">
+        <a
+          class="btn btn--primary"
+          href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Schools%20waitlist%20-%20%5Byour%20program%5D"
+        >
+          Email hello@bagpipegolf.com
+        </a>
+        <a class="btn btn--ghost" href="/leagues">See how leagues work</a>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .title-row .pagewrap__title {
+    margin-bottom: 0;
+  }
+  .chip--pilot {
+    background: var(--brand-green);
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 12px;
+    letter-spacing: 0.08em;
+  }
+
+  .hero-band {
+    background: linear-gradient(180deg, var(--brand-green-pale) 0%, #fff 100%);
+    border: 1px solid rgba(26, 92, 56, 0.15);
+    border-radius: 18px;
+    padding: 26px 28px;
+    margin: 4px 0 40px;
+  }
+  .hero-band__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: stretch;
+  }
+  @media (max-width: 720px) {
+    .hero-band__grid { grid-template-columns: 1fr; }
+  }
+  .hero-band__cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    text-align: center;
+  }
+  .hero-band__num {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  .hero-band__label {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-muted);
+  }
+
+  .section { margin-top: 48px; }
+  .section-head { margin-bottom: 20px; }
+  .section-head h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .section-sub {
+    color: var(--ink-muted);
+    margin: 0;
+    font-size: 15px;
+    max-width: 68ch;
+  }
+  .section-body {
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 1.6;
+    max-width: 72ch;
+    margin: 0;
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card h3 {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .card p {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .card--tall { min-height: 150px; }
+  .formats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  @media (max-width: 880px) {
+    .formats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 520px) {
+    .formats-grid { grid-template-columns: 1fr; }
+  }
+
+  .cta {
+    margin-top: 56px;
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--brand-green-pale);
+    border-radius: 20px;
+  }
+  .cta h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 8px;
+  }
+  .cta p {
+    color: var(--ink);
+    margin: 0 auto 20px;
+    font-size: 16px;
+    max-width: 56ch;
+  }
+  .cta__row {
+    display: inline-flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+</style>
