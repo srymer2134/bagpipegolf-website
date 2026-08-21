@@ -1,4 +1,4 @@
-/* ── NALG Denver Invitational — Bagpipe scoreboard ─────────────
+/* ── NALG · The 2026 Colorado Lefty Classic — Bagpipe scoreboard ─────────────
    Classic golf palette: deep green, cream, gold, navy accents.
    Serif for the marquee (Playfair Display), sans for tables. */
 
@@ -78,10 +78,11 @@ img { display: block; max-width: 100%; }
 .mast__wordmark {
   font-family: 'Playfair Display', 'Times New Roman', serif;
   font-weight: 800;
-  font-size: 36px;
-  line-height: 1;
+  font-size: 32px;
+  line-height: 1.1;
   letter-spacing: -0.005em;
   color: #fff;
+  max-width: 620px;
 }
 .mast__subtitle {
   font-family: 'Inter', sans-serif;
@@ -661,7 +662,7 @@ img { display: block; max-width: 100%; }
 
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .mast__wordmark { font-size: 26px; }
+  .mast__wordmark { font-size: 22px; }
   .view__title { font-size: 26px; }
   .mast__meta { align-items: flex-start; }
   .foot__inner, .foot__right { text-align: left; }
