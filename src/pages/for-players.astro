@@ -2,27 +2,95 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="For Players · Bagpipe Golf">
+<BaseLayout
+  title="For Players · Bagpipe Golf"
+  description="One app for the whole round — scorecard, 31 side games, and live tournament leaderboards. Free during the Bagpipe Golf beta."
+>
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">For Players</p>
-    <h1 class="pagewrap__title">Keep score. Settle bets. Watch the leaderboard.</h1>
+    <h1 class="pagewrap__title">One app for the whole round.</h1>
     <p class="pagewrap__sub">
-      Tap a cell, enter a score, done. The engine handles the math while you focus on the next shot.
+      Scorecard, side games, tournament leaderboards — all in one place,
+      with the tab settled clean by the 19th.
     </p>
 
     <section class="grid grid--3">
       <article class="card">
-        <h3>Scorecard</h3>
-        <p>Tap-to-enter, per-hole stats, GHIN-style notation, career rollups.</p>
+        <h3>The scorecard that does the math for you</h3>
+        <p>
+          Tap a cell, enter a score. GHIN-style notation (circles for
+          birdies, squares for bogeys). Course handicap and net calculated
+          automatically. Per-hole FIR / GIR / putts if you want them; skip
+          the stat picker if you don't. Career stats roll up round after
+          round — no spreadsheet.
+        </p>
       </article>
       <article class="card">
-        <h3>Side games</h3>
-        <p>30 game types. Add a press at the 9th and the engine still balances.</p>
+        <h3>31 side games, settled clean</h3>
+        <p>
+          Skins, Nassau, Wolf, Vegas, Scotch, Hammer and every classic
+          dot bet. Stack as many as you want on one round. When you sit
+          down at the 19th, you already know exactly who owes who, down
+          to the penny.
+        </p>
       </article>
       <article class="card">
-        <h3>Tournaments &amp; leagues</h3>
-        <p>Join via code or invite. Watch live leaderboards and standings.</p>
+        <h3>Follow the tournament from anywhere</h3>
+        <p>
+          Playing? Score your group in real time and watch the whole
+          field on a live leaderboard. Not playing? Grab the share code
+          and follow from the couch — updates the moment a hole is
+          scored.
+        </p>
       </article>
+    </section>
+
+    <section class="timeline-section">
+      <h2 class="timeline-section__title">How it fits your round</h2>
+      <ol class="timeline">
+        <li class="timeline__item">
+          <span class="timeline__num">1</span>
+          <div class="timeline__body">
+            <h3>Before you tee off</h3>
+            <p>
+              Create the round, pick your bets, punch in tees and
+              handicaps. About 30 seconds per player.
+            </p>
+          </div>
+        </li>
+        <li class="timeline__item">
+          <span class="timeline__num">2</span>
+          <div class="timeline__body">
+            <h3>On the course</h3>
+            <p>
+              Tap a cell after each hole. Five seconds. The app handles
+              pars, strokes, side-game math, and the leaderboard.
+            </p>
+          </div>
+        </li>
+        <li class="timeline__item">
+          <span class="timeline__num">3</span>
+          <div class="timeline__body">
+            <h3>At the 19th</h3>
+            <p>
+              Auto-settlement shows exactly who owes who. Screenshot it,
+              send it to the group thread, done.
+            </p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="cta">
+      <h2>Ready to play?</h2>
+      <p>
+        Free during beta. Install the TestFlight build on iPhone and run
+        your first round this weekend.
+      </p>
+      <div class="cta__row">
+        <a class="btn btn--primary" href="/signup">Get the app free</a>
+        <a class="btn btn--ghost" href="/side-games">See every side game</a>
+      </div>
     </section>
   </main>
 </BaseLayout>
@@ -30,9 +98,95 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 <style>
   .card h3 {
     font-size: 18px;
-    font-weight: 700;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 10px;
+    line-height: 1.25;
+  }
+  .card p {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .timeline-section {
+    margin: 56px 0 48px;
+  }
+  .timeline-section__title {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 24px;
+  }
+  .timeline {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  @media (max-width: 880px) {
+    .timeline { grid-template-columns: 1fr; }
+  }
+  .timeline__item {
+    background: var(--brand-green-pale);
+    border-radius: 14px;
+    padding: 22px 22px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .timeline__num {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: var(--brand-green);
+    color: #fff;
+    font-weight: 800;
+    font-size: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .timeline__body h3 {
+    font-size: 16px;
+    font-weight: 800;
     color: var(--brand-green-dark);
     margin: 0 0 6px;
+    line-height: 1.2;
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+  .timeline__body p {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .cta {
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--brand-green-pale);
+    border-radius: 20px;
+  }
+  .cta h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 8px;
+  }
+  .cta p {
+    color: var(--ink);
+    margin: 0 0 20px;
+    font-size: 16px;
+  }
+  .cta__row {
+    display: inline-flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 </style>
