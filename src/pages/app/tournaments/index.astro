@@ -52,11 +52,18 @@ const roundCount = (t: TournamentRow) => (t.rounds ?? []).length;
 
 <BaseLayout title="Tournaments · Bagpipe Golf">
   <main class="pagewrap">
-    <p class="pagewrap__eyebrow">Tournaments</p>
-    <h1 class="pagewrap__title">Your tournaments.</h1>
-    <p class="pagewrap__sub">
-      Events you're directing or playing. Click any tournament for the live leaderboard.
-    </p>
+    <div class="header">
+      <div>
+        <p class="pagewrap__eyebrow">Tournaments</p>
+        <h1 class="pagewrap__title">Your tournaments.</h1>
+        <p class="pagewrap__sub">
+          Events you're directing or playing. Click any tournament for the live leaderboard.
+        </p>
+      </div>
+      <a class="btn btn--primary" href="/app/tournaments/new">
+        + New tournament
+      </a>
+    </div>
 
     {loadError && <div class="errorbar">⚠️ {loadError}</div>}
 
@@ -64,7 +71,7 @@ const roundCount = (t: TournamentRow) => (t.rounds ?? []).length;
       <div class="empty">
         <h3>No tournaments yet</h3>
         <p>
-          Create a tournament in the Bagpipe Golf mobile app (Events tab → New Tournament) and it'll show up here with a live leaderboard link.
+          Start one from scratch with <a href="/app/tournaments/new">+ New tournament</a>, or create one in the Bagpipe Golf mobile app under Events. Either way it'll show up here with a live leaderboard link.
         </p>
       </div>
     )}
@@ -140,6 +147,19 @@ const roundCount = (t: TournamentRow) => (t.rounds ?? []).length;
 </BaseLayout>
 
 <style>
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .header > div {
+    flex: 1;
+    min-width: 240px;
+  }
+
   .errorbar {
     background: #FEF2F2;
     border: 1px solid #FECACA;

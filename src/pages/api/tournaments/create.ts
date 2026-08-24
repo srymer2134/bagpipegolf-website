@@ -1,0 +1,171 @@
+import type { APIRoute } from 'astro';
+import { callRailway, RailwayApiError } from '../../../lib/railway';
+import {
+  buildCreatePayload,
+  type CreateTournamentResponse,
+  type WizardInput,
+} from '../../../lib/tournamentCreate';
+
+// POST /api/tournaments/create
+//
+// Wizard submits here (same-origin fetch from
+// `/app/tournaments/new`). Handler:
+//   1. Validates the wizard shape (fail-loud on shape drift so a
+//      broken client build is obvious).
+//   2. Builds the Railway payload via `buildCreatePayload`.
+//   3. Proxies to Railway `POST /api/tournaments` with the signed-
+//      in user's JWT.
+//   4. Returns the created tournament id so the wizard can redirect
+//      to `/app/tournaments/{id}/leaderboard`.
+
+export const POST: APIRoute = async (ctx) => {
+  let raw: unknown;
+  try {
+    raw = await ctx.request.json();
+  } catch {
+    return json({ error: 'Request body must be valid JSON.' }, 400);
+  }
+
+  const validated = validateWizardInput(raw);
+  if ('error' in validated) return json({ error: validated.error }, 400);
+
+  const payload = buildCreatePayload(validated.input);
+
+  try {
+    const result = await callRailway<CreateTournamentResponse>(ctx, {
+      method: 'POST',
+      path: '/api/tournaments',
+      body: payload,
+    });
+    const id = result?.tournament?.id;
+    if (typeof id !== 'string' || id.length === 0) {
+      return json(
+        { error: 'Railway responded without a tournament id.' },
+        502,
+      );
+    }
+    return json({ id }, 200);
+  } catch (err) {
+    if (err instanceof RailwayApiError) {
+      return json({ error: err.message }, err.status);
+    }
+    console.error('[api/tournaments/create] unexpected error', err);
+    return json({ error: 'Tournament create failed.' }, 500);
+  }
+};
+
+/**
+ * Guard against a broken/tampered client posting shapes the wizard
+ * would never send. We're not chasing every field — Railway is the
+ * authoritative validator — but the required fields have to be
+ * present or the payload builder throws on downstream access.
+ */
+function validateWizardInput(
+  raw: unknown,
+): { input: WizardInput } | { error: string } {
+  if (!raw || typeof raw !== 'object') {
+    return { error: 'Wizard payload must be an object.' };
+  }
+  const r = raw as Record<string, unknown>;
+
+  const name = typeof r.name === 'string' ? r.name.trim() : '';
+  if (name.length === 0) return { error: 'Tournament name is required.' };
+
+  const course = r.course;
+  if (!course || typeof course !== 'object') {
+    return { error: 'A course is required.' };
+  }
+  const c = course as Record<string, unknown>;
+  if (typeof c.id !== 'string' || c.id.length === 0) {
+    return { error: 'The selected course is missing an id.' };
+  }
+
+  const fieldGender =
+    r.fieldGender === 'male' ||
+    r.fieldGender === 'female' ||
+    r.fieldGender === 'mixed'
+      ? r.fieldGender
+      : 'male';
+
+  const scoringMode =
+    r.scoringMode === 'strokeAggregate' ||
+    r.scoringMode === 'scramble' ||
+    r.scoringMode === 'bestBall' ||
+    r.scoringMode === 'matchPlay'
+      ? r.scoringMode
+      : 'strokeAggregate';
+
+  const useNetScoring = r.useNetScoring !== false; // default true
+
+  const roundsRaw = Array.isArray(r.rounds) ? r.rounds : [];
+  if (roundsRaw.length === 0) {
+    return { error: 'At least one round is required.' };
+  }
+  if (roundsRaw.length > 4) {
+    return { error: 'Phase 1 supports up to 4 rounds.' };
+  }
+  const rounds = roundsRaw.map((entry, i) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new Error(`Round ${i + 1} is malformed.`);
+    }
+    const e = entry as Record<string, unknown>;
+    const teeName =
+      typeof e.teeName === 'string' && e.teeName.trim().length > 0
+        ? e.teeName.trim()
+        : 'Default';
+    const totalHoles = e.totalHoles === 9 ? 9 : 18;
+    const format =
+      e.format === 'scramble' ||
+      e.format === 'bestBall' ||
+      e.format === 'matchPlay'
+        ? e.format
+        : 'stroke';
+    return { teeName, totalHoles, format } as const;
+  });
+
+  const playersRaw = Array.isArray(r.players) ? r.players : [];
+  if (playersRaw.length === 0) {
+    return { error: 'Add at least one player.' };
+  }
+  if (playersRaw.length > 24) {
+    return { error: 'Phase 1 supports up to 24 players.' };
+  }
+  const players = playersRaw.map((entry, i) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new Error(`Player ${i + 1} is malformed.`);
+    }
+    const e = entry as Record<string, unknown>;
+    const name = typeof e.name === 'string' ? e.name.trim() : '';
+    if (name.length === 0) {
+      throw new Error(`Player ${i + 1} is missing a name.`);
+    }
+    const handicap =
+      typeof e.handicap === 'number' && Number.isFinite(e.handicap)
+        ? e.handicap
+        : 18;
+    return { name, handicap };
+  });
+
+  return {
+    input: {
+      name,
+      course: {
+        id: c.id,
+        clubName: typeof c.clubName === 'string' ? c.clubName : null,
+        courseName: typeof c.courseName === 'string' ? c.courseName : null,
+      },
+      fieldGender,
+      scoringMode,
+      useNetScoring,
+      rounds,
+      players,
+    },
+  };
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
