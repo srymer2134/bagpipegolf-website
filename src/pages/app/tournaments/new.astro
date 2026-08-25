@@ -1,0 +1,896 @@
+---
+// New Tournament wizard (Phase 1 — essentials).
+//
+// Server-rendered shell containing all 5 steps in the DOM; a client-
+// side <script> block toggles visibility as the user clicks Next /
+// Back. No framework integration — Astro's default vanilla-JS
+// approach is enough for a state machine with 5 nodes.
+//
+// Auth is enforced by middleware.ts (PROTECTED_PREFIXES includes
+// /app), so any visitor rendering this page is already signed in.
+// The submit path is `/api/tournaments/create`, which forwards to
+// Railway with the visitor's Supabase JWT.
+//
+// Scope for Phase 1 mirrors docs/plans/WEBSITE_TOURNAMENT_CREATE_PLAN.md
+// in the flutter repo — Basics, Format, Rounds, Players, Review.
+// Everything more advanced (flights, side games, sponsors, pairing
+// composer) is a later phase.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const user = Astro.locals.user;
+const displayName =
+  (typeof user?.user_metadata?.name === 'string' &&
+    user!.user_metadata.name.trim()) ||
+  user?.email ||
+  '';
+---
+
+<BaseLayout title="New tournament · Bagpipe Golf">
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">New tournament</p>
+    <h1 class="pagewrap__title">Set up your event.</h1>
+    <p class="pagewrap__sub">
+      Basics, format, rounds, roster — then you're live. Anything
+      more advanced (flights, side games, sponsors) opens in the
+      Bagpipe Golf mobile app under Events.
+    </p>
+
+    <ol class="wizard__steps" aria-hidden="true">
+      <li data-step-pill="1" class="is-current">1. Basics</li>
+      <li data-step-pill="2">2. Format</li>
+      <li data-step-pill="3">3. Rounds</li>
+      <li data-step-pill="4">4. Players</li>
+      <li data-step-pill="5">5. Review</li>
+    </ol>
+
+    <form id="wizard" novalidate>
+      <!-- Step 1 — Basics -->
+      <section data-step="1" class="wizard__step is-current" aria-label="Basics">
+        <h2 class="wizard__stepTitle">Basics</h2>
+
+        <label class="field">
+          <span class="field__label">Tournament name</span>
+          <input
+            type="text"
+            name="name"
+            id="name"
+            autocomplete="off"
+            required
+            maxlength="80"
+            placeholder="Ex. Ballyneal Brigade 2026"
+          />
+        </label>
+
+        <div class="field">
+          <span class="field__label">Course</span>
+          <div class="courseSearch">
+            <input
+              type="text"
+              id="courseSearch"
+              autocomplete="off"
+              placeholder="Search course by name…"
+            />
+            <ul id="courseResults" class="courseSearch__results" hidden></ul>
+            <div id="coursePicked" class="courseSearch__picked" hidden>
+              <div>
+                <strong id="coursePickedName"></strong>
+                <div id="coursePickedClub" class="courseSearch__pickedClub"></div>
+              </div>
+              <button
+                type="button"
+                id="courseChangeBtn"
+                class="btn btn--ghost btn--sm"
+              >Change</button>
+            </div>
+            <p class="field__hint">
+              Type at least 2 characters. If the course isn't found,
+              try the club name.
+            </p>
+          </div>
+        </div>
+
+        <fieldset class="field field--group">
+          <legend class="field__label">Field</legend>
+          <div class="radios">
+            <label><input type="radio" name="fieldGender" value="male" checked /> Men</label>
+            <label><input type="radio" name="fieldGender" value="female" /> Women</label>
+            <label><input type="radio" name="fieldGender" value="mixed" /> Mixed</label>
+          </div>
+        </fieldset>
+      </section>
+
+      <!-- Step 2 — Format -->
+      <section data-step="2" class="wizard__step" aria-label="Format">
+        <h2 class="wizard__stepTitle">Format</h2>
+
+        <fieldset class="field field--group">
+          <legend class="field__label">Scoring mode</legend>
+          <div class="radios radios--stacked">
+            <label>
+              <input type="radio" name="scoringMode" value="strokeAggregate" checked />
+              <span><strong>Stroke play</strong> — total score across all rounds</span>
+            </label>
+            <label>
+              <input type="radio" name="scoringMode" value="scramble" />
+              <span><strong>Scramble</strong> — one team score per hole</span>
+            </label>
+            <label>
+              <input type="radio" name="scoringMode" value="bestBall" />
+              <span><strong>Best ball</strong> — team of individual scorecards, best score counts</span>
+            </label>
+            <label>
+              <input type="radio" name="scoringMode" value="matchPlay" />
+              <span><strong>Match play</strong> — head-to-head by hole</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <label class="checkbox">
+          <input type="checkbox" id="useNetScoring" checked />
+          <span>Use net scoring (subtract each player's course handicap)</span>
+        </label>
+      </section>
+
+      <!-- Step 3 — Rounds -->
+      <section data-step="3" class="wizard__step" aria-label="Rounds">
+        <h2 class="wizard__stepTitle">Rounds</h2>
+        <p class="wizard__stepSub">
+          Add up to 4 rounds. Each round has its own tee color +
+          hole count.
+        </p>
+
+        <ul id="roundsList" class="roundsList"></ul>
+
+        <button type="button" id="addRoundBtn" class="btn btn--ghost">
+          + Add round
+        </button>
+      </section>
+
+      <!-- Step 4 — Players -->
+      <section data-step="4" class="wizard__step" aria-label="Players">
+        <h2 class="wizard__stepTitle">Players</h2>
+        <p class="wizard__stepSub">
+          Add each player's name + handicap. You can invite them by
+          email later from the mobile app.
+        </p>
+
+        <div class="playerAdd">
+          <input type="text" id="playerNameInput" placeholder="Player name" maxlength="60" />
+          <input type="number" id="playerHcpInput" placeholder="HCP" step="0.1" min="-10" max="54" />
+          <button type="button" id="addPlayerBtn" class="btn btn--primary btn--sm">Add</button>
+        </div>
+
+        <ul id="playersList" class="playersList" aria-live="polite"></ul>
+        <p id="playersEmpty" class="wizard__stepSub">
+          No players yet. Add yourself first — you're the director.
+        </p>
+      </section>
+
+      <!-- Step 5 — Review -->
+      <section data-step="5" class="wizard__step" aria-label="Review">
+        <h2 class="wizard__stepTitle">Review</h2>
+
+        <dl class="review">
+          <div><dt>Name</dt><dd id="rvName">—</dd></div>
+          <div><dt>Course</dt><dd id="rvCourse">—</dd></div>
+          <div><dt>Field</dt><dd id="rvField">—</dd></div>
+          <div><dt>Scoring</dt><dd id="rvScoring">—</dd></div>
+          <div><dt>Net</dt><dd id="rvNet">—</dd></div>
+          <div><dt>Rounds</dt><dd id="rvRounds">—</dd></div>
+          <div><dt>Players</dt><dd id="rvPlayers">—</dd></div>
+        </dl>
+
+        <p class="wizard__stepSub">
+          Everything else — flights, side games, sponsors, Field
+          Competitions — you can configure in the mobile app once
+          the tournament is created.
+        </p>
+      </section>
+
+      <!-- Persistent error surface -->
+      <div id="wizardError" class="errorbar" hidden></div>
+
+      <!-- Nav buttons -->
+      <div class="wizard__nav">
+        <button type="button" id="backBtn" class="btn btn--ghost" disabled>
+          ← Back
+        </button>
+        <button type="button" id="nextBtn" class="btn btn--primary">
+          Next →
+        </button>
+        <button type="button" id="submitBtn" class="btn btn--primary" hidden>
+          Create tournament
+        </button>
+      </div>
+    </form>
+  </main>
+</BaseLayout>
+
+<script is:inline define:vars={{ defaultDirectorName: displayName }}>
+  // ── Wizard state ──────────────────────────────────────────
+  //
+  // Held in module scope so the step navigation + submit can both
+  // read/write without a framework store. Simple enough for 5 steps.
+  const state = {
+    step: 1,
+    course: null, // {id, clubName, courseName}
+    rounds: [
+      { teeName: 'White', totalHoles: 18, format: 'stroke' },
+    ],
+    players: [],
+  };
+
+  // Pre-seed the director as the first player when we have a name.
+  if (defaultDirectorName) {
+    state.players.push({ name: defaultDirectorName, handicap: 18 });
+  }
+
+  const steps = document.querySelectorAll('[data-step]');
+  const pills = document.querySelectorAll('[data-step-pill]');
+  const backBtn = document.getElementById('backBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const submitBtn = document.getElementById('submitBtn');
+  const errorBox = document.getElementById('wizardError');
+
+  function show(step) {
+    state.step = step;
+    steps.forEach((el) => {
+      el.classList.toggle('is-current', Number(el.dataset.step) === step);
+    });
+    pills.forEach((el) => {
+      el.classList.toggle('is-current', Number(el.dataset.stepPill) === step);
+    });
+    backBtn.disabled = step === 1;
+    nextBtn.hidden = step === 5;
+    submitBtn.hidden = step !== 5;
+    errorBox.hidden = true;
+    if (step === 3) renderRounds();
+    if (step === 4) renderPlayers();
+    if (step === 5) renderReview();
+  }
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.hidden = false;
+  }
+
+  function validateStep(step) {
+    if (step === 1) {
+      const name = /** @type {HTMLInputElement} */ (document.getElementById('name')).value.trim();
+      if (name.length === 0) return 'Tournament name is required.';
+      if (!state.course) return 'Pick a course before continuing.';
+    }
+    if (step === 3) {
+      if (state.rounds.length === 0) return 'Add at least one round.';
+    }
+    if (step === 4) {
+      if (state.players.length === 0) return 'Add at least one player.';
+    }
+    return null;
+  }
+
+  nextBtn.addEventListener('click', () => {
+    const err = validateStep(state.step);
+    if (err) return showError(err);
+    show(Math.min(state.step + 1, 5));
+  });
+  backBtn.addEventListener('click', () => {
+    show(Math.max(state.step - 1, 1));
+  });
+
+  // ── Course search ────────────────────────────────────────
+  const courseInput = /** @type {HTMLInputElement} */ (document.getElementById('courseSearch'));
+  const courseResults = /** @type {HTMLUListElement} */ (document.getElementById('courseResults'));
+  const coursePicked = document.getElementById('coursePicked');
+  const coursePickedName = document.getElementById('coursePickedName');
+  const coursePickedClub = document.getElementById('coursePickedClub');
+  const courseChangeBtn = document.getElementById('courseChangeBtn');
+
+  let debounceTimer = null;
+  courseInput.addEventListener('input', () => {
+    const q = courseInput.value.trim();
+    if (debounceTimer) clearTimeout(debounceTimer);
+    if (q.length < 2) {
+      courseResults.hidden = true;
+      courseResults.innerHTML = '';
+      return;
+    }
+    debounceTimer = setTimeout(() => runSearch(q), 250);
+  });
+
+  async function runSearch(q) {
+    try {
+      const res = await fetch(`/api/courses/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+      const data = await res.json();
+      const hits = Array.isArray(data.courses) ? data.courses : [];
+      courseResults.innerHTML = '';
+      if (hits.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'courseSearch__empty';
+        li.textContent = 'No matches. Try the club name.';
+        courseResults.appendChild(li);
+      } else {
+        for (const c of hits.slice(0, 8)) {
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'courseSearch__hit';
+          const name = c.course_name || c.club_name || 'Course';
+          const club = c.course_name && c.club_name && c.course_name !== c.club_name ? c.club_name : null;
+          btn.innerHTML =
+            `<strong>${escapeHtml(name)}</strong>` +
+            (club ? `<span>${escapeHtml(club)}</span>` : '') +
+            (c.location ? `<em>${escapeHtml(c.location)}</em>` : '');
+          btn.addEventListener('click', () => {
+            state.course = {
+              id: c.id,
+              clubName: c.club_name ?? null,
+              courseName: c.course_name ?? null,
+            };
+            coursePickedName.textContent = name;
+            coursePickedClub.textContent = club ?? '';
+            coursePicked.hidden = false;
+            courseInput.hidden = true;
+            courseResults.hidden = true;
+          });
+          li.appendChild(btn);
+          courseResults.appendChild(li);
+        }
+      }
+      courseResults.hidden = false;
+    } catch (err) {
+      courseResults.innerHTML = `<li class="courseSearch__empty">${escapeHtml(String(err))}</li>`;
+      courseResults.hidden = false;
+    }
+  }
+
+  courseChangeBtn.addEventListener('click', () => {
+    state.course = null;
+    coursePicked.hidden = true;
+    courseInput.hidden = false;
+    courseInput.value = '';
+    courseInput.focus();
+  });
+
+  // ── Rounds editor ────────────────────────────────────────
+  const roundsList = document.getElementById('roundsList');
+  document.getElementById('addRoundBtn').addEventListener('click', () => {
+    if (state.rounds.length >= 4) {
+      showError('Phase 1 supports up to 4 rounds. Add more in the mobile app.');
+      return;
+    }
+    state.rounds.push({ teeName: 'White', totalHoles: 18, format: 'stroke' });
+    renderRounds();
+  });
+
+  function renderRounds() {
+    roundsList.innerHTML = '';
+    state.rounds.forEach((r, i) => {
+      const li = document.createElement('li');
+      li.className = 'roundsList__row';
+      li.innerHTML = `
+        <div class="roundsList__idx">R${i + 1}</div>
+        <label>
+          <span>Tee</span>
+          <select data-round-tee="${i}">
+            ${['Championship', 'Blue', 'White', 'Gold', 'Red', 'Green']
+              .map((t) => `<option ${t === r.teeName ? 'selected' : ''}>${t}</option>`)
+              .join('')}
+          </select>
+        </label>
+        <label>
+          <span>Holes</span>
+          <select data-round-holes="${i}">
+            <option value="18" ${r.totalHoles === 18 ? 'selected' : ''}>18</option>
+            <option value="9" ${r.totalHoles === 9 ? 'selected' : ''}>9</option>
+          </select>
+        </label>
+        <label>
+          <span>Format</span>
+          <select data-round-format="${i}">
+            <option value="stroke" ${r.format === 'stroke' ? 'selected' : ''}>Stroke</option>
+            <option value="scramble" ${r.format === 'scramble' ? 'selected' : ''}>Scramble</option>
+            <option value="bestBall" ${r.format === 'bestBall' ? 'selected' : ''}>Best ball</option>
+            <option value="matchPlay" ${r.format === 'matchPlay' ? 'selected' : ''}>Match</option>
+          </select>
+        </label>
+        <button type="button" class="roundsList__remove" data-round-remove="${i}" aria-label="Remove round ${i + 1}">×</button>
+      `;
+      roundsList.appendChild(li);
+    });
+    roundsList.querySelectorAll('[data-round-tee]').forEach((el) => {
+      el.addEventListener('change', (e) => {
+        const idx = Number(el.getAttribute('data-round-tee'));
+        state.rounds[idx].teeName = /** @type {HTMLSelectElement} */ (e.target).value;
+      });
+    });
+    roundsList.querySelectorAll('[data-round-holes]').forEach((el) => {
+      el.addEventListener('change', (e) => {
+        const idx = Number(el.getAttribute('data-round-holes'));
+        state.rounds[idx].totalHoles = Number(/** @type {HTMLSelectElement} */ (e.target).value);
+      });
+    });
+    roundsList.querySelectorAll('[data-round-format]').forEach((el) => {
+      el.addEventListener('change', (e) => {
+        const idx = Number(el.getAttribute('data-round-format'));
+        state.rounds[idx].format = /** @type {HTMLSelectElement} */ (e.target).value;
+      });
+    });
+    roundsList.querySelectorAll('[data-round-remove]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const idx = Number(el.getAttribute('data-round-remove'));
+        if (state.rounds.length <= 1) {
+          showError('At least one round is required.');
+          return;
+        }
+        state.rounds.splice(idx, 1);
+        renderRounds();
+      });
+    });
+  }
+
+  // ── Players editor ───────────────────────────────────────
+  const playersList = document.getElementById('playersList');
+  const playersEmpty = document.getElementById('playersEmpty');
+  const playerNameInput = /** @type {HTMLInputElement} */ (document.getElementById('playerNameInput'));
+  const playerHcpInput = /** @type {HTMLInputElement} */ (document.getElementById('playerHcpInput'));
+
+  document.getElementById('addPlayerBtn').addEventListener('click', () => {
+    const name = playerNameInput.value.trim();
+    if (name.length === 0) {
+      showError("Player name can't be empty.");
+      return;
+    }
+    if (state.players.length >= 24) {
+      showError('Phase 1 supports up to 24 players.');
+      return;
+    }
+    const raw = playerHcpInput.value.trim();
+    const hcp = raw === '' ? 18 : Number(raw);
+    if (!Number.isFinite(hcp)) {
+      showError("Handicap must be a number (or leave blank for 18).");
+      return;
+    }
+    state.players.push({ name, handicap: hcp });
+    playerNameInput.value = '';
+    playerHcpInput.value = '';
+    playerNameInput.focus();
+    errorBox.hidden = true;
+    renderPlayers();
+  });
+
+  function renderPlayers() {
+    playersList.innerHTML = '';
+    state.players.forEach((p, i) => {
+      const li = document.createElement('li');
+      li.className = 'playersList__row';
+      li.innerHTML = `
+        <span class="playersList__name">${escapeHtml(p.name)}</span>
+        <span class="playersList__hcp">HCP ${p.handicap}</span>
+        <button type="button" class="playersList__remove" data-player-remove="${i}" aria-label="Remove ${escapeHtml(p.name)}">×</button>
+      `;
+      playersList.appendChild(li);
+    });
+    playersList.querySelectorAll('[data-player-remove]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const idx = Number(el.getAttribute('data-player-remove'));
+        state.players.splice(idx, 1);
+        renderPlayers();
+      });
+    });
+    playersEmpty.hidden = state.players.length > 0;
+  }
+
+  // ── Review ───────────────────────────────────────────────
+  function renderReview() {
+    const nameEl = /** @type {HTMLInputElement} */ (document.getElementById('name'));
+    const rvName = document.getElementById('rvName');
+    const rvCourse = document.getElementById('rvCourse');
+    const rvField = document.getElementById('rvField');
+    const rvScoring = document.getElementById('rvScoring');
+    const rvNet = document.getElementById('rvNet');
+    const rvRounds = document.getElementById('rvRounds');
+    const rvPlayers = document.getElementById('rvPlayers');
+    rvName.textContent = nameEl.value.trim() || '—';
+    rvCourse.textContent = state.course
+      ? (state.course.courseName ?? state.course.clubName ?? '—')
+      : '—';
+    const fg = document.querySelector('input[name="fieldGender"]:checked');
+    rvField.textContent = fg && fg.value === 'female' ? 'Women' : fg && fg.value === 'mixed' ? 'Mixed' : 'Men';
+    const sm = document.querySelector('input[name="scoringMode"]:checked');
+    rvScoring.textContent = ({
+      strokeAggregate: 'Stroke play',
+      scramble: 'Scramble',
+      bestBall: 'Best ball',
+      matchPlay: 'Match play',
+    })[sm ? sm.value : 'strokeAggregate'];
+    const netEl = /** @type {HTMLInputElement} */ (document.getElementById('useNetScoring'));
+    rvNet.textContent = netEl.checked ? 'Yes' : 'No';
+    rvRounds.textContent = state.rounds
+      .map((r, i) => `R${i + 1} ${r.teeName} ${r.totalHoles}h`)
+      .join(' · ');
+    rvPlayers.textContent = state.players.length === 0
+      ? 'None'
+      : `${state.players.length} · ${state.players.slice(0, 3).map((p) => p.name).join(', ')}${state.players.length > 3 ? '…' : ''}`;
+  }
+
+  // ── Submit ───────────────────────────────────────────────
+  submitBtn.addEventListener('click', async () => {
+    const nameEl = /** @type {HTMLInputElement} */ (document.getElementById('name'));
+    const fg = document.querySelector('input[name="fieldGender"]:checked');
+    const sm = document.querySelector('input[name="scoringMode"]:checked');
+    const netEl = /** @type {HTMLInputElement} */ (document.getElementById('useNetScoring'));
+
+    const payload = {
+      name: nameEl.value.trim(),
+      course: state.course,
+      fieldGender: fg ? fg.value : 'male',
+      scoringMode: sm ? sm.value : 'strokeAggregate',
+      useNetScoring: netEl.checked,
+      rounds: state.rounds,
+      players: state.players,
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating…';
+    errorBox.hidden = true;
+    try {
+      const res = await fetch('/api/tournaments/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(data.error || `Create failed with ${res.status}`);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create tournament';
+        return;
+      }
+      const id = data.id;
+      if (!id) {
+        showError('Tournament was created but the id was not returned.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create tournament';
+        return;
+      }
+      window.location.href = `/app/tournaments/${encodeURIComponent(id)}/leaderboard`;
+    } catch (err) {
+      showError(err && err.message ? err.message : 'Network error — try again.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create tournament';
+    }
+  });
+
+  // ── Utils ────────────────────────────────────────────────
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (ch) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    })[ch] || ch);
+  }
+
+  // First render
+  show(1);
+</script>
+
+<style>
+  .wizard__steps {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 0;
+    margin: 20px 0 24px;
+    list-style: none;
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+  .wizard__steps li {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #f1f4f2;
+    font-weight: 600;
+  }
+  .wizard__steps li.is-current {
+    background: var(--brand-green);
+    color: white;
+  }
+
+  #wizard {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .wizard__step {
+    display: none;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .wizard__step.is-current {
+    display: flex;
+  }
+  .wizard__stepTitle {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .wizard__stepSub {
+    font-size: 14px;
+    color: var(--ink-muted);
+    margin: 0;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .field__hint { font-size: 12px; color: var(--ink-muted); margin: 4px 0 0; }
+  .field input[type='text'],
+  .field input[type='number'],
+  .field select {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: inherit;
+    background: #fff;
+  }
+  .field input[type='text']:focus,
+  .field input[type='number']:focus,
+  .field select:focus {
+    outline: 2px solid var(--brand-green);
+    outline-offset: 1px;
+  }
+  .field--group {
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+  .radios { display: flex; gap: 16px; flex-wrap: wrap; }
+  .radios--stacked { flex-direction: column; gap: 10px; }
+  .radios label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  .courseSearch { position: relative; }
+  .courseSearch input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: inherit;
+    box-sizing: border-box;
+  }
+  .courseSearch__results {
+    position: static;
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .courseSearch__hit {
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    border: 0;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+  }
+  .courseSearch__hit:hover,
+  .courseSearch__hit:focus {
+    background: var(--brand-green-pale);
+  }
+  .courseSearch__hit span {
+    font-size: 13px;
+    color: var(--brand-green-dark);
+    font-weight: 600;
+  }
+  .courseSearch__hit em {
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-style: normal;
+  }
+  .courseSearch__empty {
+    padding: 12px 14px;
+    color: var(--ink-muted);
+    font-size: 14px;
+  }
+  .courseSearch__picked {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--brand-green);
+    border-radius: 10px;
+    background: var(--brand-green-pale);
+  }
+  .courseSearch__pickedClub {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin-top: 2px;
+  }
+
+  .roundsList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .roundsList__row {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fafbfa;
+  }
+  .roundsList__row label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .roundsList__row select {
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+  }
+  .roundsList__idx {
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    font-size: 16px;
+    padding-bottom: 8px;
+  }
+  .roundsList__remove {
+    background: transparent;
+    border: 0;
+    color: var(--ink-muted);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  .roundsList__remove:hover { color: var(--error); }
+
+  .playerAdd {
+    display: grid;
+    grid-template-columns: 1fr 100px auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .playerAdd input {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 15px;
+  }
+  .playersList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .playersList__row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    background: #fafbfa;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .playersList__name { font-weight: 600; }
+  .playersList__hcp {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    background: rgba(47, 125, 68, 0.1);
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .playersList__remove {
+    background: transparent;
+    border: 0;
+    color: var(--ink-muted);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  .playersList__remove:hover { color: var(--error); }
+
+  .review {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .review > div {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #fafbfa;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .review dt {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    align-self: center;
+  }
+  .review dd {
+    margin: 0;
+    font-size: 15px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .wizard__nav {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+  .wizard__nav .btn { min-width: 120px; }
+
+  .errorbar {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: var(--error);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+</style>
