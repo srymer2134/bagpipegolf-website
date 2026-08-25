@@ -17,9 +17,18 @@ const PROTECTED_PREFIXES = ['/app'];
 // the SSR fetches work with just the anon key (see the flutter
 // repo migration
 // `20260727_public_read_tournaments_for_web_leaderboard.sql`).
+//
+// 2026-08-25: tightened the id capture from `[^/]+` to
+// `tourney_[^/]+` so `/app/tournaments/new` (the wizard route
+// added the same day) doesn't fall through the public gate.
+// Every tournament id — mobile-created + web-created — is
+// generated client-side with the `tourney_<ts>` prefix, so the
+// stricter capture is safe. Adding a new tournament-id shape in
+// the future = update this regex + the `newTournamentId()`
+// helper in `src/lib/tournamentCreate.ts` together.
 const PUBLIC_APP_PATTERNS: RegExp[] = [
-  /^\/app\/tournaments\/[^/]+\/?$/,
-  /^\/app\/tournaments\/[^/]+\/(leaderboard|scorecard|calcutta|payouts)\/?$/,
+  /^\/app\/tournaments\/tourney_[^/]+\/?$/,
+  /^\/app\/tournaments\/tourney_[^/]+\/(leaderboard|scorecard|calcutta|payouts)\/?$/,
 ];
 
 // Routes a signed-in user should be bounced AWAY from (login pages,
