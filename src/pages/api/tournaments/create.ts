@@ -120,7 +120,19 @@ function validateWizardInput(
       e.format === 'matchPlay'
         ? e.format
         : 'stroke';
-    return { teeName, totalHoles, format } as const;
+    const gender =
+      e.gender === 'female' || e.gender === 'mixed' ? e.gender : 'male';
+    const num = (v: unknown): number | null =>
+      typeof v === 'number' && Number.isFinite(v) ? v : null;
+    return {
+      teeName,
+      totalHoles,
+      format,
+      gender,
+      courseRating: num(e.courseRating),
+      slopeRating: num(e.slopeRating),
+      parTotal: num(e.parTotal),
+    } as const;
   });
 
   const playersRaw = Array.isArray(r.players) ? r.players : [];
@@ -143,8 +155,27 @@ function validateWizardInput(
       typeof e.handicap === 'number' && Number.isFinite(e.handicap)
         ? e.handicap
         : 18;
-    return { name, handicap };
+    // userId is set when the player came from the friends picker;
+    // stored as-is (uuid string) so the mobile app can bind the
+    // roster row to a real Supabase user for scoring later. Null
+    // for guests.
+    const userId = typeof e.userId === 'string' && e.userId.length > 0
+      ? e.userId
+      : null;
+    return { name, handicap, userId };
   });
+
+  // Tee catalog + tournament-level rating/slope/par ride the wizard
+  // as-is (already gated by the client-side tee picker). Fall
+  // through silently on shape drift — Railway will 400 if it hates
+  // something, and the client surfaces that error.
+  const teeBoxes = Array.isArray(r.teeBoxes)
+    ? (r.teeBoxes as unknown[]).filter(
+        (t): t is Record<string, unknown> => !!t && typeof t === 'object',
+      )
+    : [];
+  const num = (v: unknown): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null;
 
   return {
     input: {
@@ -154,6 +185,10 @@ function validateWizardInput(
         clubName: typeof c.clubName === 'string' ? c.clubName : null,
         courseName: typeof c.courseName === 'string' ? c.courseName : null,
       },
+      teeBoxes: teeBoxes as WizardInput['teeBoxes'],
+      courseRating: num(r.courseRating),
+      slopeRating: num(r.slopeRating),
+      parTotal: num(r.parTotal),
       fieldGender,
       scoringMode,
       useNetScoring,
