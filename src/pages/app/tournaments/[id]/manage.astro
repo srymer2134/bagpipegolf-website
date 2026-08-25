@@ -1,11 +1,105 @@
 ---
+// Manage tournament — Slice A1 (roster editor).
+//
+// Director-only surface. Ships the "Roster" card from the earlier
+// wireframe stub as a real editor + leaves the other cards
+// (Lifecycle, Per-round setup, Communications, Sponsors, Settle &
+// post) as "Coming soon" for Slice A2/A3/A4.
+//
+// Auth chain:
+//   1. Middleware gates the /app/* prefix behind a signed-in
+//      Supabase session (see src/middleware.ts). Signed-out
+//      visitors bounce to /login already.
+//   2. THIS page then loads the tournament and enforces
+//      director-only access: only the row's `user_id` (the creator)
+//      sees the editor. Non-directors who are signed in get
+//      redirected to the read-only spectator leaderboard —
+//      matches the existing UX pattern where /manage is the
+//      admin surface + /leaderboard is the shared surface.
+//
+// Roster save flow:
+//   * Client posts the mutated `players` array to
+//     `/api/tournaments/[id]/update`.
+//   * That Astro API route proxies PATCH /api/tournaments/:id to
+//     Railway with the visitor's Supabase JWT. Same allowlist +
+//     ownership check the mobile app hits.
+//   * On success, we reload the page so the server-rendered
+//     roster reflects the truth — no client-side state sync
+//     needed for A1.
+
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import { getPublicTournament, type TournamentPlayer } from '../../../../lib/tournamentQueries';
 
 const { id } = Astro.params;
-// PR #2 will gate this whole page on the user being the tournament's
-// directorUserId (or in directorUserIds). For the wireframe pass the
-// page is reachable to any signed-in user — the cards just say "TD only".
+const user = Astro.locals.user;
+
+// Middleware guarantees `user` is non-null on /app/* — this belt-
+// and-suspenders redirect covers the odd race where the auth
+// cookie expires between middleware and page render.
+if (!user) {
+  return Astro.redirect(`/login?next=${encodeURIComponent(Astro.request.url)}`, 302);
+}
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let tournament = null;
+let loadError: string | null = null;
+try {
+  tournament = await getPublicTournament(supabase, id!);
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load tournament.';
+}
+
+// Director gate. If the row exists but the current user isn't the
+// creator, bounce to the read-only leaderboard. Later slices may
+// broaden this (e.g. co-directors via `captainUserIds`) but for A1
+// we mirror the mobile app's owner-only edit surface.
+if (tournament && tournament.user_id !== user.id) {
+  return Astro.redirect(`/app/tournaments/${id}/leaderboard`, 302);
+}
+
+// Fetch the director's friends roster for the "Add from friends"
+// picker — same server-side pattern as the wizard.
+type Friend = { id: string; display_name: string; handicap: number };
+let friends: Friend[] = [];
+if (tournament) {
+  try {
+    const { data } = await supabase
+      .from('friends')
+      .select('friend_user_id, display_name, handicap')
+      .eq('user_id', user.id)
+      .order('display_name');
+    if (Array.isArray(data)) {
+      const seen = new Set<string>();
+      friends = data
+        .map((f: Record<string, unknown>) => ({
+          id: String(f.friend_user_id ?? ''),
+          display_name: String(f.display_name ?? '').trim(),
+          handicap:
+            typeof f.handicap === 'number' && Number.isFinite(f.handicap)
+              ? f.handicap
+              : 18,
+        }))
+        .filter((f) => {
+          if (!f.id || !f.display_name) return false;
+          if (seen.has(f.id)) return false;
+          seen.add(f.id);
+          return true;
+        });
+    }
+  } catch (e) {
+    console.warn('[tournaments/[id]/manage] friends fetch failed', e);
+  }
+}
+
+const players: TournamentPlayer[] = tournament?.players ?? [];
+const playerCount = players.length;
 ---
 
 <BaseLayout title="Manage tournament · Bagpipe Golf">
@@ -19,40 +113,377 @@ const { id } = Astro.params;
 
     <TournamentSubnav id={id!} active="manage" />
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Lifecycle</h3>
-        <p>Setup → Field final → Tee times live → Payouts posted.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Roster</h3>
-        <p>Add / remove / sub players, lock roster, late additions.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Per-round setup</h3>
-        <p>Format, course, tees, pairings, shotgun, handicap snapshot.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Communications</h3>
-        <p>Push / email / SMS blast to the field, AI-assisted compose.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Sponsors</h3>
-        <p>Logos on leaderboard, kiosk, print pack.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Settle &amp; post</h3>
-        <p>Director-controlled payout distribution with balance guard.</p>
-      </article>
-    </section>
+    {loadError && (
+      <div class="errorbar" role="alert">⚠️ {loadError}</div>
+    )}
+
+    {!tournament && !loadError && (
+      <div class="empty">
+        <h3>Tournament not found</h3>
+        <p>
+          We couldn't load a tournament with that id. It may have
+          been deleted, or the link may be wrong.
+        </p>
+      </div>
+    )}
+
+    {tournament && (
+      <>
+        <section class="rosterCard">
+          <header class="rosterCard__head">
+            <div>
+              <h2 class="rosterCard__title">Roster</h2>
+              <p class="rosterCard__meta">
+                <span id="playerCount">{playerCount}</span>
+                {' '}player{playerCount === 1 ? '' : 's'} ·
+                {' '}<strong>{tournament.name}</strong>
+              </p>
+            </div>
+          </header>
+
+          <div id="wizardError" class="errorbar" hidden></div>
+
+          {friends.length > 0 && (
+            <div class="friendPicker">
+              <label class="friendPicker__label" for="friendSelect">
+                Add from friends
+              </label>
+              <div class="friendPicker__row">
+                <select id="friendSelect">
+                  <option value="">— pick a friend —</option>
+                  {friends.map((f) => (
+                    <option
+                      value={f.id}
+                      data-name={f.display_name}
+                      data-hcp={f.handicap}
+                    >
+                      {f.display_name} (HCP {f.handicap})
+                    </option>
+                  ))}
+                </select>
+                <button type="button" id="addFriendBtn" class="btn btn--primary btn--sm">
+                  Add friend
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div class="playerAdd">
+            <input type="text" id="playerNameInput" placeholder="Player name" maxlength="60" />
+            <input type="number" id="playerHcpInput" placeholder="HCP" step="0.1" min="-10" max="54" />
+            <button type="button" id="addPlayerBtn" class="btn btn--ghost btn--sm">Add manually</button>
+          </div>
+
+          <ul id="playersList" class="playersList" aria-live="polite">
+            {players.map((p, idx) => (
+              <li
+                class="playersList__row"
+                data-player-idx={idx}
+                data-player-id={p.id}
+                data-player-name={p.name}
+                data-player-hcp={p.handicapIndex ?? ''}
+                data-player-user-id={p.userId ?? ''}
+              >
+                <span class="playersList__name">
+                  {p.name}
+                  {p.userId ? <span class="badge badge--user">Bagpipe user</span> : null}
+                </span>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="-10"
+                  max="54"
+                  class="playersList__hcpInput"
+                  data-hcp-edit-idx={idx}
+                  value={p.handicapIndex ?? 18}
+                  aria-label={`Handicap for ${p.name}`}
+                />
+                <button
+                  type="button"
+                  class="playersList__remove"
+                  data-player-remove={idx}
+                  aria-label={`Remove ${p.name}`}
+                >×</button>
+              </li>
+            ))}
+          </ul>
+          <p id="playersEmpty" class="rosterCard__meta" hidden={playerCount > 0}>
+            No players yet. Add yourself or pick from friends.
+          </p>
+
+          <div class="rosterCard__actions">
+            <button type="button" id="cancelBtn" class="btn btn--ghost">
+              Cancel
+            </button>
+            <button type="button" id="saveBtn" class="btn btn--primary" disabled>
+              Save roster
+            </button>
+          </div>
+        </section>
+
+        <section class="grid grid--2 coming">
+          <article class="card">
+            <span class="chip chip--muted">Coming soon</span>
+            <h3>Lifecycle</h3>
+            <p>Setup → Field final → Tee times live → Payouts posted.</p>
+          </article>
+          <article class="card">
+            <span class="chip chip--muted">Coming soon</span>
+            <h3>Per-round setup</h3>
+            <p>Format, course, tees, pairings, shotgun, handicap snapshot.</p>
+          </article>
+          <article class="card">
+            <span class="chip chip--muted">Coming soon</span>
+            <h3>Communications</h3>
+            <p>Push / email / SMS blast to the field, AI-assisted compose.</p>
+          </article>
+          <article class="card">
+            <span class="chip chip--muted">Coming soon</span>
+            <h3>Sponsors</h3>
+            <p>Logos on leaderboard, kiosk, print pack.</p>
+          </article>
+          <article class="card">
+            <span class="chip chip--muted">Coming soon</span>
+            <h3>Settle &amp; post</h3>
+            <p>Director-controlled payout distribution with balance guard.</p>
+          </article>
+        </section>
+      </>
+    )}
   </main>
 </BaseLayout>
+
+{tournament && (
+  <script is:inline define:vars={{
+    tournamentId: id,
+    initialPlayers: players,
+  }}>
+    // ── Editor state ──────────────────────────────────────────
+    //
+    // Deep-copy `initialPlayers` so `dirty` detection compares
+    // against a stable snapshot. `working` mutates as the user
+    // adds / removes / edits.
+    const initial = JSON.parse(JSON.stringify(initialPlayers ?? []));
+    const state = {
+      working: JSON.parse(JSON.stringify(initial)),
+      saving: false,
+    };
+
+    const listEl = document.getElementById('playersList');
+    const emptyEl = document.getElementById('playersEmpty');
+    const countEl = document.getElementById('playerCount');
+    const errorBox = document.getElementById('wizardError');
+    const saveBtn = document.getElementById('saveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const friendSelectEl = document.getElementById('friendSelect');
+    const addFriendBtn = document.getElementById('addFriendBtn');
+    const playerNameInput = document.getElementById('playerNameInput');
+    const playerHcpInput = document.getElementById('playerHcpInput');
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.hidden = false;
+    }
+    function clearError() { errorBox.hidden = true; }
+
+    // Two lists are "dirty" when their canonical JSON differs. We
+    // normalize each player to a stable shape so pure-cosmetic
+    // reorderings or added-then-removed edits still flag correctly.
+    function normalize(p) {
+      return {
+        id: p.id,
+        name: (p.name ?? '').trim(),
+        handicapIndex: typeof p.handicapIndex === 'number'
+          ? p.handicapIndex : Number(p.handicapIndex) || 18,
+        userId: p.userId ?? null,
+      };
+    }
+    function isDirty() {
+      const a = JSON.stringify(state.working.map(normalize));
+      const b = JSON.stringify(initial.map(normalize));
+      return a !== b;
+    }
+    function refreshSaveGate() {
+      saveBtn.disabled = state.saving || !isDirty();
+    }
+
+    // Re-render the roster list from state.working. Cheap enough
+    // (max ~24 players) that a full innerHTML wipe is fine.
+    function renderPlayers() {
+      listEl.innerHTML = '';
+      state.working.forEach((p, idx) => {
+        const li = document.createElement('li');
+        li.className = 'playersList__row';
+        li.dataset.playerIdx = String(idx);
+        li.innerHTML = `
+          <span class="playersList__name">
+            ${escapeHtml(p.name)}
+            ${p.userId ? '<span class="badge badge--user">Bagpipe user</span>' : ''}
+          </span>
+          <input
+            type="number"
+            step="0.1"
+            min="-10"
+            max="54"
+            class="playersList__hcpInput"
+            data-hcp-edit-idx="${idx}"
+            value="${Number.isFinite(p.handicapIndex) ? p.handicapIndex : 18}"
+            aria-label="Handicap for ${escapeHtml(p.name)}"
+          />
+          <button
+            type="button"
+            class="playersList__remove"
+            data-player-remove="${idx}"
+            aria-label="Remove ${escapeHtml(p.name)}"
+          >×</button>
+        `;
+        listEl.appendChild(li);
+      });
+      // Rewire per-row listeners.
+      listEl.querySelectorAll('[data-player-remove]').forEach((el) => {
+        el.addEventListener('click', () => {
+          const i = Number(el.getAttribute('data-player-remove'));
+          state.working.splice(i, 1);
+          renderPlayers();
+          refreshSaveGate();
+          clearError();
+        });
+      });
+      listEl.querySelectorAll('[data-hcp-edit-idx]').forEach((el) => {
+        el.addEventListener('input', (e) => {
+          const i = Number(el.getAttribute('data-hcp-edit-idx'));
+          const v = Number(e.target.value);
+          state.working[i].handicapIndex = Number.isFinite(v) ? v : 18;
+          refreshSaveGate();
+        });
+      });
+      emptyEl.hidden = state.working.length > 0;
+      countEl.textContent = String(state.working.length);
+    }
+
+    // Bind the initial server-rendered rows so the first render also
+    // reacts to Remove + HCP edits without waiting for renderPlayers().
+    function wireInitialRows() {
+      listEl.querySelectorAll('[data-player-remove]').forEach((el) => {
+        el.addEventListener('click', () => {
+          const i = Number(el.getAttribute('data-player-remove'));
+          state.working.splice(i, 1);
+          renderPlayers();
+          refreshSaveGate();
+          clearError();
+        });
+      });
+      listEl.querySelectorAll('[data-hcp-edit-idx]').forEach((el) => {
+        el.addEventListener('input', (e) => {
+          const i = Number(el.getAttribute('data-hcp-edit-idx'));
+          const v = Number(e.target.value);
+          state.working[i].handicapIndex = Number.isFinite(v) ? v : 18;
+          refreshSaveGate();
+        });
+      });
+    }
+
+    // ── Add flows ─────────────────────────────────────────────
+    document.getElementById('addPlayerBtn').addEventListener('click', () => {
+      const name = playerNameInput.value.trim();
+      if (name.length === 0) return showError("Player name can't be empty.");
+      if (state.working.length >= 24) return showError('Phase 1 supports up to 24 players.');
+      const raw = playerHcpInput.value.trim();
+      const hcp = raw === '' ? 18 : Number(raw);
+      if (!Number.isFinite(hcp)) return showError('Handicap must be a number.');
+      state.working.push({
+        // Stable local id for this new roster entry. `p_manage_...`
+        // prefix disambiguates from wizard-created ids so a future
+        // migration can distinguish "added post-create" if useful.
+        id: `p_manage_${tournamentId}_${Date.now()}_${state.working.length}`,
+        name,
+        handicapIndex: hcp,
+        userId: null,
+      });
+      playerNameInput.value = '';
+      playerHcpInput.value = '';
+      playerNameInput.focus();
+      renderPlayers();
+      refreshSaveGate();
+      clearError();
+    });
+
+    if (friendSelectEl && addFriendBtn) {
+      addFriendBtn.addEventListener('click', () => {
+        const sel = friendSelectEl;
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) return showError('Pick a friend first.');
+        if (state.working.length >= 24) return showError('Phase 1 supports up to 24 players.');
+        const friendUserId = opt.value;
+        const name = opt.getAttribute('data-name') || 'Friend';
+        const hcpRaw = opt.getAttribute('data-hcp');
+        const hcp = hcpRaw != null && Number.isFinite(Number(hcpRaw)) ? Number(hcpRaw) : 18;
+        if (state.working.some((p) => p.userId && p.userId === friendUserId)) {
+          return showError(`${name} is already in the roster.`);
+        }
+        state.working.push({
+          id: `p_manage_${tournamentId}_${Date.now()}_${state.working.length}`,
+          name,
+          handicapIndex: hcp,
+          userId: friendUserId,
+        });
+        sel.selectedIndex = 0;
+        renderPlayers();
+        refreshSaveGate();
+        clearError();
+      });
+    }
+
+    // ── Cancel + Save ────────────────────────────────────────
+    cancelBtn.addEventListener('click', () => {
+      if (!isDirty()) return;
+      const ok = confirm('Discard your changes?');
+      if (!ok) return;
+      window.location.reload();
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      if (state.saving || !isDirty()) return;
+      state.saving = true;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      clearError();
+      try {
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/update`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ players: state.working.map(normalize) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          state.saving = false;
+          saveBtn.textContent = 'Save roster';
+          refreshSaveGate();
+          return showError(data.error || `Save failed with ${res.status}`);
+        }
+        // Reload so the server-rendered roster picks up whatever
+        // Railway just wrote (including any server-side scrubs like
+        // isCurrentUser flag stripping).
+        window.location.reload();
+      } catch (err) {
+        state.saving = false;
+        saveBtn.textContent = 'Save roster';
+        refreshSaveGate();
+        showError(err?.message || 'Network error — try again.');
+      }
+    });
+
+    // ── Utils ────────────────────────────────────────────────
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[ch] || ch);
+    }
+
+    wireInitialRows();
+    refreshSaveGate();
+  </script>
+)}
 
 <style>
   .card h3 {
@@ -61,4 +492,172 @@ const { id } = Astro.params;
     margin: 8px 0 4px;
   }
   .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+
+  .errorbar {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: var(--error);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    margin: 12px 0;
+  }
+
+  .empty {
+    background: #fff;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+    padding: 32px 24px;
+    text-align: center;
+    margin-top: 20px;
+  }
+  .empty h3 {
+    color: var(--brand-green-dark);
+    margin: 0 0 8px;
+    font-size: 18px;
+  }
+  .empty p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+
+  .rosterCard {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px;
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .rosterCard__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .rosterCard__title {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .rosterCard__meta {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin: 4px 0 0;
+  }
+
+  .friendPicker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    background: var(--brand-green-pale, #f0f7f2);
+    border: 1px solid var(--brand-green, #2f7d44);
+    border-radius: 10px;
+  }
+  .friendPicker__label {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--brand-green-dark, #14432b);
+  }
+  .friendPicker__row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .friendPicker select {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 15px;
+    background: #fff;
+    font-family: inherit;
+  }
+
+  .playerAdd {
+    display: grid;
+    grid-template-columns: 1fr 100px auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .playerAdd input {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 15px;
+  }
+
+  .playersList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .playersList__row {
+    display: grid;
+    grid-template-columns: 1fr 90px auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    background: #fafbfa;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .playersList__name {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .playersList__hcpInput {
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: center;
+    font-family: inherit;
+  }
+  .playersList__remove {
+    background: transparent;
+    border: 0;
+    color: var(--ink-muted);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  .playersList__remove:hover { color: var(--error); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge--user {
+    background: var(--brand-green-pale, #f0f7f2);
+    color: var(--brand-green-dark, #14432b);
+    border: 1px solid var(--brand-green, #2f7d44);
+  }
+
+  .rosterCard__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .rosterCard__actions .btn { min-width: 120px; }
+
+  .coming {
+    margin-top: 32px;
+    opacity: 0.85;
+  }
 </style>
