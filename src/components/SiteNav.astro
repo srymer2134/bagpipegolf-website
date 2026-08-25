@@ -53,6 +53,7 @@ const productLinks: NavLink[] = [
   { href: '/for-hosts', label: 'For Hosts' },
   { href: '/for-players', label: 'For Players' },
   { href: '/pricing', label: 'Pricing' },
+  { href: 'https://apps.apple.com/app/id6775045734', label: 'Download on the App Store' },
 ];
 
 const helpLinks: NavLink[] = [
@@ -164,17 +165,23 @@ const isActive = (href: string) =>
       </details>
 
       <div class="sitenav__cta">
+        <a
+          class="btn btn--primary btn--sm sitenav__appstore"
+          href="https://apps.apple.com/app/id6775045734"
+        >
+          Live on the App&nbsp;Store
+        </a>
         {
           isSignedIn ? (
             <form method="post" action="/api/auth/signout" class="sitenav__signoutform">
-              <a class="btn btn--primary btn--sm" href="/app">Dashboard</a>
+              <a class="btn btn--ghost btn--sm" href="/app">Dashboard</a>
               <span class="sitenav__user">{user!.email}</span>
               <button type="submit" class="btn btn--ghost btn--sm">Sign out</button>
             </form>
           ) : (
             <>
               <a class="btn btn--ghost btn--sm" href="/login">Sign in</a>
-              <a class="btn btn--primary btn--sm" href="/signup">Create account</a>
+              <a class="btn btn--ghost btn--sm" href="/signup">Create account</a>
             </>
           )
         }
