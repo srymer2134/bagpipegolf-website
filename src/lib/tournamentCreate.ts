@@ -22,12 +22,23 @@ export type RoundFormat = 'stroke' | 'scramble' | 'bestBall' | 'matchPlay';
 export type WizardPlayerInput = {
   name: string;
   handicap: number;
+  /** Populated when the player came from the friends picker so the
+   *  mobile app can bind the roster row to the actual signed-in
+   *  user.  Null for manually-typed guest players. */
+  userId?: string | null;
 };
 
 export type WizardRoundInput = {
   teeName: string;
   totalHoles: 9 | 18;
   format: RoundFormat;
+  /** Resolved from the picked tee's course_rating/slope_rating —
+   *  null when the course-detail fetch didn't return per-tee data
+   *  (fallback name-only path). */
+  courseRating?: number | null;
+  slopeRating?: number | null;
+  parTotal?: number | null;
+  gender?: FieldGender;
 };
 
 export type WizardCourseInput = {
@@ -36,9 +47,29 @@ export type WizardCourseInput = {
   courseName: string | null;
 };
 
+/** One entry in the picked course's tee catalog. Mirrors Railway's
+ *  `GET /api/courses/:id` `tee_boxes[]` shape (snake_case wire). */
+export type WizardTeeBox = {
+  tee_name: string;
+  gender: 'male' | 'female' | string;
+  course_rating: number | null;
+  slope_rating: number | null;
+  bogey_rating?: number | null;
+  total_yards?: number | null;
+  par_total: number | null;
+};
+
 export type WizardInput = {
   name: string;
   course: WizardCourseInput;
+  /** Full tee catalog from the picked course (may be empty when
+   *  the upstream provider didn't return per-tee data). */
+  teeBoxes: WizardTeeBox[];
+  /** Tournament-level rating/slope/par — default to the first
+   *  round's resolved tee data.  Null when unavailable. */
+  courseRating: number | null;
+  slopeRating: number | null;
+  parTotal: number | null;
   fieldGender: FieldGender;
   scoringMode: ScoringMode;
   useNetScoring: boolean;
@@ -91,23 +122,31 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
   }));
 
   // Players carry a stable local id so subsequent PATCHes can
-  // address them even before they sign in. Handicap is stored as a
-  // number; the leaderboard math (Bagpipe uses course-handicap
-  // derivation) is applied on read.
+  // address them even before they sign in.  Handicap is stored as
+  // a number.  `userId` is set when the player came from the
+  // friends picker (bindable to the real Supabase user); null for
+  // manually-typed guests, matching the mobile app's guest-player
+  // shape.
   const players = input.players.map((p, i) => ({
     id: `p_${id}_${i}`,
     name: p.name.trim(),
     handicap: p.handicap,
-    // No userId → guest players. They'll be linked to a signed-in
-    // user later via the mobile app's roster editor or via an email
-    // invite (Phase 3).
-    userId: null,
+    userId: p.userId ?? null,
   }));
 
   return {
     id,
     name: input.name.trim(),
     course_name: courseName,
+    // Tournament-level rating/slope/par — pulled from Round 1's
+    // resolved tee data in the wizard.  Included only when a real
+    // course detail landed; null when the wizard fell back to
+    // name-only tee options.  Sending null instead of omitting the
+    // key so a re-open/PATCH from the mobile app sees the same
+    // shape.
+    course_rating: input.courseRating,
+    slope_rating: input.slopeRating,
+    par_total: input.parTotal,
     field_gender: input.fieldGender,
     scoring_mode: input.scoringMode,
     use_net_scoring: input.useNetScoring,
@@ -115,8 +154,11 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
     total_holes: totalHoles,
     rounds,
     players,
+    // Full tee catalog from the picked course.  Empty when the
+    // upstream provider returned no per-tee data — mobile app's
+    // `parResolver` chain fills the gap on read.
+    tee_boxes: input.teeBoxes,
     // Fields defaulted for Phase 1 — later wizard steps fill them:
-    tee_boxes: [],
     teams: [],
     flights: [],
     skins_competitions: [],

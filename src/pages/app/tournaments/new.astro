@@ -15,7 +15,21 @@
 // in the flutter repo — Basics, Format, Rounds, Players, Review.
 // Everything more advanced (flights, side games, sponsors, pairing
 // composer) is a later phase.
+//
+// 2026-08-25 Phase 1.1 fixes (Sam post-launch wizard test):
+//   * Tee-box dropdown now pulls real tees + rating/slope/par from
+//     the picked course via a new /api/courses/[id] proxy, instead
+//     of the earlier hardcoded generic-color list. Rounds step
+//     shows "Blue — 72.1 / 132" style options.
+//   * Director's first-player HCP pre-fills from their
+//     `public.profiles.handicap` (server-side fetch) instead of
+//     hardcoded 18.
+//   * Players step gains an "Add from friends" picker that reads
+//     the director's `public.friends` roster (server-side via RLS)
+//     and adds a chosen friend with their name + stored handicap
+//     in one tap.
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../../lib/supabase';
 
 const user = Astro.locals.user;
 const displayName =
@@ -23,6 +37,66 @@ const displayName =
     user!.user_metadata.name.trim()) ||
   user?.email ||
   '';
+
+// Server-side fetch: director's own handicap + friends roster.  Both
+// use the visitor's Supabase JWT via RLS — no service-role needed.
+// Failure modes are non-fatal: an empty friends list just hides the
+// picker; a missing profile HCP falls back to 18.
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let directorHandicap = 18;
+try {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('handicap')
+    .eq('id', user!.id)
+    .maybeSingle();
+  const hcp = (profile as { handicap?: number | null } | null)?.handicap;
+  if (hcp !== null && hcp !== undefined) {
+    const asNum = Number(hcp);
+    if (Number.isFinite(asNum)) directorHandicap = asNum;
+  }
+} catch (e) {
+  console.warn('[tournaments/new] director HCP fetch failed', e);
+}
+
+type Friend = {
+  id: string;
+  display_name: string;
+  handicap: number;
+};
+let friends: Friend[] = [];
+try {
+  const { data } = await supabase
+    .from('friends')
+    .select('friend_user_id, display_name, handicap')
+    .eq('user_id', user!.id)
+    .order('display_name');
+  if (Array.isArray(data)) {
+    friends = data.map((f: Record<string, unknown>) => ({
+      id: String(f.friend_user_id ?? ''),
+      display_name: String(f.display_name ?? '').trim(),
+      handicap:
+        typeof f.handicap === 'number' && Number.isFinite(f.handicap)
+          ? f.handicap
+          : 18,
+    }));
+    // Drop malformed rows + dedup by friend_user_id (defensive).
+    const seen = new Set<string>();
+    friends = friends.filter((f) => {
+      if (!f.id || !f.display_name) return false;
+      if (seen.has(f.id)) return false;
+      seen.add(f.id);
+      return true;
+    });
+  }
+} catch (e) {
+  console.warn('[tournaments/new] friends fetch failed', e);
+}
 ---
 
 <BaseLayout title="New tournament · Bagpipe Golf">
@@ -150,14 +224,39 @@ const displayName =
       <section data-step="4" class="wizard__step" aria-label="Players">
         <h2 class="wizard__stepTitle">Players</h2>
         <p class="wizard__stepSub">
-          Add each player's name + handicap. You can invite them by
-          email later from the mobile app.
+          Add each player. Pull from your friends list for one-tap
+          add, or type a name + handicap manually.
         </p>
+
+        {friends.length > 0 && (
+          <div class="friendPicker">
+            <label class="friendPicker__label" for="friendSelect">
+              Add from friends
+            </label>
+            <div class="friendPicker__row">
+              <select id="friendSelect">
+                <option value="">— pick a friend —</option>
+                {friends.map((f) => (
+                  <option
+                    value={f.id}
+                    data-name={f.display_name}
+                    data-hcp={f.handicap}
+                  >
+                    {f.display_name} (HCP {f.handicap})
+                  </option>
+                ))}
+              </select>
+              <button type="button" id="addFriendBtn" class="btn btn--primary btn--sm">
+                Add friend
+              </button>
+            </div>
+          </div>
+        )}
 
         <div class="playerAdd">
           <input type="text" id="playerNameInput" placeholder="Player name" maxlength="60" />
           <input type="number" id="playerHcpInput" placeholder="HCP" step="0.1" min="-10" max="54" />
-          <button type="button" id="addPlayerBtn" class="btn btn--primary btn--sm">Add</button>
+          <button type="button" id="addPlayerBtn" class="btn btn--ghost btn--sm">Add manually</button>
         </div>
 
         <ul id="playersList" class="playersList" aria-live="polite"></ul>
@@ -206,23 +305,41 @@ const displayName =
   </main>
 </BaseLayout>
 
-<script is:inline define:vars={{ defaultDirectorName: displayName }}>
+<script is:inline define:vars={{
+  defaultDirectorName: displayName,
+  defaultDirectorHcp: directorHandicap,
+}}>
   // ── Wizard state ──────────────────────────────────────────
   //
   // Held in module scope so the step navigation + submit can both
   // read/write without a framework store. Simple enough for 5 steps.
+  //
+  // state.course carries the picked course + (once loaded) the full
+  // tee_boxes array from `/api/courses/[id]`. state.rounds[i] holds
+  // the per-round selection AND the resolved rating/slope/par from
+  // whichever tee the user picked, so the submit payload can include
+  // rating/slope at the tournament level without a second fetch.
   const state = {
     step: 1,
-    course: null, // {id, clubName, courseName}
+    course: null, // {id, clubName, courseName, teeBoxes: [...] once loaded}
     rounds: [
-      { teeName: 'White', totalHoles: 18, format: 'stroke' },
+      // Rating/slope/par default to null until a course loads +
+      // the user picks a tee. Populated in renderRounds().
+      { teeName: '', totalHoles: 18, format: 'stroke',
+        courseRating: null, slopeRating: null, parTotal: null,
+        gender: 'male' },
     ],
     players: [],
   };
 
   // Pre-seed the director as the first player when we have a name.
+  // HCP comes from their profiles row (server-fetched); falls back
+  // to 18 only when the profile HCP is null/missing.
   if (defaultDirectorName) {
-    state.players.push({ name: defaultDirectorName, handicap: 18 });
+    state.players.push({
+      name: defaultDirectorName,
+      handicap: Number.isFinite(defaultDirectorHcp) ? defaultDirectorHcp : 18,
+    });
   }
 
   const steps = document.querySelectorAll('[data-step]');
@@ -322,17 +439,49 @@ const displayName =
             `<strong>${escapeHtml(name)}</strong>` +
             (club ? `<span>${escapeHtml(club)}</span>` : '') +
             (c.location ? `<em>${escapeHtml(c.location)}</em>` : '');
-          btn.addEventListener('click', () => {
+          btn.addEventListener('click', async () => {
             state.course = {
               id: c.id,
               clubName: c.club_name ?? null,
               courseName: c.course_name ?? null,
+              teeBoxes: [], // hydrated below
             };
             coursePickedName.textContent = name;
             coursePickedClub.textContent = club ?? '';
             coursePicked.hidden = false;
             courseInput.hidden = true;
             courseResults.hidden = true;
+
+            // Fetch full course detail so the Rounds step can render
+            // real tee boxes with rating/slope/par instead of the
+            // hardcoded fallback list. Non-fatal on failure — the
+            // fallback list keeps the wizard usable.
+            try {
+              const dRes = await fetch(`/api/courses/${encodeURIComponent(c.id)}`);
+              if (dRes.ok) {
+                const dJson = await dRes.json();
+                const teeBoxes = (dJson && dJson.course && Array.isArray(dJson.course.tee_boxes))
+                  ? dJson.course.tee_boxes
+                  : [];
+                state.course.teeBoxes = teeBoxes;
+                // If the user has already advanced past Basics, re-
+                // render Rounds so the tee options refresh in place.
+                if (state.step === 3) renderRounds();
+                // If a round has no tee selected yet + we have tees
+                // available, pre-select the first male tee (or first
+                // tee overall) so the user isn't staring at empty.
+                if (teeBoxes.length > 0) {
+                  const preferred = teeBoxes.find((t) => t.gender === 'male') ?? teeBoxes[0];
+                  for (const r of state.rounds) {
+                    if (!r.teeName) applyTeeToRound(r, preferred);
+                  }
+                }
+              }
+            } catch (err) {
+              // Non-fatal — the fallback tee list keeps the wizard
+              // usable even if the course-detail fetch flakes.
+              console.warn('[wizard] course detail fetch failed', err);
+            }
           });
           li.appendChild(btn);
           courseResults.appendChild(li);
@@ -364,19 +513,62 @@ const displayName =
     renderRounds();
   });
 
+  // Apply a tee object (from the course-detail response) onto a
+  // round in state.rounds. Copies name + gender + resolves the
+  // rating/slope/par so the submit payload can include them at the
+  // tournament level.
+  function applyTeeToRound(round, tee) {
+    round.teeName = tee.tee_name;
+    round.gender = tee.gender || 'male';
+    round.courseRating = typeof tee.course_rating === 'number' ? tee.course_rating : null;
+    round.slopeRating = typeof tee.slope_rating === 'number' ? tee.slope_rating : null;
+    round.parTotal = typeof tee.par_total === 'number' ? tee.par_total : null;
+  }
+
+  function teeLabel(tee) {
+    const bits = [tee.tee_name];
+    if (tee.gender === 'female') bits.push('(F)');
+    if (tee.course_rating != null && tee.slope_rating != null) {
+      bits.push(`— ${tee.course_rating} / ${tee.slope_rating}`);
+    } else if (tee.course_rating != null) {
+      bits.push(`— ${tee.course_rating}`);
+    }
+    return bits.join(' ');
+  }
+
   function renderRounds() {
     roundsList.innerHTML = '';
+    const teeBoxes = (state.course && Array.isArray(state.course.teeBoxes))
+      ? state.course.teeBoxes
+      : [];
+    // When no course is picked yet OR the course returned no tee
+    // data (some upstreams don't), fall back to a stable list of
+    // generic colors so the user can still create the tournament.
+    // Rating/slope won't be included in the payload; the mobile
+    // app renders a fallback there too.
+    const useFallback = teeBoxes.length === 0;
+    const fallbackNames = ['Championship', 'Blue', 'White', 'Gold', 'Red', 'Green'];
+
     state.rounds.forEach((r, i) => {
       const li = document.createElement('li');
       li.className = 'roundsList__row';
+      const teeOptions = useFallback
+        ? fallbackNames
+            .map((n) => `<option value="fallback::${escapeHtml(n)}" ${n === r.teeName ? 'selected' : ''}>${escapeHtml(n)}</option>`)
+            .join('')
+        : teeBoxes
+            .map((t, ti) => {
+              const isSel = t.tee_name === r.teeName && (t.gender || 'male') === (r.gender || 'male');
+              return `<option value="idx::${ti}" ${isSel ? 'selected' : ''}>${escapeHtml(teeLabel(t))}</option>`;
+            })
+            .join('');
       li.innerHTML = `
         <div class="roundsList__idx">R${i + 1}</div>
         <label>
           <span>Tee</span>
           <select data-round-tee="${i}">
-            ${['Championship', 'Blue', 'White', 'Gold', 'Red', 'Green']
-              .map((t) => `<option ${t === r.teeName ? 'selected' : ''}>${t}</option>`)
-              .join('')}
+            ${useFallback ? '' : '<option value="">Pick a tee</option>'}
+            ${teeOptions}
           </select>
         </label>
         <label>
@@ -402,7 +594,21 @@ const displayName =
     roundsList.querySelectorAll('[data-round-tee]').forEach((el) => {
       el.addEventListener('change', (e) => {
         const idx = Number(el.getAttribute('data-round-tee'));
-        state.rounds[idx].teeName = /** @type {HTMLSelectElement} */ (e.target).value;
+        const val = /** @type {HTMLSelectElement} */ (e.target).value;
+        if (val.startsWith('fallback::')) {
+          const name = val.substring('fallback::'.length);
+          state.rounds[idx].teeName = name;
+          state.rounds[idx].gender = 'male';
+          state.rounds[idx].courseRating = null;
+          state.rounds[idx].slopeRating = null;
+          state.rounds[idx].parTotal = null;
+        } else if (val.startsWith('idx::')) {
+          const ti = Number(val.substring('idx::'.length));
+          const tee = teeBoxes[ti];
+          if (tee) applyTeeToRound(state.rounds[idx], tee);
+        } else {
+          state.rounds[idx].teeName = '';
+        }
       });
     });
     roundsList.querySelectorAll('[data-round-holes]').forEach((el) => {
@@ -459,6 +665,43 @@ const displayName =
     errorBox.hidden = true;
     renderPlayers();
   });
+
+  // Friend picker — server-rendered <select> populated from the
+  // director's public.friends roster. Adding a friend copies their
+  // stored display_name + handicap onto the players list; the
+  // friend_user_id becomes state.players[i].userId so the mobile
+  // app can bind the player row to the actual signed-in user for
+  // scoring + notifications later.
+  const friendSelectEl = document.getElementById('friendSelect');
+  const addFriendBtn = document.getElementById('addFriendBtn');
+  if (friendSelectEl && addFriendBtn) {
+    addFriendBtn.addEventListener('click', () => {
+      const sel = /** @type {HTMLSelectElement} */ (friendSelectEl);
+      const opt = sel.options[sel.selectedIndex];
+      if (!opt || !opt.value) {
+        showError('Pick a friend first.');
+        return;
+      }
+      if (state.players.length >= 24) {
+        showError('Phase 1 supports up to 24 players.');
+        return;
+      }
+      const friendUserId = opt.value;
+      const name = opt.getAttribute('data-name') || 'Friend';
+      const hcpRaw = opt.getAttribute('data-hcp');
+      const hcp = hcpRaw != null && Number.isFinite(Number(hcpRaw)) ? Number(hcpRaw) : 18;
+      // Prevent adding the same friend twice.
+      if (state.players.some((p) => p.userId && p.userId === friendUserId)) {
+        showError(`${name} is already in the roster.`);
+        return;
+      }
+      state.players.push({ name, handicap: hcp, userId: friendUserId });
+      // Reset the select back to the placeholder.
+      sel.selectedIndex = 0;
+      errorBox.hidden = true;
+      renderPlayers();
+    });
+  }
 
   function renderPlayers() {
     playersList.innerHTML = '';
@@ -522,9 +765,28 @@ const displayName =
     const sm = document.querySelector('input[name="scoringMode"]:checked');
     const netEl = /** @type {HTMLInputElement} */ (document.getElementById('useNetScoring'));
 
+    // Course-level rating/slope/par default to the first round's
+    // resolved tee data — matches how the mobile app treats
+    // Round 1 as the "primary" tee for the tournament-level fields.
+    const primary = state.rounds[0] || {};
     const payload = {
       name: nameEl.value.trim(),
-      course: state.course,
+      course: state.course
+        ? {
+            id: state.course.id,
+            clubName: state.course.clubName,
+            courseName: state.course.courseName,
+          }
+        : null,
+      // Full tee-box catalog from the picked course (empty when the
+      // upstream didn't return per-tee data — mobile app renders
+      // its own fallback in that case).
+      teeBoxes: state.course && Array.isArray(state.course.teeBoxes)
+        ? state.course.teeBoxes
+        : [],
+      courseRating: primary.courseRating ?? null,
+      slopeRating: primary.slopeRating ?? null,
+      parTotal: primary.parTotal ?? null,
       fieldGender: fg ? fg.value : 'male',
       scoringMode: sm ? sm.value : 'strokeAggregate',
       useNetScoring: netEl.checked,
@@ -796,11 +1058,43 @@ const displayName =
   }
   .roundsList__remove:hover { color: var(--error); }
 
+  .friendPicker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    background: var(--brand-green-pale, #f0f7f2);
+    border: 1px solid var(--brand-green, #2f7d44);
+    border-radius: 10px;
+  }
+  .friendPicker__label {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--brand-green-dark, #14432b);
+  }
+  .friendPicker__row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .friendPicker select {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 15px;
+    background: #fff;
+    font-family: inherit;
+  }
+
   .playerAdd {
     display: grid;
     grid-template-columns: 1fr 100px auto;
     gap: 8px;
     align-items: center;
+    margin-top: 12px;
   }
   .playerAdd input {
     padding: 10px 12px;
