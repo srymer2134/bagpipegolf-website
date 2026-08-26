@@ -8,6 +8,11 @@ import {
   type WizardInput,
   type WizardRoundInput,
 } from '../../../lib/tournamentCreate';
+import {
+  PAIRING_MODES,
+  type PairingMode,
+  type WizardRoundPairing,
+} from '../../../lib/pairings';
 
 // POST /api/tournaments/create
 //
@@ -307,6 +312,91 @@ function validateWizardInput(
     };
   });
 
+  // Pairings (roadmap #6). Optional; missing / empty = no pairing
+  // composer surfaces used (every round runs ad-hoc). Each entry:
+  //   * `roundIndex`: integer 0..rounds.length-1 — anything out of
+  //     range is dropped silently.
+  //   * `mode`: one of the allowlisted PairingMode values.
+  //   * `groups[]`: only kept when mode === 'groups'. Each group
+  //     retains its id (or `pairing_g_<r>_<i>` fallback), a
+  //     trimmed name (default `Group A`), a `wp_<i>`-scoped
+  //     playerIds array (bad ids dropped), and an optional
+  //     startingHole clamped to 1..18.
+  //   * `teams[]`: only kept when mode === 'teams'. Same shape as
+  //     groups plus an optional captainId (must be one of the
+  //     team's own playerIds).
+  const pairingsRaw = Array.isArray(r.pairings) ? r.pairings : [];
+  const pairings: WizardRoundPairing[] = pairingsRaw
+    .map((entry, i): WizardRoundPairing | null => {
+      if (!entry || typeof entry !== 'object') return null;
+      const e = entry as Record<string, unknown>;
+      const rawIdx = Number(e.roundIndex);
+      if (
+        !Number.isFinite(rawIdx) ||
+        rawIdx < 0 ||
+        rawIdx >= roundsRaw.length
+      ) {
+        return null;
+      }
+      const roundIndex = Math.floor(rawIdx);
+      const modeRaw = typeof e.mode === 'string' ? (e.mode as PairingMode) : 'none';
+      const mode: PairingMode = (PAIRING_MODES as readonly string[]).includes(
+        modeRaw,
+      )
+        ? modeRaw
+        : 'none';
+      if (mode === 'none') {
+        return { roundIndex, mode };
+      }
+      if (mode === 'groups') {
+        const rawGroups = Array.isArray(e.groups) ? e.groups : [];
+        const groups = rawGroups
+          .map((g, gi) => {
+            if (!g || typeof g !== 'object') return null;
+            const gg = g as Record<string, unknown>;
+            const rawGid = typeof gg.id === 'string' ? gg.id : '';
+            const id = rawGid.length > 0 ? rawGid : `pairing_g_${roundIndex}_${gi}`;
+            const rawName = typeof gg.name === 'string' ? gg.name.trim() : '';
+            const name = rawName.length > 0 ? rawName : `Group ${gi + 1}`;
+            const rawPids = Array.isArray(gg.playerIds) ? gg.playerIds : [];
+            const playerIds = rawPids
+              .filter((pid): pid is string => typeof pid === 'string')
+              .filter((pid) => validPlayerIds.has(pid));
+            const holeRaw = Number(gg.startingHole);
+            const startingHole =
+              Number.isFinite(holeRaw) && holeRaw >= 1 && holeRaw <= 18
+                ? Math.round(holeRaw)
+                : null;
+            return { id, name, playerIds, startingHole };
+          })
+          .filter((g): g is NonNullable<typeof g> => g !== null);
+        return { roundIndex, mode, groups };
+      }
+      // teams mode
+      const rawTeams = Array.isArray(e.teams) ? e.teams : [];
+      const teams = rawTeams
+        .map((t, ti) => {
+          if (!t || typeof t !== 'object') return null;
+          const tt = t as Record<string, unknown>;
+          const rawTid = typeof tt.id === 'string' ? tt.id : '';
+          const id = rawTid.length > 0 ? rawTid : `pairing_t_${roundIndex}_${ti}`;
+          const rawName = typeof tt.name === 'string' ? tt.name.trim() : '';
+          const name = rawName.length > 0 ? rawName : `Team ${ti + 1}`;
+          const rawPids = Array.isArray(tt.playerIds) ? tt.playerIds : [];
+          const playerIds = rawPids
+            .filter((pid): pid is string => typeof pid === 'string')
+            .filter((pid) => validPlayerIds.has(pid));
+          const rawCaptain =
+            typeof tt.captainId === 'string' ? tt.captainId : null;
+          const captainId =
+            rawCaptain && playerIds.includes(rawCaptain) ? rawCaptain : null;
+          return { id, name, playerIds, captainId };
+        })
+        .filter((t): t is NonNullable<typeof t> => t !== null);
+      return { roundIndex, mode, teams };
+    })
+    .filter((p): p is WizardRoundPairing => p !== null);
+
   return {
     input: {
       name,
@@ -328,6 +418,7 @@ function validateWizardInput(
       rounds,
       players,
       flights,
+      pairings,
     },
   };
 }

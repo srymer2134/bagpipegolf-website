@@ -11,6 +11,11 @@
 // in the flutter repo) will populate `flights`, `skins_competitions`,
 // `sponsors`, `pools`, and the pairing composer fields.
 
+import {
+  pairingToRoundTeamsWire,
+  pairingsToSeasonTeamsWire,
+} from './pairings';
+
 export type FieldGender = 'male' | 'female' | 'mixed';
 // Pre-Cup-template (Phase 2a) scoring modes — camelCase strings
 // the Format-step radios emit. Kept for backwards compatibility
@@ -207,6 +212,14 @@ export type WizardInput = {
    *  server-generated player ids (wizard IDs like `wp_0` become
    *  `p_<tournamentId>_0`). */
   flights?: WizardFlightInput[];
+  /** Optional per-round pairings (roadmap #6 — pairing composer).
+   *  One entry per round in `mode: 'groups' | 'teams'`; rounds
+   *  in `mode: 'none'` can be omitted entirely (or included with
+   *  empty arrays) — the payload builder emits `round.teams = []`
+   *  for either case. Player ids follow the same rewrite rule as
+   *  flights (`wp_<i>` → `p_<tournamentId>_<i>`). See
+   *  `src/lib/pairings.ts` for the shape + helpers. */
+  pairings?: import('./pairings').WizardRoundPairing[];
 };
 
 // Client-generated id — matches the mobile app's `tourney_<ts>`
@@ -235,6 +248,25 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
 
   const courseName = pickCourseName(input.course);
   const totalHoles = deriveTotalHoles(input.rounds);
+
+  // Build the wizardId → serverId map early so pairings can
+  // rewrite player ids on the round.teams[] emit below.
+  const wizardIdToServerId = new Map<string, string>();
+  for (let i = 0; i < input.players.length; i++) {
+    wizardIdToServerId.set(wizardPlayerId(i), `p_${id}_${i}`);
+  }
+
+  const pairingsByRoundIndex = new Map<number, import('./pairings').WizardRoundPairing>();
+  for (const p of input.pairings ?? []) {
+    if (
+      p &&
+      typeof p === 'object' &&
+      typeof p.roundIndex === 'number' &&
+      Number.isFinite(p.roundIndex)
+    ) {
+      pairingsByRoundIndex.set(p.roundIndex, p);
+    }
+  }
 
   // Each round mirrors the mobile app's `TournamentRound.toJson()`
   // (see lib/core/models/tournament.dart) — index, teeBoxName,
@@ -293,6 +325,18 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
       // column is text.
       base.course_id = r.courseKey;
     }
+    // Roadmap #6 — pairings. Emit `round.teams[]` from the
+    // wizard's pairing composer output. Groups mode + Teams mode
+    // both write here; `none` mode leaves it as an empty array,
+    // matching the mobile app's ad-hoc-round shape.
+    const pairing = pairingsByRoundIndex.get(i);
+    const roundTeams = pairingToRoundTeamsWire(pairing, wizardIdToServerId);
+    // Emit `teams` for every round — empty array is meaningful
+    // (see the mobile app's `TournamentRound.toJson()` block
+    // comment). This mirrors that discipline so a subsequent
+    // PATCH from the mobile app or Manage page sees the same
+    // shape it wrote.
+    base.teams = roundTeams;
     return base;
   });
 
@@ -315,15 +359,9 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
     userId: p.userId ?? null,
   }));
 
-  // Build a `wizardId -> serverId` map so flight assignments
-  // survive the id rewrite above. The wizard-side flight editor
-  // stores playerIds as `wp_<index>`; anything else is passed
-  // through unchanged (defensive — a caller could bypass the
-  // wizard convention).
-  const wizardIdToServerId = new Map<string, string>();
-  for (let i = 0; i < input.players.length; i++) {
-    wizardIdToServerId.set(wizardPlayerId(i), players[i].id);
-  }
+  // `wizardIdToServerId` was built above (before the rounds
+  // loop) so pairings could rewrite ids while emitting
+  // `round.teams[]`. Reused here for flights + season teams.
 
   const flights = (input.flights ?? [])
     .filter((f) => f && typeof f === 'object')
@@ -372,8 +410,16 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
     // upstream provider returned no per-tee data — mobile app's
     // `parResolver` chain fills the gap on read.
     tee_boxes: input.teeBoxes,
-    // Fields defaulted for Phase 1 — later wizard steps fill them:
-    teams: [],
+    // Season teams (roadmap #6 — pairing composer, Teams mode).
+    // Derived from any `mode: 'teams'` pairing entry — first
+    // round wins on team identity (name), later rounds merge
+    // membership. Empty when no Teams-mode pairing exists —
+    // matches original wizard behavior. See
+    // `pairingsToSeasonTeamsWire` for the merge rule.
+    teams: pairingsToSeasonTeamsWire(
+      input.pairings ?? [],
+      wizardIdToServerId,
+    ),
     // Flights (Phase 2 — handicap-split brackets). Empty = single
     // competition across the whole field. See `WizardFlightInput`
     // for the wire shape; each entry is emitted snake_case to
