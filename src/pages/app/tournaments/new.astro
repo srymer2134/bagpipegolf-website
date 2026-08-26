@@ -141,7 +141,8 @@ try {
       <li data-step-pill="3">3. Rounds</li>
       <li data-step-pill="4">4. Players</li>
       <li data-step-pill="5">5. Flights</li>
-      <li data-step-pill="6">6. Review</li>
+      <li data-step-pill="6">6. Pairings</li>
+      <li data-step-pill="7">7. Review</li>
     </ol>
 
     <form id="wizard" novalidate>
@@ -496,8 +497,31 @@ try {
         </div>
       </section>
 
-      <!-- Step 6 — Review -->
-      <section data-step="6" class="wizard__step" aria-label="Review">
+      <!-- Step 6 — Pairings (optional) -->
+      <section data-step="6" class="wizard__step" aria-label="Pairings">
+        <h2 class="wizard__stepTitle">Pairings (optional)</h2>
+        <p class="wizard__stepSub">
+          Assign players to groups (foursomes / threesomes /
+          twosomes) or to Cup teams — per round. Skip this step if
+          players will self-organize on the tee.
+        </p>
+
+        <div class="pairingsRoundTabs" id="pairingsRoundTabs" role="tablist" aria-label="Round selector"></div>
+
+        <div class="pairingsRoundBody" id="pairingsRoundBody" aria-live="polite">
+          <p class="wizard__stepSub">Pick a round above to configure pairings.</p>
+        </div>
+
+        <p class="wizard__stepSub pairingsFootHint">
+          Groups mode uses each round's tee-time group size
+          (2 / 3 / 4). Teams mode is for Cup-style two-team
+          events — the same season roster carries across every
+          round.
+        </p>
+      </section>
+
+      <!-- Step 7 — Review -->
+      <section data-step="7" class="wizard__step" aria-label="Review">
         <h2 class="wizard__stepTitle">Review</h2>
 
         <dl class="review">
@@ -510,6 +534,7 @@ try {
           <div><dt>Rounds</dt><dd id="rvRounds">—</dd></div>
           <div><dt>Players</dt><dd id="rvPlayers">—</dd></div>
           <div id="rvFlightsRow" hidden><dt>Flights</dt><dd id="rvFlights">—</dd></div>
+          <div id="rvPairingsRow" hidden><dt>Pairings</dt><dd id="rvPairings">—</dd></div>
         </dl>
 
         <p class="wizard__stepSub">
@@ -520,8 +545,11 @@ try {
 
         <aside id="reviewCupNote" class="reviewCupNote" hidden>
           <strong>Cup template applied.</strong>
-          Rounds, formats, and Cup point weights are pre-filled.
-          Team pairings, per-round side games, and per-round
+          Rounds, formats, Cup point weights, and team names
+          (Ryder / Scarecrow only) are pre-filled — use the
+          Pairings step to assign players. Advanced captain
+          composition modes (Presidents Cup, Teammates Pick,
+          Blind Submit), per-round side games, and per-round
           course overrides (Bandon's par-3 shootouts, Scarecrow's
           two-course split) can be configured on the Manage page
           in the mobile app after the tournament is created.
@@ -570,9 +598,10 @@ try {
   // rating/slope at the tournament level without a second fetch.
   // Wizard step numbering: 0 = Template picker (optional), 1..4 =
   // Basics/Format/Rounds/Players (original flow), 5 = Flights
-  // (optional, added 2026-08-26), 6 = Review. Every `=== 5` /
-  // `=== 6` comparison below is intentional — step 5 is the new
-  // Flights step, step 6 is Review.
+  // (optional, added 2026-08-26), 6 = Pairings (optional, added
+  // 2026-08-26 by roadmap #6), 7 = Review. Every `=== N`
+  // comparison below is intentional — step 6 is the new Pairings
+  // step, step 7 is Review.
   const state = {
     step: 0,
     // 'blank' = default; otherwise a template id from cupTemplates.
@@ -625,6 +654,15 @@ try {
     // send failures; a partial-send is surfaced via a snackbar-style
     // banner but the wizard still redirects to the leaderboard.
     invites: [],
+    // Pairings (Step 6). One entry per round in `mode: 'groups'` or
+    // `mode: 'teams'`. `mode: 'none'` entries can be omitted —
+    // the payload builder emits an empty `round.teams[]` for missing
+    // pairing entries. Player ids are `wp_<i>` (wizard-local); the
+    // payload builder rewrites them to `p_<tournamentId>_<i>` on
+    // submit. See src/lib/pairings.ts for the shape.
+    pairings: [],
+    // Which round is currently focused in the Pairings step.
+    pairingsActiveRoundIndex: 0,
   };
 
   // Pre-seed the director as the first player when we have a name.
@@ -655,13 +693,14 @@ try {
     // Back is enabled from Basics onwards (Template picker is
     // the first step and has nothing to go back to).
     backBtn.disabled = step === 0;
-    nextBtn.hidden = step === 6;
-    submitBtn.hidden = step !== 6;
+    nextBtn.hidden = step === 7;
+    submitBtn.hidden = step !== 7;
     errorBox.hidden = true;
     if (step === 3) renderRounds();
     if (step === 4) renderPlayers();
     if (step === 5) renderFlights();
-    if (step === 6) renderReview();
+    if (step === 6) renderPairings();
+    if (step === 7) renderReview();
   }
 
   function showError(msg) {
@@ -687,7 +726,7 @@ try {
   nextBtn.addEventListener('click', () => {
     const err = validateStep(state.step);
     if (err) return showError(err);
-    show(Math.min(state.step + 1, 6));
+    show(Math.min(state.step + 1, 7));
   });
   backBtn.addEventListener('click', () => {
     show(Math.max(state.step - 1, 0));
@@ -794,6 +833,8 @@ try {
       state.useNetScoringOverride = null;
       state.trackCTPOnPar3s = false;
       state.trackLongestDrive = false;
+      state.pairings = [];
+      state.pairingsActiveRoundIndex = 0;
       return;
     }
     state.templateId = id;
@@ -807,6 +848,49 @@ try {
     state.useNetScoringOverride = t.defaults.useNetScoring;
     state.trackCTPOnPar3s = !!t.defaults.trackCTPOnPar3s;
     state.trackLongestDrive = !!t.defaults.trackLongestDrive;
+    // Cup template pre-fill for pairings (roadmap #6).
+    //   * ryderCupClassic → Teams mode on every round, USA/Europe
+    //     seeded as empty rosters (director assigns players).
+    //   * scarecrowCup → Teams mode on every round, Team Green /
+    //     Team Gold seeded as empty rosters.
+    //   * bandonDunesCup / ballynealBrigade → leave pairings empty
+    //     (mixed team + individual rounds — director chooses per
+    //     round; the Pairings step defaults to "No pairings" until
+    //     they pick otherwise).
+    state.pairings = seedPairingsForTemplate(id, state.rounds.length);
+    state.pairingsActiveRoundIndex = 0;
+  }
+
+  // ── Pairings — Cup template seed ─────────────────────────
+  //
+  // Ryder / Scarecrow imply two-team pairings on every round.
+  // Bandon / Ballyneal are mixed formats (team rounds + Singles);
+  // the director picks per round. Blank + all other templates
+  // start with No pairings.
+  function seedPairingsForTemplate(templateId, roundCount) {
+    if (templateId === 'ryderCupClassic') {
+      return Array.from({ length: roundCount }, (_, i) => ({
+        roundIndex: i,
+        mode: 'teams',
+        teams: [
+          { id: `team_${i}_0`, name: 'USA', playerIds: [], captainId: null },
+          { id: `team_${i}_1`, name: 'Europe', playerIds: [], captainId: null },
+        ],
+        groups: [],
+      }));
+    }
+    if (templateId === 'scarecrowCup') {
+      return Array.from({ length: roundCount }, (_, i) => ({
+        roundIndex: i,
+        mode: 'teams',
+        teams: [
+          { id: `team_${i}_0`, name: 'Team Green', playerIds: [], captainId: null },
+          { id: `team_${i}_1`, name: 'Team Gold', playerIds: [], captainId: null },
+        ],
+        groups: [],
+      }));
+    }
+    return [];
   }
 
   function syncFormatRadiosToState() {
@@ -1199,6 +1283,13 @@ try {
           return;
         }
         state.rounds.splice(idx, 1);
+        // Drop pairings for the removed round + reindex later ones.
+        state.pairings = (state.pairings || [])
+          .filter((p) => p.roundIndex !== idx)
+          .map((p) => (p.roundIndex > idx ? { ...p, roundIndex: p.roundIndex - 1 } : p));
+        if (state.pairingsActiveRoundIndex >= state.rounds.length) {
+          state.pairingsActiveRoundIndex = Math.max(0, state.rounds.length - 1);
+        }
         renderRounds();
       });
     });
@@ -1835,6 +1926,636 @@ try {
     });
   }
 
+  // ── Pairings (Step 6) ────────────────────────────────────
+  //
+  // Per-round pairing composer with three modes:
+  //   A - No pairings (default). Players self-organize.
+  //   B - Groups. Splits the field into buckets per the round's
+  //       teeTimeGroupSize. Shotgun rounds also pick a start hole
+  //       per group.
+  //   C - Teams. Two/three/four season teams (Cup-mode). Team
+  //       names editable; per-team captain designation optional.
+  //
+  // State: `state.pairings` is an array of per-round entries
+  // (see the shape comment on the state declaration). Missing
+  // entries default to mode 'none' → payload builder emits an
+  // empty `round.teams[]`.
+  //
+  // Player ids are `wp_<i>` (wizard-local) so the payload builder
+  // can rewrite them to server ids on submit. Same trick flights
+  // use.
+
+  function wpIdForPlayer(i) { return `wp_${i}`; }
+
+  function getPairing(roundIndex) {
+    return state.pairings.find((p) => p.roundIndex === roundIndex) || null;
+  }
+
+  function ensurePairing(roundIndex, mode) {
+    let p = getPairing(roundIndex);
+    if (!p) {
+      p = { roundIndex, mode, groups: [], teams: [] };
+      state.pairings.push(p);
+      state.pairings.sort((a, b) => a.roundIndex - b.roundIndex);
+    } else {
+      p.mode = mode;
+      p.groups = p.groups || [];
+      p.teams = p.teams || [];
+    }
+    return p;
+  }
+
+  function assignedPlayerIdsInPairing(p) {
+    const s = new Set();
+    if (!p) return s;
+    if (p.mode === 'groups') {
+      for (const g of p.groups || []) for (const pid of g.playerIds || []) s.add(pid);
+    } else if (p.mode === 'teams') {
+      for (const t of p.teams || []) for (const pid of t.playerIds || []) s.add(pid);
+    }
+    return s;
+  }
+
+  function groupCountForRound(round) {
+    const size = Math.max(2, Math.min(4, Number(round.teeTimeGroupSize) || 4));
+    const n = state.players.length;
+    return Math.max(1, Math.ceil(n / size));
+  }
+
+  function autoAssignSnakeDraft(bucketCount) {
+    // Mirrors src/lib/pairings.ts autoAssignGroupsByHandicap.
+    const n = state.players.length;
+    const count = Math.max(1, Math.floor(bucketCount));
+    const buckets = Array.from({ length: count }, () => []);
+    if (n === 0) return buckets;
+    const sorted = state.players.map((p, i) => ({
+      wpId: wpIdForPlayer(i),
+      hcp: Number.isFinite(Number(p.handicap)) ? Number(p.handicap) : 18,
+    })).sort((a, b) => a.hcp - b.hcp);
+    let idx = 0;
+    let forward = true;
+    for (const s of sorted) {
+      buckets[idx].push(s.wpId);
+      if (forward) {
+        if (idx === count - 1) forward = false;
+        else idx += 1;
+      } else {
+        if (idx === 0) forward = true;
+        else idx -= 1;
+      }
+    }
+    return buckets;
+  }
+
+  function seedEmptyGroups(roundIndex) {
+    const round = state.rounds[roundIndex];
+    if (!round) return [];
+    const count = groupCountForRound(round);
+    return Array.from({ length: count }, (_, i) => ({
+      id: `group_${roundIndex}_${i}_${Date.now()}`,
+      name: `Group ${String.fromCharCode(65 + i)}`,
+      playerIds: [],
+      startingHole: round.startType === 'shotgun' ? (i + 1) : null,
+    }));
+  }
+
+  function seedEmptyTeams(roundIndex, teamCount, templateId) {
+    const cupNames =
+      templateId === 'ryderCupClassic'
+        ? ['USA', 'Europe', 'Team C', 'Team D']
+        : templateId === 'scarecrowCup'
+        ? ['Team Green', 'Team Gold', 'Team C', 'Team D']
+        : [];
+    return Array.from({ length: teamCount }, (_, i) => ({
+      id: `team_${roundIndex}_${i}_${Date.now()}`,
+      name: cupNames[i] || `Team ${String.fromCharCode(65 + i)}`,
+      playerIds: [],
+      captainId: null,
+    }));
+  }
+
+  function renderPairings() {
+    // Guard: no players yet? nothing to pair.
+    const tabs = document.getElementById('pairingsRoundTabs');
+    const body = document.getElementById('pairingsRoundBody');
+    if (!tabs || !body) return;
+    if (state.players.length === 0) {
+      tabs.innerHTML = '';
+      body.innerHTML = '<p class="wizard__stepSub">Add players in the previous step to configure pairings.</p>';
+      return;
+    }
+    if (state.rounds.length === 0) {
+      tabs.innerHTML = '';
+      body.innerHTML = '<p class="wizard__stepSub">Add rounds to configure pairings.</p>';
+      return;
+    }
+    // Clamp active round to a valid index.
+    if (
+      state.pairingsActiveRoundIndex < 0 ||
+      state.pairingsActiveRoundIndex >= state.rounds.length
+    ) {
+      state.pairingsActiveRoundIndex = 0;
+    }
+    // Tabs — one button per round with a "current" state.
+    tabs.innerHTML = '';
+    state.rounds.forEach((r, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('role', 'tab');
+      btn.className = 'pairingsRoundTab';
+      const isCurrent = i === state.pairingsActiveRoundIndex;
+      if (isCurrent) btn.classList.add('is-current');
+      btn.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
+      const label = r.roundName && r.roundName.trim().length > 0
+        ? r.roundName
+        : `R${i + 1}`;
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        state.pairingsActiveRoundIndex = i;
+        renderPairings();
+      });
+      tabs.appendChild(btn);
+    });
+    renderPairingsRoundBody();
+  }
+
+  function renderPairingsRoundBody() {
+    const body = document.getElementById('pairingsRoundBody');
+    if (!body) return;
+    const i = state.pairingsActiveRoundIndex;
+    const round = state.rounds[i];
+    if (!round) {
+      body.innerHTML = '';
+      return;
+    }
+    const pairing = getPairing(i);
+    const mode = pairing ? pairing.mode : 'none';
+
+    body.innerHTML = '';
+
+    // Mode radios (A / B / C).
+    const modeFs = document.createElement('fieldset');
+    modeFs.className = 'field field--group';
+    modeFs.innerHTML = `
+      <legend class="field__label">Pairings for R${i + 1}${round.roundName ? ` · ${escapeHtml(round.roundName)}` : ''}</legend>
+      <div class="radios radios--stacked">
+        <label>
+          <input type="radio" name="pairingMode_${i}" value="none" ${mode === 'none' ? 'checked' : ''} />
+          <span><strong>No pairings</strong> — players self-organize on the tee</span>
+        </label>
+        <label>
+          <input type="radio" name="pairingMode_${i}" value="groups" ${mode === 'groups' ? 'checked' : ''} />
+          <span><strong>Groups</strong> — split field into ${round.teeTimeGroupSize || 4}-somes${round.startType === 'shotgun' ? ' with shotgun start holes' : ' (tee times)'}</span>
+        </label>
+        <label>
+          <input type="radio" name="pairingMode_${i}" value="teams" ${mode === 'teams' ? 'checked' : ''} />
+          <span><strong>Teams</strong> — Cup-style two-team assignment (season-long roster)</span>
+        </label>
+      </div>
+    `;
+    body.appendChild(modeFs);
+    modeFs.querySelectorAll('input[type=radio]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const nextMode = input.value;
+        if (nextMode === 'none') {
+          // Preserve existing groups/teams for undo; drop them on
+          // payload emit via the mode check.
+          const p = ensurePairing(i, 'none');
+          p.mode = 'none';
+        } else if (nextMode === 'groups') {
+          const p = ensurePairing(i, 'groups');
+          if (!p.groups || p.groups.length === 0) {
+            p.groups = seedEmptyGroups(i);
+          }
+        } else if (nextMode === 'teams') {
+          const p = ensurePairing(i, 'teams');
+          if (!p.teams || p.teams.length === 0) {
+            p.teams = seedEmptyTeams(i, 2, state.templateId);
+          }
+        }
+        renderPairingsRoundBody();
+      });
+    });
+
+    // Copy-from-previous-round button — only shown if there IS a
+    // previous round with a non-`none` mode.
+    if (i > 0) {
+      const prevOptions = [];
+      for (let j = 0; j < state.rounds.length; j++) {
+        if (j === i) continue;
+        const pj = getPairing(j);
+        if (!pj || pj.mode === 'none') continue;
+        const jLabel = state.rounds[j].roundName || `R${j + 1}`;
+        prevOptions.push({ index: j, label: jLabel, mode: pj.mode });
+      }
+      if (prevOptions.length > 0) {
+        const copyRow = document.createElement('div');
+        copyRow.className = 'pairingsCopyRow';
+        const sel = document.createElement('select');
+        sel.setAttribute('aria-label', 'Copy pairings from round');
+        sel.innerHTML =
+          '<option value="">Copy from another round…</option>' +
+          prevOptions
+            .map(
+              (o) =>
+                `<option value="${o.index}">${escapeHtml(o.label)} (${o.mode})</option>`,
+            )
+            .join('');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn--ghost btn--sm';
+        btn.textContent = 'Copy';
+        btn.disabled = true;
+        sel.addEventListener('change', () => {
+          btn.disabled = sel.value === '';
+        });
+        btn.addEventListener('click', () => {
+          const srcIdx = Number(sel.value);
+          const src = getPairing(srcIdx);
+          if (!src) return;
+          const dst = ensurePairing(i, src.mode);
+          dst.mode = src.mode;
+          if (src.mode === 'groups') {
+            dst.groups = (src.groups || []).map((g, gi) => ({
+              id: `group_${i}_${gi}_${Date.now()}`,
+              name: g.name,
+              playerIds: [...(g.playerIds || [])],
+              // Starting hole copies too — but shotgun-vs-teetime
+              // asymmetry means the dest may have no meaning for
+              // it. Preserve on shotgun; drop on tee-times.
+              startingHole:
+                state.rounds[i].startType === 'shotgun'
+                  ? g.startingHole ?? null
+                  : null,
+            }));
+          } else if (src.mode === 'teams') {
+            dst.teams = (src.teams || []).map((t, ti) => ({
+              id: `team_${i}_${ti}_${Date.now()}`,
+              name: t.name,
+              playerIds: [...(t.playerIds || [])],
+              captainId: t.captainId ?? null,
+            }));
+          }
+          renderPairingsRoundBody();
+        });
+        copyRow.appendChild(sel);
+        copyRow.appendChild(btn);
+        body.appendChild(copyRow);
+      }
+    }
+
+    // Mode-specific body.
+    if (mode === 'none') {
+      const hint = document.createElement('p');
+      hint.className = 'wizard__stepSub';
+      hint.textContent = 'No pairings set. Players will self-organize on the tee.';
+      body.appendChild(hint);
+    } else if (mode === 'groups') {
+      renderGroupsComposer(body, i);
+    } else if (mode === 'teams') {
+      renderTeamsComposer(body, i);
+    }
+  }
+
+  function renderGroupsComposer(body, roundIndex) {
+    const round = state.rounds[roundIndex];
+    const pairing = ensurePairing(roundIndex, 'groups');
+    const assigned = assignedPlayerIdsInPairing(pairing);
+
+    // Header actions — "Auto-assign by handicap" + "Reset groups".
+    const actions = document.createElement('div');
+    actions.className = 'pairingsActionsRow';
+    actions.innerHTML = `
+      <button type="button" class="btn btn--ghost btn--sm" data-action="autoAssignGroups">
+        Auto-assign by handicap
+      </button>
+      <button type="button" class="btn btn--ghost btn--sm" data-action="clearGroups">
+        Clear all
+      </button>
+    `;
+    body.appendChild(actions);
+    actions.querySelector('[data-action="autoAssignGroups"]').addEventListener('click', () => {
+      const groups = seedEmptyGroups(roundIndex);
+      const buckets = autoAssignSnakeDraft(groups.length);
+      for (let i = 0; i < groups.length; i++) {
+        groups[i].playerIds = buckets[i] || [];
+      }
+      pairing.groups = groups;
+      renderPairingsRoundBody();
+    });
+    actions.querySelector('[data-action="clearGroups"]').addEventListener('click', () => {
+      for (const g of pairing.groups || []) g.playerIds = [];
+      renderPairingsRoundBody();
+    });
+
+    // Available pool.
+    const poolWrap = document.createElement('div');
+    poolWrap.className = 'pairingsPool';
+    poolWrap.innerHTML = `<div class="pairingsPool__label">Available (${state.players.length - assigned.size})</div>`;
+    const poolChips = document.createElement('div');
+    poolChips.className = 'pairingsPool__chips';
+    state.players.forEach((p, i) => {
+      const wp = wpIdForPlayer(i);
+      if (assigned.has(wp)) return;
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'pairingsChip pairingsChip--pool';
+      chip.textContent = `${p.name} (${Number(p.handicap).toFixed(1)})`;
+      chip.setAttribute('data-player-id', wp);
+      chip.addEventListener('click', () => {
+        // Add to the first non-full group.
+        const size = Math.max(2, Math.min(4, Number(round.teeTimeGroupSize) || 4));
+        let target = null;
+        for (const g of pairing.groups) {
+          if ((g.playerIds || []).length < size) {
+            target = g;
+            break;
+          }
+        }
+        if (!target) {
+          // All groups full — append a new group.
+          const gi = pairing.groups.length;
+          target = {
+            id: `group_${roundIndex}_${gi}_${Date.now()}`,
+            name: `Group ${String.fromCharCode(65 + gi)}`,
+            playerIds: [],
+            startingHole: round.startType === 'shotgun' ? (gi + 1) : null,
+          };
+          pairing.groups.push(target);
+        }
+        target.playerIds.push(wp);
+        renderPairingsRoundBody();
+      });
+      poolChips.appendChild(chip);
+    });
+    if (state.players.length - assigned.size === 0) {
+      const empty = document.createElement('span');
+      empty.className = 'pairingsPool__empty';
+      empty.textContent = 'All players assigned.';
+      poolChips.appendChild(empty);
+    }
+    poolWrap.appendChild(poolChips);
+    body.appendChild(poolWrap);
+
+    // Groups.
+    const groupsWrap = document.createElement('div');
+    groupsWrap.className = 'pairingsGroups';
+    (pairing.groups || []).forEach((g, gi) => {
+      const card = document.createElement('div');
+      card.className = 'pairingsGroupCard';
+      const size = Math.max(2, Math.min(4, Number(round.teeTimeGroupSize) || 4));
+      const capacityText = `${(g.playerIds || []).length}/${size}`;
+      card.innerHTML = `
+        <div class="pairingsGroupCard__head">
+          <strong>${escapeHtml(g.name)}</strong>
+          <span class="pairingsGroupCard__count">${capacityText}</span>
+        </div>
+      `;
+      // Shotgun rounds — start hole picker.
+      if (round.startType === 'shotgun') {
+        const holeLabel = document.createElement('label');
+        holeLabel.className = 'pairingsGroupCard__holeLabel';
+        holeLabel.textContent = 'Start hole';
+        const holeSelect = document.createElement('select');
+        holeSelect.className = 'pairingsGroupCard__holeSelect';
+        holeSelect.setAttribute('aria-label', `${g.name} start hole`);
+        const holes = round.totalHoles === 9 ? 9 : 18;
+        for (let h = 1; h <= holes; h++) {
+          const opt = document.createElement('option');
+          opt.value = String(h);
+          opt.textContent = String(h);
+          if (Number(g.startingHole) === h) opt.selected = true;
+          holeSelect.appendChild(opt);
+        }
+        holeSelect.addEventListener('change', () => {
+          g.startingHole = Number(holeSelect.value);
+          // Update the display without re-rendering the whole
+          // body (would drop focus).
+          card.querySelector('.pairingsGroupCard__count').textContent =
+            `${(g.playerIds || []).length}/${size}`;
+        });
+        holeLabel.appendChild(holeSelect);
+        card.appendChild(holeLabel);
+      }
+      // Player chips inside the group.
+      const chipsWrap = document.createElement('div');
+      chipsWrap.className = 'pairingsGroupCard__chips';
+      (g.playerIds || []).forEach((pid) => {
+        const idx = state.players.findIndex((_, ii) => wpIdForPlayer(ii) === pid);
+        const p = idx >= 0 ? state.players[idx] : null;
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'pairingsChip pairingsChip--assigned';
+        chip.textContent = p ? `${p.name} × remove` : `${pid} × remove`;
+        chip.setAttribute('aria-label', 'Remove player from group');
+        chip.addEventListener('click', () => {
+          g.playerIds = (g.playerIds || []).filter((x) => x !== pid);
+          renderPairingsRoundBody();
+        });
+        chipsWrap.appendChild(chip);
+      });
+      if ((g.playerIds || []).length === 0) {
+        const empty = document.createElement('span');
+        empty.className = 'pairingsPool__empty';
+        empty.textContent = 'Empty group — tap players in the pool above.';
+        chipsWrap.appendChild(empty);
+      }
+      card.appendChild(chipsWrap);
+      groupsWrap.appendChild(card);
+    });
+    body.appendChild(groupsWrap);
+  }
+
+  function renderTeamsComposer(body, roundIndex) {
+    const pairing = ensurePairing(roundIndex, 'teams');
+    const assigned = assignedPlayerIdsInPairing(pairing);
+
+    // Team-count picker + auto-assign + clear.
+    const controls = document.createElement('div');
+    controls.className = 'pairingsActionsRow';
+    const teamCountLabel = document.createElement('label');
+    teamCountLabel.className = 'pairingsTeamCountLabel';
+    teamCountLabel.textContent = 'Team count';
+    const teamCountSel = document.createElement('select');
+    teamCountSel.setAttribute('aria-label', 'Team count');
+    [2, 3, 4].forEach((n) => {
+      const opt = document.createElement('option');
+      opt.value = String(n);
+      opt.textContent = `${n} teams`;
+      if ((pairing.teams || []).length === n) opt.selected = true;
+      teamCountSel.appendChild(opt);
+    });
+    teamCountSel.addEventListener('change', () => {
+      const next = Number(teamCountSel.value);
+      const cur = (pairing.teams || []).length;
+      if (next > cur) {
+        for (let i = cur; i < next; i++) {
+          pairing.teams.push({
+            id: `team_${roundIndex}_${i}_${Date.now()}`,
+            name: `Team ${String.fromCharCode(65 + i)}`,
+            playerIds: [],
+            captainId: null,
+          });
+        }
+      } else if (next < cur) {
+        // Truncate; players from dropped teams become unassigned.
+        pairing.teams = pairing.teams.slice(0, next);
+      }
+      renderPairingsRoundBody();
+    });
+    teamCountLabel.appendChild(teamCountSel);
+    controls.appendChild(teamCountLabel);
+
+    const auto = document.createElement('button');
+    auto.type = 'button';
+    auto.className = 'btn btn--ghost btn--sm';
+    auto.textContent = 'Auto-assign by handicap';
+    auto.addEventListener('click', () => {
+      const count = (pairing.teams || []).length || 2;
+      const buckets = autoAssignSnakeDraft(count);
+      for (let i = 0; i < pairing.teams.length; i++) {
+        pairing.teams[i].playerIds = buckets[i] || [];
+        // Reset captain to first player of the new roster (or
+        // null when empty).
+        pairing.teams[i].captainId = pairing.teams[i].playerIds[0] || null;
+      }
+      renderPairingsRoundBody();
+    });
+    controls.appendChild(auto);
+
+    const clr = document.createElement('button');
+    clr.type = 'button';
+    clr.className = 'btn btn--ghost btn--sm';
+    clr.textContent = 'Clear all';
+    clr.addEventListener('click', () => {
+      for (const t of pairing.teams || []) {
+        t.playerIds = [];
+        t.captainId = null;
+      }
+      renderPairingsRoundBody();
+    });
+    controls.appendChild(clr);
+    body.appendChild(controls);
+
+    // Pool of unassigned players.
+    const poolWrap = document.createElement('div');
+    poolWrap.className = 'pairingsPool';
+    poolWrap.innerHTML = `<div class="pairingsPool__label">Available (${state.players.length - assigned.size})</div>`;
+    const poolChips = document.createElement('div');
+    poolChips.className = 'pairingsPool__chips';
+    state.players.forEach((p, i) => {
+      const wp = wpIdForPlayer(i);
+      if (assigned.has(wp)) return;
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'pairingsChip pairingsChip--pool';
+      chip.textContent = `${p.name} (${Number(p.handicap).toFixed(1)})`;
+      chip.addEventListener('click', () => {
+        // Add to the currently-smallest team (evens things out
+        // by default — director can still move players).
+        let target = null;
+        let smallest = Infinity;
+        for (const t of pairing.teams) {
+          const n = (t.playerIds || []).length;
+          if (n < smallest) { smallest = n; target = t; }
+        }
+        if (!target) {
+          target = pairing.teams[0];
+        }
+        if (target) {
+          target.playerIds.push(wp);
+          if (!target.captainId) target.captainId = wp;
+        }
+        renderPairingsRoundBody();
+      });
+      poolChips.appendChild(chip);
+    });
+    if (state.players.length - assigned.size === 0) {
+      const empty = document.createElement('span');
+      empty.className = 'pairingsPool__empty';
+      empty.textContent = 'All players assigned.';
+      poolChips.appendChild(empty);
+    }
+    poolWrap.appendChild(poolChips);
+    body.appendChild(poolWrap);
+
+    // Team cards.
+    const teamsWrap = document.createElement('div');
+    teamsWrap.className = 'pairingsTeams';
+    (pairing.teams || []).forEach((t, ti) => {
+      const card = document.createElement('div');
+      card.className = 'pairingsTeamCard';
+      // Editable name.
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'pairingsTeamCard__name';
+      nameInput.value = t.name || `Team ${String.fromCharCode(65 + ti)}`;
+      nameInput.setAttribute('aria-label', `Team ${ti + 1} name`);
+      nameInput.addEventListener('input', () => {
+        t.name = nameInput.value;
+        // Update the head-count label without re-rendering (keeps focus)
+        const countEl = card.querySelector('.pairingsTeamCard__count');
+        if (countEl) countEl.textContent = `${(t.playerIds || []).length} player${(t.playerIds || []).length === 1 ? '' : 's'}`;
+      });
+      const head = document.createElement('div');
+      head.className = 'pairingsTeamCard__head';
+      head.appendChild(nameInput);
+      const count = document.createElement('span');
+      count.className = 'pairingsTeamCard__count';
+      count.textContent = `${(t.playerIds || []).length} player${(t.playerIds || []).length === 1 ? '' : 's'}`;
+      head.appendChild(count);
+      card.appendChild(head);
+
+      const chipsWrap = document.createElement('div');
+      chipsWrap.className = 'pairingsTeamCard__chips';
+      (t.playerIds || []).forEach((pid) => {
+        const idx = state.players.findIndex((_, ii) => wpIdForPlayer(ii) === pid);
+        const p = idx >= 0 ? state.players[idx] : null;
+        const isCap = t.captainId === pid;
+        const row = document.createElement('div');
+        row.className = 'pairingsPlayerRow';
+        const nameChip = document.createElement('span');
+        nameChip.className = 'pairingsPlayerRow__name';
+        nameChip.textContent = p ? `${p.name} (${Number(p.handicap).toFixed(1)})` : pid;
+        row.appendChild(nameChip);
+        // Captain toggle.
+        const capBtn = document.createElement('button');
+        capBtn.type = 'button';
+        capBtn.className = 'pairingsPlayerRow__cap' + (isCap ? ' is-current' : '');
+        capBtn.title = isCap ? 'Captain' : 'Make captain';
+        capBtn.setAttribute('aria-label', isCap ? 'Captain (click to unset)' : 'Make captain');
+        capBtn.textContent = isCap ? '★' : '☆';
+        capBtn.addEventListener('click', () => {
+          t.captainId = isCap ? null : pid;
+          renderPairingsRoundBody();
+        });
+        row.appendChild(capBtn);
+        // Remove.
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'pairingsPlayerRow__remove';
+        rm.textContent = '×';
+        rm.setAttribute('aria-label', 'Remove player from team');
+        rm.addEventListener('click', () => {
+          t.playerIds = (t.playerIds || []).filter((x) => x !== pid);
+          if (t.captainId === pid) t.captainId = t.playerIds[0] || null;
+          renderPairingsRoundBody();
+        });
+        row.appendChild(rm);
+        chipsWrap.appendChild(row);
+      });
+      if ((t.playerIds || []).length === 0) {
+        const empty = document.createElement('span');
+        empty.className = 'pairingsPool__empty';
+        empty.textContent = 'Empty team — tap players in the pool above.';
+        chipsWrap.appendChild(empty);
+      }
+      card.appendChild(chipsWrap);
+      teamsWrap.appendChild(card);
+    });
+    body.appendChild(teamsWrap);
+  }
+
   // ── Review ───────────────────────────────────────────────
   function renderReview() {
     const nameEl = /** @type {HTMLInputElement} */ (document.getElementById('name'));
@@ -1915,6 +2636,33 @@ try {
       rvFlightsRow.hidden = true;
       rvFlights.textContent = '';
     }
+    // Pairings summary — hidden unless at least one round has
+    // Groups or Teams pairings set.
+    const rvPairingsRow = document.getElementById('rvPairingsRow');
+    const rvPairings = document.getElementById('rvPairings');
+    const nonNoneEntries = (state.pairings || [])
+      .filter((p) => p && p.mode && p.mode !== 'none');
+    if (nonNoneEntries.length > 0) {
+      const parts = nonNoneEntries.map((p) => {
+        const label = (state.rounds[p.roundIndex] && state.rounds[p.roundIndex].roundName)
+          ? state.rounds[p.roundIndex].roundName
+          : `R${p.roundIndex + 1}`;
+        if (p.mode === 'groups') {
+          const n = (p.groups || []).length;
+          return `${label}: ${n} group${n === 1 ? '' : 's'}`;
+        }
+        if (p.mode === 'teams') {
+          const names = (p.teams || []).map((t) => t.name).slice(0, 3).join(' vs ');
+          return `${label}: ${names}`;
+        }
+        return `${label}: ${p.mode}`;
+      });
+      rvPairingsRow.hidden = false;
+      rvPairings.textContent = parts.join(' · ');
+    } else {
+      rvPairingsRow.hidden = true;
+      rvPairings.textContent = '';
+    }
   }
 
   // ── Submit ───────────────────────────────────────────────
@@ -1966,6 +2714,12 @@ try {
       // resolve to a real roster slot. Payload builder rewrites
       // `wp_<i>` → `p_<tournamentId>_<i>` server-side ids.
       flights: state.flightsMode === 'off' ? [] : state.flights,
+      // Pairings (roadmap #6). Drop `mode: 'none'` entries entirely
+      // — those are the default and the server sanitizer treats
+      // missing entries the same. Non-none entries carry their
+      // groups[] / teams[] (with `wp_<i>` player ids) through to
+      // the payload builder which rewrites ids on emit.
+      pairings: (state.pairings || []).filter((p) => p && p.mode !== 'none'),
     };
 
     submitBtn.disabled = true;
@@ -2861,4 +3615,208 @@ try {
     font-family: inherit;
     background: #fff;
   }
+
+  /* ── Pairings step ─────────────────────────────────────── */
+  .pairingsRoundTabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 12px 0 16px;
+  }
+  .pairingsRoundTab {
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #f1f4f2;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .pairingsRoundTab.is-current {
+    background: var(--brand-green);
+    color: #fff;
+    border-color: var(--brand-green);
+  }
+  .pairingsRoundBody {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-top: 4px;
+  }
+  .pairingsFootHint { margin-top: 10px; }
+  .pairingsCopyRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0;
+  }
+  .pairingsCopyRow select {
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+    flex: 1;
+    min-width: 0;
+  }
+  .pairingsActionsRow {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .pairingsTeamCountLabel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+  .pairingsTeamCountLabel select {
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+  }
+  .pairingsPool {
+    background: #f7faf8;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .pairingsPool__label {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 6px;
+  }
+  .pairingsPool__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pairingsPool__empty {
+    color: var(--ink-muted);
+    font-size: 13px;
+    font-style: italic;
+  }
+  .pairingsChip {
+    border: 1px solid var(--line);
+    background: #fff;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .pairingsChip:hover {
+    background: rgba(47, 125, 68, 0.08);
+    border-color: var(--brand-green);
+  }
+  .pairingsChip--pool {}
+  .pairingsChip--assigned {
+    background: rgba(47, 125, 68, 0.08);
+    border-color: var(--brand-green);
+  }
+  .pairingsGroups,
+  .pairingsTeams {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+  }
+  .pairingsGroupCard,
+  .pairingsTeamCard {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pairingsGroupCard__head,
+  .pairingsTeamCard__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .pairingsGroupCard__count,
+  .pairingsTeamCard__count {
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .pairingsGroupCard__holeLabel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+  .pairingsGroupCard__holeSelect {
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+  }
+  .pairingsGroupCard__chips,
+  .pairingsTeamCard__chips {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .pairingsGroupCard__chips {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .pairingsTeamCard__name {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    background: #fff;
+    min-width: 0;
+  }
+  .pairingsPlayerRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    border-bottom: 1px solid #f1f4f2;
+  }
+  .pairingsPlayerRow:last-child { border-bottom: none; }
+  .pairingsPlayerRow__name {
+    flex: 1;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .pairingsPlayerRow__cap {
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--ink-muted);
+    font-size: 16px;
+    padding: 2px 4px;
+    font-family: inherit;
+  }
+  .pairingsPlayerRow__cap.is-current { color: #d19a00; }
+  .pairingsPlayerRow__remove {
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--ink-muted);
+    font-size: 16px;
+    padding: 2px 6px;
+    font-family: inherit;
+    line-height: 1;
+  }
+  .pairingsPlayerRow__remove:hover { color: var(--error); }
 </style>

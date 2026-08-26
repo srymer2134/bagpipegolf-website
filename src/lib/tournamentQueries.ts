@@ -68,6 +68,17 @@ export type TournamentFlight = {
   tee_name?: string | null;
 };
 
+/** Top-level tournament team (season roster for Cup / match-points).
+ *  Mirrors the mobile app's `TournamentTeam.toJson()` shape. */
+export type TournamentTopTeam = {
+  id: string;
+  name: string;
+  color_hex?: string | null;
+  colorHex?: string | null;
+  player_ids?: string[];
+  playerIds?: string[];
+};
+
 export type TournamentRow = {
   id: string;
   user_id: string;
@@ -87,13 +98,16 @@ export type TournamentRow = {
   /// (`gross_skins` | `net_skins` | `super_skins`).
   skins_competitions?: string[] | null;
   flights?: TournamentFlight[] | null;
+  /// Top-level season teams (Cup / match-points). Empty on
+  /// stroke-aggregate tournaments.
+  teams?: TournamentTopTeam[] | null;
 };
 
 const TOURNAMENT_COLS =
   'id, user_id, name, course_name, total_holes, par_total, ' +
   'created_at, updated_at, completed_at, players, rounds, ' +
   'tee_boxes, scoring_mode, use_net_scoring, ' +
-  'skins_competitions, flights';
+  'skins_competitions, flights, teams';
 
 /// List tournaments owned by the currently-authenticated user.
 /// The `tournaments` RLS "owner-only" policy on authenticated
