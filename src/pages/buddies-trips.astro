@@ -1,0 +1,557 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AppLinkBanner from '../components/AppLinkBanner.astro';
+
+// Buddies Trips — dedicated landing for the multi-round, team-Cup
+// use case that anchors Bagpipe's product story. The homepage
+// "Plan your trip" CTA rewires here (2026-08-25). Reuses:
+//   - the four Cup templates codified in tournaments.astro
+//   - the round-format catalog codified in tournaments.astro
+//     (mirrors lib/features/tourney kRyderCupVariants + the
+//     docs/HOWTO_TOURNAMENTS.md format list)
+// Keep in sync with tournaments.astro — when a new template
+// or format ships, update both pages in the same PR.
+
+interface Format {
+  name: string;
+  kind: 'individual' | 'team';
+  body: string;
+}
+
+const formats: Format[] = [
+  {
+    name: 'Stroke Play',
+    kind: 'individual',
+    body: 'Gross strokes per hole. Lowest 18-hole total wins. Net = gross minus course handicap.',
+  },
+  {
+    name: 'Match Play (Singles)',
+    kind: 'individual',
+    body: '1-on-1, hole by hole. Match closes when the lead exceeds holes remaining (4&3, 5&4…).',
+  },
+  {
+    name: 'Stableford',
+    kind: 'individual',
+    body: 'Points format: bogey 1, par 2, birdie 3, eagle 4. Net Stableford applies handicap first.',
+  },
+  {
+    name: 'Modified Stableford',
+    kind: 'individual',
+    body: 'Custom table that rewards attack: eagle +5, birdie +2, par 0, bogey −1, double-or-worse −3.',
+  },
+  {
+    name: 'Best Ball / Four-Ball',
+    kind: 'team',
+    body: 'Each player plays their own ball. Team hole score = lower of the two net scores.',
+  },
+  {
+    name: 'Scramble',
+    kind: 'team',
+    body: 'Everyone tees off, captain picks the best drive, everyone plays their next from there.',
+  },
+  {
+    name: 'Foursomes (Alternate Shot)',
+    kind: 'team',
+    body: 'One ball, one team. Partners alternate strokes; odd holes / even holes split tee shots.',
+  },
+  {
+    name: 'Greensomes',
+    kind: 'team',
+    body: 'Both tee off, pick the better drive, alternate shots from there.',
+  },
+  {
+    name: 'Pinehurst (Chapman)',
+    kind: 'team',
+    body: 'Both tee off, swap balls for second shot, pick one, alternate from there.',
+  },
+  {
+    name: 'Bloodsome',
+    kind: 'team',
+    body: 'Reverse Scramble — captain picks the WORSE drive, alternate shots from there. Punishing.',
+  },
+  {
+    name: 'Round Robin',
+    kind: 'team',
+    body: 'Partners rotate every 6 holes so every pairing plays together once. Three 6-hole matches.',
+  },
+];
+
+// Cup templates — same four presets surfaced on /tournaments. Names
+// mirror kRyderCupVariants in the Flutter app; presenting all four
+// here is intentional (this page's whole purpose is showcasing Cup
+// depth). Do not invent new templates in this page — add to the
+// Flutter wizard first, mirror to tournaments.astro, then here.
+
+interface CupTemplate {
+  name: string;
+  pitch: string;         // one-line hook
+  fit: string;           // who it's for
+  includes: string[];    // 3-5 bullets
+}
+
+const cupTemplates: CupTemplate[] = [
+  {
+    name: 'Ryder Cup Classic',
+    pitch:
+      'The definitive 5-session team match — three days, alternating formats, Singles Match Play to close.',
+    fit: 'Two teams (8-12 per side), three-day trip, everyone plays every session.',
+    includes: [
+      'Foursomes / Four-Ball / Foursomes / Four-Ball / Singles',
+      '5 points total (1 per session) — first team to 3 wins the Cup',
+      'Team Rosters step in the wizard + Cup Scoreboard',
+      'Sessions morph to your round count without breaking the point weights',
+    ],
+  },
+  {
+    name: 'Scarecrow Cup',
+    pitch:
+      '5 rounds across 2 courses. Every round scores different points — the weight of the day shifts as the trip unfolds.',
+    fit: 'Long-weekend trip with mixed formats and a big Singles finale.',
+    includes: [
+      'Best Ball · Best Three of Four · High-Low · Twelves · Singles',
+      '33 points total, front-loaded but back-loaded in leverage',
+      'Team composer + live Cup Scoreboard',
+      'Practice-green tiebreaker (off-app) when it comes down to it',
+    ],
+  },
+  {
+    name: 'Ballyneal Brigade',
+    pitch:
+      'Team Best Ball Friday and Saturday. Optional Saturday afternoon round. Individual Championship Sunday.',
+    fit: 'Weekend trip that mixes team play with an individual finale.',
+    includes: [
+      '4-Man Best Ball / 2-Man Best Ball / optional round / Individual Championship',
+      'Net-only leaderboard for the trip',
+      'Thru-Saturday carry-in feeds the Sunday Championship',
+      'Optional rounds skip cleanly — opts-out don’t break the aggregate',
+    ],
+  },
+  {
+    name: 'Bandon Dunes Cup',
+    pitch:
+      'Round-count-driven — pick 2–12 rounds, the template pre-populates the schedule. Singles Match Play always closes.',
+    fit: 'Bucket-list trips (Bandon, Streamsong, Cabot, etc.) — any length from a long weekend to a 10-day event.',
+    includes: [
+      'Team rounds up front, medal round penultimate, Singles Match Play closes',
+      '6+ rounds: The Preserve par-3 shootout',
+      '10+ rounds: Shorty\'s joins the rotation',
+      'Par-3 Closest-to-Pin tracked on every par 3 across the whole trip',
+      'Supports 4–48 players',
+    ],
+  },
+];
+---
+
+<BaseLayout
+  title="Buddies Trips · Bagpipe Golf"
+  description="Multi-round buddies trips, done right. Mix formats round by round, run a Ryder-style Cup across the whole trip, and let the app handle pairings, points, and settlement. Ryder Cup Classic, Scarecrow Cup, Ballyneal Brigade, Bandon Dunes Cup — plus a wizard to design your own."
+>
+  <main class="pagewrap">
+    <!-- ───────── Hero ───────── -->
+    <p class="pagewrap__eyebrow">Buddies Trips</p>
+    <h1 class="pagewrap__title">Made for the trip of the year.</h1>
+    <p class="pagewrap__sub">
+      Ryder-Cup-style Cups across every course, cumulative team scoring,
+      live standings for the whole group — pre-loaded and ready in under a
+      minute. Pick your format, pick your teams, hand out the join code.
+      The app handles the rest.
+    </p>
+
+    <div class="hero__ctas">
+      <a class="btn btn--primary" href="/app/tournaments/new">Create a trip</a>
+      <a
+        class="btn btn--ghost"
+        href="mailto:hello@bagpipegolf.com?subject=Custom%20buddies%20trip%20format"
+      >Ask us about a custom format</a>
+    </div>
+
+    <AppLinkBanner
+      singular="trip"
+      plural="trips"
+      appPath="/app/tournaments"
+      productLabel="buddies trips"
+    />
+
+    <!-- ───────── Plaid divider ───────── -->
+    <div class="plaid-divider" aria-hidden="true"></div>
+
+    <!-- ───────── Formats section ───────── -->
+    <section class="formats">
+      <div class="section-head">
+        <span class="chip">Round Formats</span>
+        <h2>Mix formats round by round.</h2>
+        <p class="section-sub">
+          Each round of your trip can be a different game. Foursomes
+          Friday morning, Four-Ball in the afternoon, Modified Stableford
+          Saturday, Singles Match Play Sunday — the leaderboard aggregates
+          across all of it.
+        </p>
+      </div>
+
+      <div class="fgrid">
+        {
+          formats.map((f) => (
+            <article class="fcard">
+              <header class="fcard__head">
+                <h3>{f.name}</h3>
+                <span class="chip chip--muted">
+                  {f.kind === 'individual' ? 'Individual' : 'Team'}
+                </span>
+              </header>
+              <p>{f.body}</p>
+            </article>
+          ))
+        }
+      </div>
+
+      <p class="formats__footnote">
+        Full format details — handicap allowances, per-hole scoring
+        rules, edge cases — live on the
+        <a href="/tournaments">Tournaments page</a>.
+      </p>
+    </section>
+
+    <!-- ───────── Cup models section ───────── -->
+    <section class="cups">
+      <div class="section-head">
+        <span class="chip">Cup Templates</span>
+        <h2>Pre-built Cups. Drop in your roster. Tee off.</h2>
+        <p class="section-sub">
+          A Cup is a season-in-a-weekend: rotating formats, team scoring,
+          points that stack across rounds, a single scoreboard that tells
+          the whole story. Pick a template and the wizard configures the
+          rest.
+        </p>
+      </div>
+
+      <div class="cgrid">
+        {
+          cupTemplates.map((c) => (
+            <article class="ccard">
+              <header class="ccard__head">
+                <h3>{c.name}</h3>
+              </header>
+              <p class="ccard__pitch">{c.pitch}</p>
+              <p class="ccard__fit">
+                <span class="ccard__fitlabel">Who it's for:</span> {c.fit}
+              </p>
+              <ul class="ccard__includes">
+                {c.includes.map((line) => <li>{line}</li>)}
+              </ul>
+            </article>
+          ))
+        }
+      </div>
+
+      <aside class="callout">
+        <strong>Cup composition is auto-derived.</strong>
+        Pick your round formats and team picks — Bagpipe builds the
+        pairings, seeds the Cup scoreboard, and updates standings as
+        scores land. No manual bracket-building, no spreadsheet, no
+        yellow legal pad on the cart path.
+      </aside>
+    </section>
+
+    <!-- ───────── Custom formats CTA ───────── -->
+    <section class="custom">
+      <div class="custom__inner">
+        <span class="chip custom__chip">Have a Wild Tradition?</span>
+        <h2>Bring your own format.</h2>
+        <p>
+          If your trip has a format we don't cover — one-club rounds,
+          alternating-shot chaos, a weird scoring rule your buddies
+          invented in college — email us. We'll help you design it and
+          get it running for your next trip.
+        </p>
+        <a
+          class="btn btn--primary custom__cta"
+          href="mailto:hello@bagpipegolf.com?subject=Custom%20buddies%20trip%20format"
+        >Email hello@bagpipegolf.com</a>
+      </div>
+    </section>
+
+    <!-- ───────── Final CTA ───────── -->
+    <section class="cta">
+      <h2>Ready to plan the trip?</h2>
+      <p>Pick a template, invite your crew, hand out the join code. It lives on your phone.</p>
+      <div class="cta__row">
+        <a class="btn btn--primary" href="/app/tournaments/new">Create your trip</a>
+        <a class="btn btn--ghost" href="/tournaments">See all tournament formats</a>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  /* ── Hero CTAs ─────────────────────────────────────── */
+  .hero__ctas {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 0 0 28px;
+  }
+
+  /* ── Plaid divider (mirrors index.astro / PR #77) ── */
+  .plaid-divider {
+    width: min(280px, 46vw);
+    height: 8px;
+    margin: 8px auto 40px;
+    border-radius: 4px;
+    background:
+      repeating-linear-gradient(
+        45deg,
+        rgba(15, 61, 46, 0.60) 0 4px,
+        rgba(15, 61, 46, 0.35) 4px 8px,
+        rgba(201, 164, 78, 0.65) 8px 10px,
+        rgba(15, 61, 46, 0.35) 10px 14px
+      );
+    box-shadow:
+      inset 0 0 0 1px rgba(250, 246, 235, 0.55),
+      0 1px 2px rgba(15, 61, 46, 0.08);
+    opacity: 0.7;
+  }
+
+  /* ── Shared section header ─────────────────────────── */
+  .section-head {
+    margin: 24px 0 20px;
+  }
+  .section-head .chip {
+    margin-bottom: 12px;
+  }
+  .section-head h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 8px 0 8px;
+  }
+  .section-sub {
+    color: var(--ink-muted);
+    margin: 0;
+    font-size: 15px;
+    max-width: 68ch;
+  }
+
+  /* ── Formats grid ──────────────────────────────────── */
+  .formats { margin-top: 8px; }
+
+  .fgrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  @media (max-width: 960px) {
+    .fgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .fgrid { grid-template-columns: 1fr; }
+  }
+
+  .fcard {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .fcard__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .fcard__head h3 {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+  }
+  .fcard p {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .formats__footnote {
+    margin-top: 20px;
+    color: var(--ink-muted);
+    font-size: 14px;
+  }
+
+  /* ── Cups grid ─────────────────────────────────────── */
+  .cups {
+    margin-top: 56px;
+    padding: 40px 32px;
+    background: linear-gradient(180deg, #fff 0%, var(--paper-tint) 100%);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+  }
+  .cups .section-head {
+    text-align: left;
+    margin-top: 0;
+  }
+
+  .cgrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+  }
+  @media (max-width: 880px) {
+    .cgrid { grid-template-columns: 1fr; }
+  }
+
+  .ccard {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 22px 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(15, 61, 37, 0.04);
+    transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  }
+  .ccard:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15, 61, 37, 0.10);
+    border-color: rgba(26, 92, 56, 0.28);
+  }
+  .ccard__head h3 {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .ccard__pitch {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+    font-weight: 600;
+  }
+  .ccard__fit {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .ccard__fitlabel {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--brand-green);
+    margin-right: 4px;
+  }
+  .ccard__includes {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ccard__includes li {
+    padding-left: 22px;
+    position: relative;
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .ccard__includes li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--brand-green);
+    font-weight: 800;
+  }
+
+  .callout {
+    margin-top: 20px;
+    padding: 18px 22px;
+    background: var(--brand-green-pale);
+    border-radius: 12px;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .callout strong {
+    color: var(--brand-green-dark);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* ── Custom formats band ───────────────────────────── */
+  .custom {
+    margin-top: 40px;
+    padding: 44px 32px;
+    background: var(--brand-green-dark);
+    border-radius: 20px;
+    color: #fff;
+    text-align: center;
+  }
+  .custom__inner {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .custom__chip {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    margin-bottom: 12px;
+  }
+  .custom h2 {
+    font-size: clamp(24px, 3vw, 32px);
+    font-weight: 800;
+    color: #fff;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+  .custom p {
+    color: rgba(255, 255, 255, 0.88);
+    margin: 0 0 20px;
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .custom__cta {
+    background: #fff;
+    color: var(--brand-green-dark);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  }
+  .custom__cta:hover {
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--brand-green-dark);
+  }
+
+  /* ── Final CTA ─────────────────────────────────────── */
+  .cta {
+    margin-top: 56px;
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--brand-green-pale);
+    border-radius: 20px;
+  }
+  .cta h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 8px;
+  }
+  .cta p {
+    color: var(--ink);
+    margin: 0 0 20px;
+    font-size: 16px;
+  }
+  .cta__row {
+    display: inline-flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+</style>
