@@ -399,10 +399,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     color: var(--brand-green-dark);
     font-weight: 800;
   }
-  .bullets--dark li {
+  /*
+   * Specificity boost via `.bullets.bullets--dark` (0,0,2,1) so
+   * these dark-on-light rules beat the base `.bullets li` white
+   * text (0,0,1,1) that appears LATER in the source. Without the
+   * extra `.bullets` in the selector, source order wins the tie
+   * and the buddies-trip bullets render as white-on-mint —
+   * effectively invisible (Sam screenshot 2026-08-25).
+   */
+  .bullets.bullets--dark li {
     color: var(--ink);
   }
-  .bullets--dark li::before {
+  .bullets.bullets--dark li::before {
     color: var(--brand-green);
   }
 
