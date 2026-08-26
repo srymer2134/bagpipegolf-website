@@ -325,9 +325,12 @@ try {
     rounds: [
       // Rating/slope/par default to null until a course loads +
       // the user picks a tee. Populated in renderRounds().
+      // Phase 2a: startType defaults to teeTimes (foursomes) — the
+      // most common shape.
       { teeName: '', totalHoles: 18, format: 'stroke',
         courseRating: null, slopeRating: null, parTotal: null,
-        gender: 'male' },
+        gender: 'male',
+        startType: 'teeTimes', teeTimeGroupSize: 4, shotgunStartTime: '' },
     ],
     players: [],
   };
@@ -505,11 +508,19 @@ try {
   // ── Rounds editor ────────────────────────────────────────
   const roundsList = document.getElementById('roundsList');
   document.getElementById('addRoundBtn').addEventListener('click', () => {
-    if (state.rounds.length >= 4) {
-      showError('Phase 1 supports up to 4 rounds. Add more in the mobile app.');
+    if (state.rounds.length >= 12) {
+      showError('Up to 12 rounds per tournament.');
       return;
     }
-    state.rounds.push({ teeName: 'White', totalHoles: 18, format: 'stroke' });
+    state.rounds.push({
+      teeName: 'White',
+      totalHoles: 18,
+      format: 'stroke',
+      // Phase 2a defaults — tee times, foursomes, no shotgun time.
+      startType: 'teeTimes',
+      teeTimeGroupSize: 4,
+      shotgunStartTime: '',
+    });
     renderRounds();
   });
 
@@ -562,6 +573,12 @@ try {
               return `<option value="idx::${ti}" ${isSel ? 'selected' : ''}>${escapeHtml(teeLabel(t))}</option>`;
             })
             .join('');
+      // Phase 2a: start type + group size + shotgun time. Read
+      // defensively — old rounds seeded pre-2a won't have these
+      // fields; falls back to teeTimes / 4 / no time.
+      const startType = r.startType === 'shotgun' ? 'shotgun' : 'teeTimes';
+      const groupSize = r.teeTimeGroupSize === 2 || r.teeTimeGroupSize === 3 ? r.teeTimeGroupSize : 4;
+      const shotgunTime = typeof r.shotgunStartTime === 'string' ? r.shotgunStartTime : '';
       li.innerHTML = `
         <div class="roundsList__idx">R${i + 1}</div>
         <label>
@@ -586,6 +603,29 @@ try {
             <option value="bestBall" ${r.format === 'bestBall' ? 'selected' : ''}>Best ball</option>
             <option value="matchPlay" ${r.format === 'matchPlay' ? 'selected' : ''}>Match</option>
           </select>
+        </label>
+        <label>
+          <span>Start</span>
+          <select data-round-starttype="${i}">
+            <option value="teeTimes" ${startType === 'teeTimes' ? 'selected' : ''}>Tee times</option>
+            <option value="shotgun" ${startType === 'shotgun' ? 'selected' : ''}>Shotgun</option>
+          </select>
+        </label>
+        <label>
+          <span>Groups</span>
+          <select data-round-groupsize="${i}">
+            <option value="4" ${groupSize === 4 ? 'selected' : ''}>Foursomes (4)</option>
+            <option value="3" ${groupSize === 3 ? 'selected' : ''}>Threesomes (3)</option>
+            <option value="2" ${groupSize === 2 ? 'selected' : ''}>Twosomes (2)</option>
+          </select>
+        </label>
+        <label data-round-shotguntime-wrap="${i}" ${startType !== 'shotgun' ? 'hidden' : ''}>
+          <span>Shotgun time</span>
+          <input
+            type="time"
+            data-round-shotguntime="${i}"
+            value="${escapeHtml(shotgunTime)}"
+          />
         </label>
         <button type="button" class="roundsList__remove" data-round-remove="${i}" aria-label="Remove round ${i + 1}">×</button>
       `;
@@ -621,6 +661,35 @@ try {
       el.addEventListener('change', (e) => {
         const idx = Number(el.getAttribute('data-round-format'));
         state.rounds[idx].format = /** @type {HTMLSelectElement} */ (e.target).value;
+      });
+    });
+    roundsList.querySelectorAll('[data-round-starttype]').forEach((el) => {
+      el.addEventListener('change', (e) => {
+        const idx = Number(el.getAttribute('data-round-starttype'));
+        const val = /** @type {HTMLSelectElement} */ (e.target).value;
+        state.rounds[idx].startType = val === 'shotgun' ? 'shotgun' : 'teeTimes';
+        // Toggle the shotgun-time input's visibility inline so the
+        // user sees the field appear immediately without a full
+        // re-render (which would reset any in-flight tee edits).
+        const wrap = roundsList.querySelector(`[data-round-shotguntime-wrap="${idx}"]`);
+        if (wrap) wrap.hidden = state.rounds[idx].startType !== 'shotgun';
+        if (state.rounds[idx].startType !== 'shotgun') {
+          state.rounds[idx].shotgunStartTime = '';
+        }
+      });
+    });
+    roundsList.querySelectorAll('[data-round-groupsize]').forEach((el) => {
+      el.addEventListener('change', (e) => {
+        const idx = Number(el.getAttribute('data-round-groupsize'));
+        const v = Number(/** @type {HTMLSelectElement} */ (e.target).value);
+        state.rounds[idx].teeTimeGroupSize = (v === 2 || v === 3) ? v : 4;
+      });
+    });
+    roundsList.querySelectorAll('[data-round-shotguntime]').forEach((el) => {
+      el.addEventListener('input', (e) => {
+        const idx = Number(el.getAttribute('data-round-shotguntime'));
+        state.rounds[idx].shotgunStartTime =
+          /** @type {HTMLInputElement} */ (e.target).value;
       });
     });
     roundsList.querySelectorAll('[data-round-remove]').forEach((el) => {
@@ -1015,9 +1084,13 @@ try {
     flex-direction: column;
     gap: 10px;
   }
+  /* Phase 2a: flex-wrap so the extra Start / Groups / Shotgun-time
+   * fields wrap gracefully on narrow viewports. Fixed idx label +
+   * remove button on the flanks; middle fields wrap freely.
+   */
   .roundsList__row {
-    display: grid;
-    grid-template-columns: auto 1fr 1fr 1fr auto;
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     align-items: end;
     padding: 12px;
@@ -1025,6 +1098,9 @@ try {
     border-radius: 10px;
     background: #fafbfa;
   }
+  .roundsList__row > label { flex: 1 1 120px; min-width: 100px; }
+  .roundsList__row > .roundsList__idx { flex: 0 0 auto; }
+  .roundsList__row > .roundsList__remove { flex: 0 0 auto; margin-left: auto; }
   .roundsList__row label {
     display: flex;
     flex-direction: column;
@@ -1035,12 +1111,14 @@ try {
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .roundsList__row select {
+  .roundsList__row select,
+  .roundsList__row input[type="time"] {
     padding: 8px 10px;
     border: 1px solid var(--line);
     border-radius: 8px;
     font-size: 14px;
     background: #fff;
+    font-family: inherit;
   }
   .roundsList__idx {
     font-weight: 800;

@@ -28,6 +28,8 @@ export type WizardPlayerInput = {
   userId?: string | null;
 };
 
+export type StartType = 'teeTimes' | 'shotgun';
+
 export type WizardRoundInput = {
   teeName: string;
   totalHoles: 9 | 18;
@@ -39,6 +41,25 @@ export type WizardRoundInput = {
   slopeRating?: number | null;
   parTotal?: number | null;
   gender?: FieldGender;
+  /** Phase 2a: how groups start the round. `teeTimes` (default) =
+   *  historical sequential-from-hole-1 flow; `shotgun` = every
+   *  group starts simultaneously from their assigned start hole
+   *  at `shotgunStartTime`. Team-level start-hole assignment
+   *  happens in the pairing composer (Phase 3) — the wizard just
+   *  captures the round-level intent. */
+  startType?: StartType;
+  /** Phase 2a: players per tee-time group (2/3/4). Default 4.
+   *  Applies to teeTimes AND shotgun rounds — even shotgun rounds
+   *  bundle players into groups; the number just varies. Serialised
+   *  as `tee_time_group_size` on the wire to match the mobile app
+   *  (which distinguishes `group_size` for team assembly from
+   *  `tee_time_group_size` for on-course grouping). */
+  teeTimeGroupSize?: 2 | 3 | 4;
+  /** Phase 2a: HH:MM string for shotgun rounds (e.g. `"09:00"`).
+   *  Ignored when `startType === 'teeTimes'`. Purely display /
+   *  run-book copy — engines don't read it. Optional at wizard
+   *  time; director can fill in later via Manage. */
+  shotgunStartTime?: string | null;
 };
 
 export type WizardCourseInput = {
@@ -108,18 +129,33 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
   // (see lib/core/models/tournament.dart) — index, teeBoxName,
   // totalHoles, format. Score fields default empty; the app / web
   // scoring UI fills them in as the round is played.
-  const rounds = input.rounds.map((r, i) => ({
-    index: i,
-    teeBoxName: r.teeName,
-    totalHoles: r.totalHoles,
-    format: r.format,
-    // Player-hole-scores + per-player stroke totals default empty
-    // so the leaderboard renders a blank scorecard until a scorer
-    // starts entering values.
-    playerHoleScores: {},
-    playerStrokes: {},
-    completed: false,
-  }));
+  const rounds = input.rounds.map((r, i) => {
+    const startType = r.startType ?? 'teeTimes';
+    const teeTimeGroupSize = r.teeTimeGroupSize ?? 4;
+    const shotgunStartTime =
+      startType === 'shotgun' && r.shotgunStartTime && r.shotgunStartTime.trim().length > 0
+        ? r.shotgunStartTime.trim()
+        : null;
+    return {
+      index: i,
+      teeBoxName: r.teeName,
+      totalHoles: r.totalHoles,
+      format: r.format,
+      // Phase 2a additions. Snake-case on the wire matches the
+      // mobile app's toJson (`start_type`, `tee_time_group_size`,
+      // `shotgun_start_time`) — TOURNAMENT_PATCH_ALLOWED accepts
+      // the round jsonb as an opaque blob so shape is client-owned.
+      start_type: startType === 'shotgun' ? 'shotgun' : 'tee_times',
+      tee_time_group_size: teeTimeGroupSize,
+      shotgun_start_time: shotgunStartTime,
+      // Player-hole-scores + per-player stroke totals default empty
+      // so the leaderboard renders a blank scorecard until a scorer
+      // starts entering values.
+      playerHoleScores: {},
+      playerStrokes: {},
+      completed: false,
+    };
+  });
 
   // Players carry a stable local id so subsequent PATCHes can
   // address them even before they sign in.  Handicap is stored as

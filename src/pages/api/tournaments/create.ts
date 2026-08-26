@@ -101,8 +101,8 @@ function validateWizardInput(
   if (roundsRaw.length === 0) {
     return { error: 'At least one round is required.' };
   }
-  if (roundsRaw.length > 4) {
-    return { error: 'Phase 1 supports up to 4 rounds.' };
+  if (roundsRaw.length > 12) {
+    return { error: 'Up to 12 rounds per tournament.' };
   }
   const rounds = roundsRaw.map((entry, i) => {
     if (!entry || typeof entry !== 'object') {
@@ -124,6 +124,20 @@ function validateWizardInput(
       e.gender === 'female' || e.gender === 'mixed' ? e.gender : 'male';
     const num = (v: unknown): number | null =>
       typeof v === 'number' && Number.isFinite(v) ? v : null;
+    // Phase 2a additions. Sanitize each: startType only allows
+    // teeTimes|shotgun, teeTimeGroupSize snaps to 2/3/4 (defaults 4),
+    // shotgunStartTime is a HH:MM string (or null when teeTimes).
+    const startType = e.startType === 'shotgun' ? 'shotgun' : 'teeTimes';
+    const rawGroupSize = Number(e.teeTimeGroupSize);
+    const teeTimeGroupSize: 2 | 3 | 4 =
+      rawGroupSize === 2 || rawGroupSize === 3 || rawGroupSize === 4
+        ? (rawGroupSize as 2 | 3 | 4)
+        : 4;
+    const shotgunStartTime =
+      startType === 'shotgun' && typeof e.shotgunStartTime === 'string' &&
+      /^\d{1,2}:\d{2}$/.test(e.shotgunStartTime.trim())
+        ? e.shotgunStartTime.trim()
+        : null;
     return {
       teeName,
       totalHoles,
@@ -132,6 +146,9 @@ function validateWizardInput(
       courseRating: num(e.courseRating),
       slopeRating: num(e.slopeRating),
       parTotal: num(e.parTotal),
+      startType,
+      teeTimeGroupSize,
+      shotgunStartTime,
     } as const;
   });
 
