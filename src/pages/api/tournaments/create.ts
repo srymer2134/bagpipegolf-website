@@ -4,6 +4,7 @@ import {
   buildCreatePayload,
   type CreateTournamentResponse,
   type WizardInput,
+  type WizardRoundInput,
 } from '../../../lib/tournamentCreate';
 
 // POST /api/tournaments/create
@@ -87,15 +88,29 @@ function validateWizardInput(
       ? r.fieldGender
       : 'male';
 
-  const scoringMode =
-    r.scoringMode === 'strokeAggregate' ||
-    r.scoringMode === 'scramble' ||
-    r.scoringMode === 'bestBall' ||
-    r.scoringMode === 'matchPlay'
-      ? r.scoringMode
+  // Accept both the pre-Cup Format-step camelCase enums
+  // ('strokeAggregate' | 'scramble' | 'bestBall' | 'matchPlay')
+  // AND the Cup-template canonical snake_case wire values
+  // ('stroke_aggregate' | 'match_points'). Payload builder
+  // translates to canonical on emit.
+  const scoringModeRaw = r.scoringMode;
+  const scoringMode: WizardInput['scoringMode'] =
+    scoringModeRaw === 'strokeAggregate' ||
+    scoringModeRaw === 'scramble' ||
+    scoringModeRaw === 'bestBall' ||
+    scoringModeRaw === 'matchPlay' ||
+    scoringModeRaw === 'stroke_aggregate' ||
+    scoringModeRaw === 'match_points'
+      ? scoringModeRaw
       : 'strokeAggregate';
 
   const useNetScoring = r.useNetScoring !== false; // default true
+  const trackCTPOnPar3s = r.trackCTPOnPar3s === true;
+  const trackLongestDrive = r.trackLongestDrive === true;
+  const templateId =
+    typeof r.templateId === 'string' && r.templateId.length > 0
+      ? r.templateId
+      : null;
 
   const roundsRaw = Array.isArray(r.rounds) ? r.rounds : [];
   if (roundsRaw.length === 0) {
@@ -104,6 +119,23 @@ function validateWizardInput(
   if (roundsRaw.length > 12) {
     return { error: 'Up to 12 rounds per tournament.' };
   }
+  // Allowed round formats — both the pre-Cup Rounds-step
+  // camelCase enum values AND the Cup-template snake_case wire
+  // values. Payload builder normalizes to canonical snake_case
+  // on emit.
+  const ALLOWED_FORMATS = new Set<string>([
+    // pre-Cup (Format dropdown on Rounds step)
+    'stroke', 'scramble', 'bestBall', 'matchPlay',
+    // Cup templates (Step 0)
+    'stroke_play', 'match_play_singles',
+    'best_ball', 'best_ball_four_man', 'best_three_of_four',
+    'foursomes', 'greensomes', 'pinehurst',
+    'modified_stableford', 'high_low_2v2', 'twelves',
+    'bramble', 'yellow_ball',
+  ]);
+  const ALLOWED_COMPOSITION_MODES = new Set<string>([
+    'auto', 'presidents_cup', 'teammates_pick', 'blind_submit',
+  ]);
   const rounds = roundsRaw.map((entry, i) => {
     if (!entry || typeof entry !== 'object') {
       throw new Error(`Round ${i + 1} is malformed.`);
@@ -114,12 +146,10 @@ function validateWizardInput(
         ? e.teeName.trim()
         : 'Default';
     const totalHoles = e.totalHoles === 9 ? 9 : 18;
-    const format =
-      e.format === 'scramble' ||
-      e.format === 'bestBall' ||
-      e.format === 'matchPlay'
-        ? e.format
-        : 'stroke';
+    const rawFormat = typeof e.format === 'string' ? e.format : '';
+    const format = (ALLOWED_FORMATS.has(rawFormat)
+      ? rawFormat
+      : 'stroke') as WizardRoundInput['format'];
     const gender =
       e.gender === 'female' || e.gender === 'mixed' ? e.gender : 'male';
     const num = (v: unknown): number | null =>
@@ -138,6 +168,37 @@ function validateWizardInput(
       /^\d{1,2}:\d{2}$/.test(e.shotgunStartTime.trim())
         ? e.shotgunStartTime.trim()
         : null;
+    // Cup template additions. All optional — omitted on Blank
+    // rounds so their absence round-trips as pre-Cup behavior.
+    const roundName =
+      typeof e.roundName === 'string' && e.roundName.trim().length > 0
+        ? e.roundName.trim()
+        : null;
+    const pointsRaw = Number(e.pointsAvailable);
+    const pointsAvailable = Number.isFinite(pointsRaw) && pointsRaw > 0
+      ? Math.min(100, Math.round(pointsRaw))
+      : 1;
+    const useIndividualScoring = e.useIndividualScoring === true;
+    const rawComp = typeof e.matchupCompositionMode === 'string'
+      ? e.matchupCompositionMode : null;
+    const matchupCompositionMode =
+      rawComp && ALLOWED_COMPOSITION_MODES.has(rawComp)
+        ? (rawComp as 'auto' | 'presidents_cup' | 'teammates_pick' | 'blind_submit')
+        : null;
+    const scheduledDate =
+      typeof e.scheduledDate === 'string' &&
+      /^\d{4}-\d{2}-\d{2}$/.test(e.scheduledDate)
+        ? e.scheduledDate
+        : null;
+    const firstTeeTime =
+      typeof e.firstTeeTime === 'string' &&
+      /^\d{1,2}:\d{2}$/.test(e.firstTeeTime.trim())
+        ? e.firstTeeTime.trim()
+        : null;
+    const courseKey =
+      typeof e.courseKey === 'string' && e.courseKey.length > 0
+        ? e.courseKey
+        : null;
     return {
       teeName,
       totalHoles,
@@ -149,6 +210,13 @@ function validateWizardInput(
       startType,
       teeTimeGroupSize,
       shotgunStartTime,
+      roundName,
+      pointsAvailable,
+      useIndividualScoring,
+      matchupCompositionMode,
+      scheduledDate,
+      firstTeeTime,
+      courseKey,
     } as const;
   });
 
@@ -209,6 +277,9 @@ function validateWizardInput(
       fieldGender,
       scoringMode,
       useNetScoring,
+      templateId,
+      trackCTPOnPar3s,
+      trackLongestDrive,
       rounds,
       players,
     },

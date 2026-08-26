@@ -12,12 +12,52 @@
 // `sponsors`, `pools`, and the pairing composer fields.
 
 export type FieldGender = 'male' | 'female' | 'mixed';
+// Pre-Cup-template (Phase 2a) scoring modes — camelCase strings
+// the Format-step radios emit. Kept for backwards compatibility
+// with clients that only send these four.
 export type ScoringMode =
   | 'strokeAggregate'
   | 'scramble'
   | 'bestBall'
   | 'matchPlay';
+// Pre-Cup-template (Phase 2a) round formats — camelCase strings
+// the Rounds-step per-round dropdown emits.
 export type RoundFormat = 'stroke' | 'scramble' | 'bestBall' | 'matchPlay';
+
+// Cup-template scoring modes — snake_case wire values that match
+// the mobile app's `ScoringModeValue.value` (lib/core/models/
+// tournament.dart line 2339). The Cup template picker (Step 0)
+// writes these; the wizard's Format step still emits the camelCase
+// ScoringMode above, and the payload builder translates.
+export type CupScoringMode = 'stroke_aggregate' | 'match_points';
+
+// Cup-template round formats — snake_case wire values that match
+// the mobile app's `RoundFormatValue.value` (lib/core/models/
+// round_format.dart line 361). The Cup template picker writes
+// these on template-driven rounds; the wizard's per-round format
+// dropdown still emits the pre-Cup RoundFormat enum.
+export type CupRoundFormat =
+  | 'stroke_play'
+  | 'match_play_singles'
+  | 'best_ball'
+  | 'best_ball_four_man'
+  | 'best_three_of_four'
+  | 'foursomes'
+  | 'greensomes'
+  | 'pinehurst'
+  | 'modified_stableford'
+  | 'high_low_2v2'
+  | 'twelves'
+  | 'bramble'
+  | 'yellow_ball';
+
+// Cup-template matchup composition modes — mirrors
+// `MatchupCompositionModeValue.value`.
+export type CupMatchupCompositionMode =
+  | 'auto'
+  | 'presidents_cup'
+  | 'teammates_pick'
+  | 'blind_submit';
 
 export type WizardPlayerInput = {
   name: string;
@@ -33,7 +73,38 @@ export type StartType = 'teeTimes' | 'shotgun';
 export type WizardRoundInput = {
   teeName: string;
   totalHoles: 9 | 18;
-  format: RoundFormat;
+  /** EITHER the pre-Cup camelCase enum (from the Rounds-step per-
+   *  round dropdown) OR the Cup snake_case wire value (from a
+   *  template pre-fill). Payload builder tolerates both and
+   *  writes the mobile-app-canonical snake_case form. */
+  format: RoundFormat | CupRoundFormat;
+  /** Cup template — human name for the round (e.g. "R1 · Best
+   *  Ball (Pacific Dunes)"). Passed through to the wire so the
+   *  mobile app renders it verbatim; null on Blank rounds. */
+  roundName?: string | null;
+  /** Cup template — per-round point budget. Ryder Cup Classic
+   *  uses 1-per-round; Scarecrow / Bandon use variable weights
+   *  (Singles closer carries the most). Defaults to 1 when
+   *  omitted (backward compatible with pre-Cup rounds). */
+  pointsAvailable?: number;
+  /** Cup template — when true, each player's own gross/net feeds
+   *  the cross-round aggregate leaderboard even on team-format
+   *  rounds. Matches Ballyneal Brigade / Bandon Cup discipline. */
+  useIndividualScoring?: boolean;
+  /** Cup template — captain composition mode for the round.
+   *  Scarecrow Cup uses these; other templates leave null. */
+  matchupCompositionMode?: CupMatchupCompositionMode | null;
+  /** Cup template — ISO date (YYYY-MM-DD) the round is nominally
+   *  scheduled for. Scarecrow Cup pre-fills 2026-06-20 → 06-22;
+   *  Ryder Cup / Ballyneal Brigade / Bandon leave null. */
+  scheduledDate?: string | null;
+  /** Cup template — HH:MM display-only first tee time. */
+  firstTeeTime?: string | null;
+  /** Cup template — curated-course key that overrides the
+   *  tournament-level course for THIS round (Bandon's par-3
+   *  shootouts at The Preserve / Shorty's). Wire-only; the
+   *  wizard doesn't UI-support per-round course overrides today. */
+  courseKey?: string | null;
   /** Resolved from the picked tee's course_rating/slope_rating —
    *  null when the course-detail fetch didn't return per-tee data
    *  (fallback name-only path). */
@@ -92,8 +163,17 @@ export type WizardInput = {
   slopeRating: number | null;
   parTotal: number | null;
   fieldGender: FieldGender;
-  scoringMode: ScoringMode;
+  scoringMode: ScoringMode | CupScoringMode;
   useNetScoring: boolean;
+  /** Cup template — one of the four Cup template ids or
+   *  `'blank'` (default). Used for logging + surfacing on the
+   *  wire so the mobile app can show a "Cup: Ryder" chip. */
+  templateId?: string | null;
+  /** Cup template — mirrors the Bandon Dunes Cup +
+   *  Ballyneal Brigade defaults. When true, `track_ctp_on_par3s`
+   *  is set on the tournament. */
+  trackCTPOnPar3s?: boolean;
+  trackLongestDrive?: boolean;
   rounds: WizardRoundInput[];
   players: WizardPlayerInput[];
 };
@@ -129,6 +209,13 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
   // (see lib/core/models/tournament.dart) — index, teeBoxName,
   // totalHoles, format. Score fields default empty; the app / web
   // scoring UI fills them in as the round is played.
+  //
+  // Cup template rounds also carry `name`, `points_available`,
+  // `use_individual_scoring`, `matchup_composition_mode`,
+  // `scheduled_date`, `first_tee_time`, `course_id` — the mobile
+  // app's `TournamentRound.fromJson()` reads all of those keys
+  // (see docstrings in tournament.dart). Wire is snake_case per
+  // the app's canonical toJson output.
   const rounds = input.rounds.map((r, i) => {
     const startType = r.startType ?? 'teeTimes';
     const teeTimeGroupSize = r.teeTimeGroupSize ?? 4;
@@ -136,25 +223,46 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
       startType === 'shotgun' && r.shotgunStartTime && r.shotgunStartTime.trim().length > 0
         ? r.shotgunStartTime.trim()
         : null;
-    return {
+    // Format: translate pre-Cup camelCase enum values to the
+    // mobile-app canonical snake_case. Cup template rounds
+    // already write snake_case; those pass through untouched.
+    const format = translateRoundFormat(r.format);
+    const base: Record<string, unknown> = {
       index: i,
       teeBoxName: r.teeName,
       totalHoles: r.totalHoles,
-      format: r.format,
-      // Phase 2a additions. Snake-case on the wire matches the
-      // mobile app's toJson (`start_type`, `tee_time_group_size`,
-      // `shotgun_start_time`) — TOURNAMENT_PATCH_ALLOWED accepts
-      // the round jsonb as an opaque blob so shape is client-owned.
+      format,
       start_type: startType === 'shotgun' ? 'shotgun' : 'tee_times',
       tee_time_group_size: teeTimeGroupSize,
       shotgun_start_time: shotgunStartTime,
-      // Player-hole-scores + per-player stroke totals default empty
-      // so the leaderboard renders a blank scorecard until a scorer
-      // starts entering values.
       playerHoleScores: {},
       playerStrokes: {},
       completed: false,
     };
+    // Cup template additions — emit only when set so pre-Cup
+    // rounds (from the Blank template path) round-trip unchanged.
+    if (r.roundName && r.roundName.trim().length > 0) {
+      base.name = r.roundName.trim();
+    }
+    if (typeof r.pointsAvailable === 'number' && r.pointsAvailable !== 1) {
+      base.points_available = r.pointsAvailable;
+    }
+    if (r.useIndividualScoring === true) {
+      base.use_individual_scoring = true;
+    }
+    if (r.matchupCompositionMode) {
+      base.matchup_composition_mode = r.matchupCompositionMode;
+    }
+    if (r.scheduledDate) base.scheduled_date = r.scheduledDate;
+    if (r.firstTeeTime) base.first_tee_time = r.firstTeeTime;
+    if (r.courseKey) {
+      // Per-round course override — mobile app resolves the
+      // curated key against `kCuratedCourses` on load. Writing
+      // the raw key here is safe: the schema's `course_id`
+      // column is text.
+      base.course_id = r.courseKey;
+    }
+    return base;
   });
 
   // Players carry a stable local id so subsequent PATCHes can
@@ -184,7 +292,7 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
     slope_rating: input.slopeRating,
     par_total: input.parTotal,
     field_gender: input.fieldGender,
-    scoring_mode: input.scoringMode,
+    scoring_mode: translateScoringMode(input.scoringMode),
     use_net_scoring: input.useNetScoring,
     use_group_scoring: false,
     total_holes: totalHoles,
@@ -201,9 +309,48 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
     pools: [],
     sponsors: [],
     captain_user_ids: [],
-    track_ctp_on_par3s: false,
-    track_longest_drive: false,
+    track_ctp_on_par3s: input.trackCTPOnPar3s === true,
+    track_longest_drive: input.trackLongestDrive === true,
   };
+}
+
+/** Translate the wizard's format value (pre-Cup camelCase enum or
+ *  Cup snake_case wire value) to the mobile app's canonical
+ *  snake_case wire form. The mobile parser's `RoundFormat.fromValue`
+ *  tolerates enum `.name` forms too, but writing canonical
+ *  snake_case is safer for future readers. */
+function translateRoundFormat(f: WizardRoundInput['format']): string {
+  switch (f) {
+    // Pre-Cup camelCase → canonical snake_case
+    case 'stroke':
+      return 'stroke_play';
+    case 'scramble':
+      return 'scramble';
+    case 'bestBall':
+      return 'best_ball';
+    case 'matchPlay':
+      return 'match_play_singles';
+    default:
+      // Cup templates already write snake_case values (e.g.
+      // 'best_ball_four_man', 'high_low_2v2') — pass through.
+      return f;
+  }
+}
+
+/** Translate the wizard's scoringMode value to the mobile app's
+ *  canonical `stroke_aggregate` / `match_points` wire form.
+ *  Pre-Cup Format-step values (`strokeAggregate`, `scramble`,
+ *  `bestBall`, `matchPlay`) collapse to the closest analog —
+ *  matchPlay → match_points, everything else → stroke_aggregate.
+ *  Cup templates already write canonical values; pass through. */
+function translateScoringMode(m: WizardInput['scoringMode']): string {
+  if (m === 'stroke_aggregate' || m === 'match_points') return m;
+  if (m === 'matchPlay') return 'match_points';
+  // 'strokeAggregate', 'scramble', 'bestBall' — none of these
+  // have direct ScoringMode analogs; the mobile app treats them
+  // all as strokeAggregate (round-level format carries the
+  // per-round scoring rule anyway).
+  return 'stroke_aggregate';
 }
 
 function pickCourseName(course: WizardCourseInput): string {

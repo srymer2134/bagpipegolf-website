@@ -1,16 +1,21 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AppLinkBanner from '../components/AppLinkBanner.astro';
+import { CUP_TEMPLATE_LIST } from '../lib/cupTemplates';
 
 // Buddies Trips — dedicated landing for the multi-round, team-Cup
 // use case that anchors Bagpipe's product story. The homepage
-// "Plan your trip" CTA rewires here (2026-08-25). Reuses:
-//   - the four Cup templates codified in tournaments.astro
-//   - the round-format catalog codified in tournaments.astro
-//     (mirrors lib/features/tourney kRyderCupVariants + the
-//     docs/HOWTO_TOURNAMENTS.md format list)
-// Keep in sync with tournaments.astro — when a new template
-// or format ships, update both pages in the same PR.
+// "Plan your trip" CTA rewires here (2026-08-25).
+//
+// Cup templates are pulled from the shared `src/lib/cupTemplates.ts`
+// module — the same source /tournaments and the wizard's Step 0
+// picker consume. Update that module when a template's schedule /
+// point weights change; both marketing pages + the wizard refresh
+// automatically.
+//
+// The format list below is presentation-only (grid of "here's what
+// a Bramble is"); the wizard reads the wire-format enum through
+// the shared module.
 
 interface Format {
   name: string;
@@ -76,70 +81,17 @@ const formats: Format[] = [
   },
 ];
 
-// Cup templates — same four presets surfaced on /tournaments. Names
-// mirror kRyderCupVariants in the Flutter app; presenting all four
-// here is intentional (this page's whole purpose is showcasing Cup
-// depth). Do not invent new templates in this page — add to the
-// Flutter wizard first, mirror to tournaments.astro, then here.
+// Cup templates — pulled from the shared cupTemplates module. Same
+// four presets surfaced on /tournaments AND on the wizard's Step 0
+// picker. Don't add a template here — add to the shared module +
+// the mobile wizard first.
 
-interface CupTemplate {
-  name: string;
-  pitch: string;         // one-line hook
-  fit: string;           // who it's for
-  includes: string[];    // 3-5 bullets
-}
-
-const cupTemplates: CupTemplate[] = [
-  {
-    name: 'Ryder Cup Classic',
-    pitch:
-      'The definitive 5-session team match — three days, alternating formats, Singles Match Play to close.',
-    fit: 'Two teams (8-12 per side), three-day trip, everyone plays every session.',
-    includes: [
-      'Foursomes / Four-Ball / Foursomes / Four-Ball / Singles',
-      '5 points total (1 per session) — first team to 3 wins the Cup',
-      'Team Rosters step in the wizard + Cup Scoreboard',
-      'Sessions morph to your round count without breaking the point weights',
-    ],
-  },
-  {
-    name: 'Scarecrow Cup',
-    pitch:
-      '5 rounds across 2 courses. Every round scores different points — the weight of the day shifts as the trip unfolds.',
-    fit: 'Long-weekend trip with mixed formats and a big Singles finale.',
-    includes: [
-      'Best Ball · Best Three of Four · High-Low · Twelves · Singles',
-      '33 points total, front-loaded but back-loaded in leverage',
-      'Team composer + live Cup Scoreboard',
-      'Practice-green tiebreaker (off-app) when it comes down to it',
-    ],
-  },
-  {
-    name: 'Ballyneal Brigade',
-    pitch:
-      'Team Best Ball Friday and Saturday. Optional Saturday afternoon round. Individual Championship Sunday.',
-    fit: 'Weekend trip that mixes team play with an individual finale.',
-    includes: [
-      '4-Man Best Ball / 2-Man Best Ball / optional round / Individual Championship',
-      'Net-only leaderboard for the trip',
-      'Thru-Saturday carry-in feeds the Sunday Championship',
-      'Optional rounds skip cleanly — opts-out don’t break the aggregate',
-    ],
-  },
-  {
-    name: 'Bandon Dunes Cup',
-    pitch:
-      'Round-count-driven — pick 2–12 rounds, the template pre-populates the schedule. Singles Match Play always closes.',
-    fit: 'Bucket-list trips (Bandon, Streamsong, Cabot, etc.) — any length from a long weekend to a 10-day event.',
-    includes: [
-      'Team rounds up front, medal round penultimate, Singles Match Play closes',
-      '6+ rounds: The Preserve par-3 shootout',
-      '10+ rounds: Shorty\'s joins the rotation',
-      'Par-3 Closest-to-Pin tracked on every par 3 across the whole trip',
-      'Supports 4–48 players',
-    ],
-  },
-];
+const cupTemplates = CUP_TEMPLATE_LIST.map((t) => ({
+  name: t.name,
+  pitch: t.copy.pitch,
+  fit: t.copy.fit,
+  includes: t.copy.includes,
+}));
 ---
 
 <BaseLayout
