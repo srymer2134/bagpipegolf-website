@@ -55,6 +55,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </div>
     </section>
 
+    <!-- ───────── Plaid divider ─────────
+         Thin Scottish-tartan band between hero and Features. Sam
+         2026-08-25 — sits like punctuation between the launch banner
+         block and "Three apps, one round." Pure CSS, no assets. -->
+    <div class="plaid-divider" aria-hidden="true"></div>
+
     <!-- ───────── Feature triad ───────── -->
     <section class="features" id="features">
       <div class="features__inner">
@@ -208,7 +214,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   /* ── Hero ──────────────────────────────────────────── */
   .hero {
     background: linear-gradient(180deg, var(--brand-green-pale) 0%, var(--paper) 100%);
-    padding: 44px 24px 60px;
+    padding: 44px 24px 36px;
     text-align: center;
   }
   .hero__inner {
@@ -340,7 +346,34 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   }
 
   /* ── Features ──────────────────────────────────────── */
-  .features { padding: 50px 24px; }
+  .features { padding: 32px 24px 50px; }
+
+  /* ── Plaid divider ─────────────────────────────────── */
+  /*
+   * Slim Scottish tartan band placed between the hero and Features.
+   * Twill-weave feel from a 45deg repeating-linear-gradient with
+   * bands of the site's dark green + a thin warm mustard accent
+   * stripe on a cream ground. Sits at ~0.7 opacity so it reads as
+   * intentional punctuation, not a decorative shout.
+   */
+  .plaid-divider {
+    width: min(280px, 46vw);
+    height: 8px;
+    margin: 0 auto;
+    border-radius: 4px;
+    background:
+      repeating-linear-gradient(
+        45deg,
+        rgba(15, 61, 46, 0.60) 0 4px,
+        rgba(15, 61, 46, 0.35) 4px 8px,
+        rgba(201, 164, 78, 0.65) 8px 10px,
+        rgba(15, 61, 46, 0.35) 10px 14px
+      );
+    box-shadow:
+      inset 0 0 0 1px rgba(250, 246, 235, 0.55),
+      0 1px 2px rgba(15, 61, 46, 0.08);
+    opacity: 0.7;
+  }
   .features__inner {
     max-width: 1100px;
     margin: 0 auto;
