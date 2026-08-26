@@ -100,6 +100,43 @@ if (tournament) {
 
 const players: TournamentPlayer[] = tournament?.players ?? [];
 const playerCount = players.length;
+
+// Pre-fetch tournament invites (roadmap #5) so the Invites card
+// renders with real chip state on first paint. Owner-read RLS
+// policy from `20260612_tournament_invites.sql` scopes this to
+// the director. `accepted` rows are filtered client-side by the
+// mobile app; we do it here too so a full-house tournament doesn't
+// render 20 "accepted" chips alongside the actual roster.
+type TournamentInvite = {
+  id: string;
+  email: string;
+  token: string;
+  status: string;
+  created_at: string | null;
+};
+let initialInvites: TournamentInvite[] = [];
+if (tournament) {
+  try {
+    const { data } = await supabase
+      .from('tournament_invites')
+      .select('id, email, token, status, created_at')
+      .eq('tournament_id', id!)
+      .neq('status', 'accepted')
+      .order('created_at', { ascending: false });
+    if (Array.isArray(data)) {
+      initialInvites = data.map((row: Record<string, unknown>) => ({
+        id: String(row.id ?? ''),
+        email: String(row.email ?? ''),
+        token: String(row.token ?? ''),
+        status: String(row.status ?? 'pending'),
+        created_at:
+          typeof row.created_at === 'string' ? row.created_at : null,
+      }));
+    }
+  } catch (e) {
+    console.warn('[tournaments/[id]/manage] invites fetch failed', e);
+  }
+}
 ---
 
 <BaseLayout title="Manage tournament · Bagpipe Golf">
@@ -283,6 +320,61 @@ const playerCount = players.length;
               Save roster
             </button>
           </div>
+        </section>
+
+        <!--
+          Invites card (roadmap #5) — email-to-join for players who
+          aren't in the director's friends list yet. Backed by
+          Patrick's §14 endpoints (POST /api/tournaments/:id/invites
+          for send + re-arm-on-resend, direct Supabase UPDATE for
+          revoke via the owner-scoped RLS policy).
+        -->
+        <section class="rosterCard" data-card="invites">
+          <header class="rosterCard__head">
+            <div>
+              <h2 class="rosterCard__title">Invites</h2>
+              <p class="rosterCard__meta">
+                Email players a link to join. Existing Bagpipe users
+                land on the tournament; new users sign up first, then
+                accept. Resend anytime — the token doesn't change, so
+                a resend just re-arms the same invite.
+              </p>
+            </div>
+          </header>
+
+          <div id="invitesError" class="errorbar" hidden></div>
+
+          <div class="inviteBox">
+            <div class="inviteBox__row">
+              <input
+                type="email"
+                id="mgInviteInput"
+                placeholder="name@example.com"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+              <button type="button" id="mgInviteAddBtn" class="btn btn--ghost btn--sm">
+                Add
+              </button>
+              <button type="button" id="mgInviteSendBtn" class="btn btn--primary btn--sm" disabled>
+                Send invites
+              </button>
+            </div>
+            <p class="inviteBox__hint inviteBox__hint--tight">
+              Tip: paste multiple emails separated by commas or new lines.
+            </p>
+            <ul id="mgInviteChipsList" class="inviteChips" aria-live="polite"></ul>
+            <p id="mgInviteChipsEmpty" class="inviteBox__hint inviteBox__hint--muted">
+              No emails queued.
+            </p>
+          </div>
+
+          <h3 class="invitesList__title">Pending invites</h3>
+          <ul id="mgInvitesList" class="invitesList" aria-live="polite"></ul>
+          <p id="mgInvitesEmpty" class="inviteBox__hint inviteBox__hint--muted">
+            No invites sent yet.
+          </p>
         </section>
 
         <!-- Flights card — handicap-split brackets -->
@@ -1637,6 +1729,274 @@ const playerCount = players.length;
 
     render();
   </script>
+
+  <script is:inline define:vars={{
+    tournamentId: id,
+    initialInvites,
+  }}>
+    // ── Invites card — roadmap #5 ───────────────────────────
+    //
+    // Reads the initial invite list from the SSR fetch, so first
+    // paint has real chip state. Mutations go through the
+    // /api/tournaments/[id]/invites proxy — POST for send/resend,
+    // DELETE for revoke. Every write re-fetches via GET so the
+    // list stays in sync with server truth (matches the mobile
+    // app's TournamentInvitesNotifier._refresh pattern).
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const inviteInputEl = document.getElementById('mgInviteInput');
+    const inviteAddEl = document.getElementById('mgInviteAddBtn');
+    const inviteSendEl = document.getElementById('mgInviteSendBtn');
+    const inviteChipsEl = document.getElementById('mgInviteChipsList');
+    const inviteChipsEmptyEl = document.getElementById('mgInviteChipsEmpty');
+    const inviteListEl = document.getElementById('mgInvitesList');
+    const inviteListEmptyEl = document.getElementById('mgInvitesEmpty');
+    const inviteErrorEl = document.getElementById('invitesError');
+
+    // Pending draft chips — collected in the input, sent as one
+    // batch when the user clicks "Send invites".
+    const draft = [];
+    let sending = false;
+    // Server-side invite list — starts from SSR data, refreshed
+    // after every send/revoke.
+    let invites = Array.isArray(initialInvites) ? initialInvites.slice() : [];
+
+    function showInviteError(msg) {
+      inviteErrorEl.textContent = msg;
+      inviteErrorEl.hidden = false;
+    }
+    function clearInviteError() {
+      inviteErrorEl.hidden = true;
+      inviteErrorEl.textContent = '';
+    }
+
+    function normaliseEmail(raw) { return String(raw).trim().toLowerCase(); }
+
+    function addDraftEmails(raw) {
+      const parts = String(raw)
+        .split(/[\s,;]+/)
+        .map(normaliseEmail)
+        .filter((e) => e.length > 0);
+      let added = 0;
+      let firstInvalid = null;
+      for (const email of parts) {
+        if (!EMAIL_RE.test(email)) {
+          if (!firstInvalid) firstInvalid = email;
+          continue;
+        }
+        if (draft.includes(email)) continue;
+        draft.push(email);
+        added++;
+      }
+      if (firstInvalid && added === 0) {
+        showInviteError(`"${firstInvalid}" isn't a valid email address.`);
+      } else if (firstInvalid) {
+        showInviteError(`Some entries were skipped — "${firstInvalid}" isn't valid.`);
+      } else {
+        clearInviteError();
+      }
+      renderDraft();
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[ch] || ch);
+    }
+
+    function renderDraft() {
+      inviteChipsEl.innerHTML = '';
+      draft.forEach((email, i) => {
+        const li = document.createElement('li');
+        li.className = 'inviteChips__chip';
+        li.innerHTML = `
+          <span class="inviteChips__email">${escapeHtml(email)}</span>
+          <button type="button" class="inviteChips__remove" data-draft-remove="${i}" aria-label="Remove ${escapeHtml(email)}">×</button>
+        `;
+        inviteChipsEl.appendChild(li);
+      });
+      inviteChipsEl.querySelectorAll('[data-draft-remove]').forEach((el) => {
+        el.addEventListener('click', () => {
+          const idx = Number(el.getAttribute('data-draft-remove'));
+          draft.splice(idx, 1);
+          renderDraft();
+        });
+      });
+      inviteChipsEmptyEl.hidden = draft.length > 0;
+      inviteSendEl.disabled = draft.length === 0 || sending;
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function renderInvites() {
+      inviteListEl.innerHTML = '';
+      invites.forEach((inv) => {
+        const li = document.createElement('li');
+        li.className = 'invitesList__row';
+        const statusCls = `invitesList__status--${inv.status || 'pending'}`;
+        const dateStr = fmtDate(inv.created_at);
+        li.innerHTML = `
+          <span class="invitesList__email">${escapeHtml(inv.email)}</span>
+          <span class="invitesList__status ${statusCls}">${escapeHtml(inv.status || 'pending')}${dateStr ? ' · ' + escapeHtml(dateStr) : ''}</span>
+          <button type="button" class="invitesList__btn" data-invite-resend="${escapeHtml(inv.email)}">Resend</button>
+          <button type="button" class="invitesList__btn invitesList__btn--danger" data-invite-revoke="${escapeHtml(inv.id)}" ${inv.status === 'revoked' ? 'disabled' : ''}>Revoke</button>
+        `;
+        inviteListEl.appendChild(li);
+      });
+      inviteListEl.querySelectorAll('[data-invite-resend]').forEach((el) => {
+        el.addEventListener('click', () => resendInvite(el.getAttribute('data-invite-resend')));
+      });
+      inviteListEl.querySelectorAll('[data-invite-revoke]').forEach((el) => {
+        el.addEventListener('click', () => revokeInvite(el.getAttribute('data-invite-revoke')));
+      });
+      inviteListEmptyEl.hidden = invites.length > 0;
+    }
+
+    async function refreshInvites() {
+      try {
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/invites`, {
+          method: 'GET',
+        });
+        if (!res.ok) return;
+        const body = await res.json().catch(() => null);
+        if (body && Array.isArray(body.invites)) {
+          invites = body.invites;
+          renderInvites();
+        }
+      } catch (e) {
+        // Non-fatal — the list will refresh on next mutation.
+      }
+    }
+
+    async function sendDraft() {
+      if (draft.length === 0 || sending) return;
+      sending = true;
+      inviteSendEl.disabled = true;
+      const originalLabel = inviteSendEl.textContent;
+      inviteSendEl.textContent = 'Sending…';
+      clearInviteError();
+      try {
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/invites`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ emails: draft.slice() }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showInviteError(body.error || `Send failed with ${res.status}`);
+          return;
+        }
+        const results = Array.isArray(body.invites) ? body.invites : [];
+        const failed = results.filter((r) => r.sent !== true).length;
+        // Clear the draft — server dedupes/reuses tokens for the ones that
+        // failed to email, so a subsequent resend from the pending list is
+        // the correct path (not re-adding to draft).
+        draft.length = 0;
+        renderDraft();
+        if (failed > 0) {
+          showInviteError(
+            `${results.length - failed} invite${results.length - failed === 1 ? '' : 's'} sent, ` +
+            `${failed} didn't send. Use Resend below to retry.`,
+          );
+        }
+        await refreshInvites();
+      } catch (e) {
+        showInviteError((e && e.message) || 'Network error — try again.');
+      } finally {
+        sending = false;
+        inviteSendEl.disabled = draft.length === 0;
+        inviteSendEl.textContent = originalLabel;
+      }
+    }
+
+    async function resendInvite(email) {
+      if (!email) return;
+      clearInviteError();
+      try {
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/invites`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ emails: [email] }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showInviteError(body.error || `Resend failed with ${res.status}`);
+          return;
+        }
+        const results = Array.isArray(body.invites) ? body.invites : [];
+        const one = results[0];
+        if (one && one.sent === false) {
+          showInviteError(`Row re-armed but email dispatch failed for ${email}.`);
+        }
+        await refreshInvites();
+      } catch (e) {
+        showInviteError((e && e.message) || 'Network error — try again.');
+      }
+    }
+
+    async function revokeInvite(inviteId) {
+      if (!inviteId) return;
+      if (!confirm('Revoke this invite? The link stops working immediately.')) return;
+      clearInviteError();
+      try {
+        const res = await fetch(
+          `/api/tournaments/${encodeURIComponent(tournamentId)}/invites?inviteId=${encodeURIComponent(inviteId)}`,
+          { method: 'DELETE' },
+        );
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          showInviteError(body.error || `Revoke failed with ${res.status}`);
+          return;
+        }
+        await refreshInvites();
+      } catch (e) {
+        showInviteError((e && e.message) || 'Network error — try again.');
+      }
+    }
+
+    if (inviteAddEl && inviteInputEl) {
+      inviteAddEl.addEventListener('click', () => {
+        const raw = inviteInputEl.value;
+        if (raw.trim().length === 0) return;
+        addDraftEmails(raw);
+        inviteInputEl.value = '';
+        inviteInputEl.focus();
+      });
+      inviteInputEl.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ',' || ev.key === ';') {
+          const raw = inviteInputEl.value;
+          if (raw.trim().length === 0) return;
+          ev.preventDefault();
+          addDraftEmails(raw);
+          inviteInputEl.value = '';
+        }
+      });
+      inviteInputEl.addEventListener('blur', () => {
+        const raw = inviteInputEl.value;
+        if (raw.trim().length === 0) return;
+        addDraftEmails(raw);
+        inviteInputEl.value = '';
+      });
+      inviteInputEl.addEventListener('paste', (ev) => {
+        const text = ev.clipboardData?.getData('text');
+        if (!text || !/[\s,;]/.test(text)) return;
+        ev.preventDefault();
+        addDraftEmails(text);
+        inviteInputEl.value = '';
+      });
+    }
+    if (inviteSendEl) {
+      inviteSendEl.addEventListener('click', sendDraft);
+    }
+
+    renderDraft();
+    renderInvites();
+  </script>
   </>
 )}
 
@@ -2132,4 +2492,122 @@ const playerCount = players.length;
     padding: 3px 8px;
     border-radius: 999px;
   }
+
+  /* Invites card (roadmap #5) */
+  .inviteBox {
+    padding: 12px 0 4px;
+  }
+  .inviteBox__row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .inviteBox__row input {
+    padding: 10px 12px;
+    border: 1px solid var(--line, #d1d5db);
+    border-radius: 8px;
+    font: inherit;
+  }
+  .inviteBox__hint {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--ink-muted, #6b7280);
+    line-height: 1.4;
+  }
+  .inviteBox__hint--tight { margin: 6px 0 0; font-size: 12px; }
+  .inviteBox__hint--muted { color: var(--ink-muted, #6b7280); font-style: italic; margin-top: 8px; }
+  .inviteChips {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .inviteChips__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 4px 4px 10px;
+    background: #fff;
+    border: 1px solid var(--brand-green-dark, #14432b);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--brand-green-dark, #14432b);
+  }
+  .inviteChips__email { font-weight: 600; }
+  .inviteChips__remove {
+    background: transparent;
+    border: 0;
+    color: var(--ink-muted, #6b7280);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 6px;
+    line-height: 1;
+  }
+  .inviteChips__remove:hover { color: var(--error, #b91c1c); }
+
+  .invitesList__title {
+    margin: 20px 0 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink, #14432b);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .invitesList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .invitesList__row {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    background: #fafbfa;
+    border: 1px solid var(--line, #d1d5db);
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .invitesList__email { font-weight: 600; word-break: break-all; }
+  .invitesList__status {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .invitesList__status--pending {
+    color: var(--brand-green-dark, #14432b);
+    background: rgba(47, 125, 68, 0.12);
+  }
+  .invitesList__status--revoked {
+    color: var(--ink-muted, #6b7280);
+    background: rgba(107, 114, 128, 0.12);
+    text-decoration: line-through;
+  }
+  .invitesList__status--expired {
+    color: var(--ink-muted, #6b7280);
+    background: rgba(107, 114, 128, 0.12);
+  }
+  .invitesList__btn {
+    background: transparent;
+    border: 1px solid var(--line, #d1d5db);
+    color: var(--ink, #14432b);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .invitesList__btn:hover { border-color: var(--brand-green-dark, #14432b); }
+  .invitesList__btn--danger { color: var(--error, #b91c1c); }
+  .invitesList__btn--danger:hover { border-color: var(--error, #b91c1c); }
+  .invitesList__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

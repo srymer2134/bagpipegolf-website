@@ -391,6 +391,42 @@ try {
         <p id="playersEmpty" class="wizard__stepSub">
           No players yet. Add yourself first — you're the director.
         </p>
+
+        <!--
+          Invite by email (roadmap #5). Emails collected here are
+          POSTed to /api/tournaments/[id]/invites AFTER the tournament
+          is created — never blocks the wizard submit. Chip-input UX
+          mirrors the mobile app's InviteByEmailSection widget.
+        -->
+        <div class="inviteBox">
+          <h3 class="inviteBox__title">Invite by email <span class="inviteBox__optional">optional</span></h3>
+          <p class="inviteBox__hint">
+            Add player emails and they'll get a link to view (or
+            sign up + join) the tournament. You can skip and share
+            the tournament URL manually — or add more invites later
+            from the Manage page.
+          </p>
+          <div class="inviteBox__row">
+            <input
+              type="email"
+              id="inviteEmailInput"
+              placeholder="name@example.com"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+            />
+            <button type="button" id="inviteAddBtn" class="btn btn--ghost btn--sm">
+              Add
+            </button>
+          </div>
+          <p class="inviteBox__hint inviteBox__hint--tight">
+            Tip: paste multiple emails separated by commas or new lines.
+          </p>
+          <ul id="inviteChipsList" class="inviteChips" aria-live="polite"></ul>
+          <p id="inviteChipsEmpty" class="inviteBox__hint inviteBox__hint--muted">
+            No emails queued.
+          </p>
+        </div>
       </section>
 
       <!-- Step 5 — Flights (optional) -->
@@ -582,6 +618,13 @@ try {
     // WizardFlightInput on the wire (camelCase in memory,
     // snake_case on submit via buildCreatePayload).
     flights: [],
+    // Email invites (roadmap #5). NOT part of the tournament create
+    // payload — sent as a follow-up POST to
+    // /api/tournaments/[id]/invites once the tournament id is known.
+    // Deduped + lowercased at add time. Wizard never blocks on invite
+    // send failures; a partial-send is surfaced via a snackbar-style
+    // banner but the wizard still redirects to the leaderboard.
+    invites: [],
   };
 
   // Pre-seed the director as the first player when we have a name.
@@ -1250,6 +1293,139 @@ try {
     playersEmpty.hidden = state.players.length > 0;
   }
 
+  // ── Invite-by-email chip input (Players step) ────────────
+  //
+  // Simple RFC-lite email regex — Railway re-validates + dedupes
+  // server-side, so this only exists to catch obviously bad shapes
+  // (missing @, whitespace, ".@..") before we let a chip land in
+  // the pending list. Wizard state carries the emails as-is; the
+  // post-create submit path POSTs the whole list to
+  // /api/tournaments/[id]/invites.
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const inviteEmailInput = /** @type {HTMLInputElement} */ (document.getElementById('inviteEmailInput'));
+  const inviteAddBtn = document.getElementById('inviteAddBtn');
+  const inviteChipsList = document.getElementById('inviteChipsList');
+  const inviteChipsEmpty = document.getElementById('inviteChipsEmpty');
+
+  function normaliseEmail(raw) {
+    return String(raw).trim().toLowerCase();
+  }
+
+  function addInviteEmails(raw) {
+    // Accept commas + newlines + tabs + semicolons as separators so
+    // pasted "a@x.com, b@x.com" splits cleanly.
+    const parts = String(raw)
+      .split(/[\s,;]+/)
+      .map(normaliseEmail)
+      .filter((e) => e.length > 0);
+    let added = 0;
+    let firstInvalid = null;
+    for (const email of parts) {
+      if (!EMAIL_RE.test(email)) {
+        if (!firstInvalid) firstInvalid = email;
+        continue;
+      }
+      if (state.invites.includes(email)) continue;
+      state.invites.push(email);
+      added++;
+    }
+    if (firstInvalid && added === 0) {
+      showError(`"${firstInvalid}" isn't a valid email address.`);
+    } else if (firstInvalid) {
+      showError(`Some entries were skipped — "${firstInvalid}" isn't a valid email.`);
+    } else {
+      errorBox.hidden = true;
+    }
+    renderInviteChips();
+  }
+
+  function renderInviteChips() {
+    if (!inviteChipsList || !inviteChipsEmpty) return;
+    inviteChipsList.innerHTML = '';
+    state.invites.forEach((email, i) => {
+      const li = document.createElement('li');
+      li.className = 'inviteChips__chip';
+      li.innerHTML = `
+        <span class="inviteChips__email">${escapeHtml(email)}</span>
+        <button type="button" class="inviteChips__remove" data-invite-remove="${i}" aria-label="Remove ${escapeHtml(email)}">×</button>
+      `;
+      inviteChipsList.appendChild(li);
+    });
+    inviteChipsList.querySelectorAll('[data-invite-remove]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const idx = Number(el.getAttribute('data-invite-remove'));
+        state.invites.splice(idx, 1);
+        renderInviteChips();
+      });
+    });
+    inviteChipsEmpty.hidden = state.invites.length > 0;
+  }
+
+  if (inviteAddBtn && inviteEmailInput) {
+    inviteAddBtn.addEventListener('click', () => {
+      const raw = inviteEmailInput.value;
+      if (raw.trim().length === 0) return;
+      addInviteEmails(raw);
+      inviteEmailInput.value = '';
+      inviteEmailInput.focus();
+    });
+    inviteEmailInput.addEventListener('keydown', (ev) => {
+      // Enter / comma / Tab all commit the current buffer as a chip.
+      // Tab still moves focus after committing, matching typical
+      // pill-input UX; preventDefault only fires when we actually
+      // absorb the key (i.e. commit a chip).
+      if (ev.key === 'Enter' || ev.key === ',' || ev.key === ';') {
+        const raw = inviteEmailInput.value;
+        if (raw.trim().length === 0) return;
+        ev.preventDefault();
+        addInviteEmails(raw);
+        inviteEmailInput.value = '';
+      }
+    });
+    inviteEmailInput.addEventListener('blur', () => {
+      const raw = inviteEmailInput.value;
+      if (raw.trim().length === 0) return;
+      addInviteEmails(raw);
+      inviteEmailInput.value = '';
+    });
+    // On paste, auto-split even if the user immediately blurs away.
+    inviteEmailInput.addEventListener('paste', (ev) => {
+      const text = ev.clipboardData?.getData('text');
+      if (!text || !/[\s,;]/.test(text)) return; // let single-address paste flow naturally
+      ev.preventDefault();
+      addInviteEmails(text);
+      inviteEmailInput.value = '';
+    });
+  }
+
+  /**
+   * POST the pending invite list to /api/tournaments/[id]/invites.
+   * Returns a summary `{sent, failed}` for the wizard's post-submit
+   * banner. Always resolves — never throws — so a network hiccup on
+   * the invite path can't turn a successful tournament create into
+   * an error state.
+   */
+  async function sendPendingInvites(tournamentId) {
+    if (!state.invites.length) return { sent: 0, failed: 0 };
+    try {
+      const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/invites`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ emails: state.invites }),
+      });
+      if (!res.ok) {
+        return { sent: 0, failed: state.invites.length };
+      }
+      const body = await res.json().catch(() => null);
+      const invites = body && Array.isArray(body.invites) ? body.invites : [];
+      const sent = invites.filter((i) => i.sent === true).length;
+      const failed = state.invites.length - sent;
+      return { sent, failed };
+    } catch (e) {
+      return { sent: 0, failed: state.invites.length };
+    }
+  }
+
   // ── Flights editor (Step 5) ──────────────────────────────
   //
   // Mirrors the mobile app's flight-generation algorithm from
@@ -1815,6 +1991,26 @@ try {
         submitBtn.textContent = 'Create tournament';
         return;
       }
+
+      // Fire pending invites AFTER the tournament exists. Never
+      // blocks the redirect on invite send failures — a partial
+      // failure surfaces via a `?invites=…` query param the
+      // leaderboard reads (opt-in in a future PR) and via a brief
+      // pre-redirect banner update here. The Manage page's Invites
+      // card is the recovery path for any that didn't send.
+      submitBtn.textContent = 'Sending invites…';
+      const inviteResult = await sendPendingInvites(id);
+      if (inviteResult.failed > 0) {
+        // Keep the redirect but log the miss so the user knows to
+        // check the Manage page. Using window.alert here rather
+        // than showError because we're mid-redirect — the wizard
+        // errorbox is about to unmount.
+        window.alert(
+          `Tournament created — but ${inviteResult.failed} invite${inviteResult.failed === 1 ? '' : 's'} didn't send.\n\n` +
+          `You can resend from the Manage page.`,
+        );
+      }
+
       window.location.href = `/app/tournaments/${encodeURIComponent(id)}/leaderboard`;
     } catch (err) {
       showError(err && err.message ? err.message : 'Network error — try again.');
@@ -2177,6 +2373,85 @@ try {
     padding: 0 4px;
   }
   .playersList__remove:hover { color: var(--error); }
+
+  /* Invite by email — Players step */
+  .inviteBox {
+    margin-top: 20px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #f7f9f7;
+  }
+  .inviteBox__title {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .inviteBox__optional {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    padding: 2px 6px;
+    border-radius: 999px;
+  }
+  .inviteBox__hint {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: var(--ink-muted);
+    line-height: 1.4;
+  }
+  .inviteBox__hint--tight { margin: 6px 0 0; font-size: 12px; }
+  .inviteBox__hint--muted { color: var(--ink-muted); font-style: italic; margin-top: 8px; }
+  .inviteBox__row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .inviteBox__row input {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: inherit;
+  }
+  .inviteChips {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .inviteChips__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 4px 4px 10px;
+    background: #fff;
+    border: 1px solid var(--brand-green-dark);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--brand-green-dark);
+  }
+  .inviteChips__email { font-weight: 600; }
+  .inviteChips__remove {
+    background: transparent;
+    border: 0;
+    color: var(--ink-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 6px;
+    line-height: 1;
+  }
+  .inviteChips__remove:hover { color: var(--error); }
 
   .review {
     margin: 0;
