@@ -306,6 +306,30 @@ try {
           <input type="checkbox" id="useNetScoring" checked />
           <span>Use net scoring (subtract each player's course handicap)</span>
         </label>
+
+        <fieldset class="field field--group fieldComps">
+          <legend class="field__label">Field Competitions</legend>
+          <label class="checkbox checkbox--stacked">
+            <input type="checkbox" id="trackCTPOnPar3s" />
+            <span>
+              <strong>Track Closest-to-Pin on par 3s</strong>
+              <em class="checkbox__hint">
+                Leaderboard shows the CTP winner for each par 3 across
+                the tournament.
+              </em>
+            </span>
+          </label>
+          <label class="checkbox checkbox--stacked">
+            <input type="checkbox" id="trackLongestDrive" />
+            <span>
+              <strong>Track Longest Drive</strong>
+              <em class="checkbox__hint">
+                Leaderboard shows the LD winner for each designated
+                hole.
+              </em>
+            </span>
+          </label>
+        </fieldset>
       </section>
 
       <!-- Step 3 — Rounds -->
@@ -378,6 +402,7 @@ try {
           <div><dt>Field</dt><dd id="rvField">—</dd></div>
           <div><dt>Scoring</dt><dd id="rvScoring">—</dd></div>
           <div><dt>Net</dt><dd id="rvNet">—</dd></div>
+          <div id="rvFieldCompsRow" hidden><dt>Field Competitions</dt><dd id="rvFieldComps">—</dd></div>
           <div><dt>Rounds</dt><dd id="rvRounds">—</dd></div>
           <div><dt>Players</dt><dd id="rvPlayers">—</dd></div>
         </dl>
@@ -567,6 +592,20 @@ try {
   const reviewCupNote = document.getElementById('reviewCupNote');
   const scoringRadios = document.getElementsByName('scoringMode');
   const useNetScoringEl = document.getElementById('useNetScoring');
+  const trackCTPEl = /** @type {HTMLInputElement} */ (document.getElementById('trackCTPOnPar3s'));
+  const trackLDEl = /** @type {HTMLInputElement} */ (document.getElementById('trackLongestDrive'));
+
+  // User toggles win over template pre-fills. Every change writes
+  // through to state so applyTemplateOverrides can't clobber the
+  // user's explicit intent on a subsequent step re-render (state
+  // is the source of truth; syncFormatRadiosToState only fires on
+  // template application).
+  trackCTPEl.addEventListener('change', () => {
+    state.trackCTPOnPar3s = !!trackCTPEl.checked;
+  });
+  trackLDEl.addEventListener('change', () => {
+    state.trackLongestDrive = !!trackLDEl.checked;
+  });
 
   function templateById(id) {
     return cupTemplates.find((t) => t.id === id) || null;
@@ -648,6 +687,13 @@ try {
     // scramble / bestBall / matchPlay); match_points falls into
     // 'matchPlay' as the closest analog since it drives Cup-style
     // head-to-head math on the mobile side.
+    //
+    // Field Competitions checkboxes always sync — Blank resets
+    // both to false, Bandon/Ballyneal pre-check CTP, Ryder/Scarecrow
+    // leave both off. Mirroring runs before the scoringMode early
+    // return so the DOM never lags state when the user picks Blank.
+    trackCTPEl.checked = !!state.trackCTPOnPar3s;
+    trackLDEl.checked = !!state.trackLongestDrive;
     if (state.scoringModeOverride == null) return;
     const target =
       state.scoringModeOverride === 'match_points' ? 'matchPlay'
@@ -1153,6 +1199,21 @@ try {
       ? state.useNetScoringOverride
       : netEl.checked;
     rvNet.textContent = netVal ? 'Yes' : 'No';
+    // Field Competitions — show only when at least one is on. State
+    // is the source of truth (user toggles + template pre-fills both
+    // write through).
+    const rvFieldCompsRow = document.getElementById('rvFieldCompsRow');
+    const rvFieldComps = document.getElementById('rvFieldComps');
+    const fieldCompsOn = [];
+    if (state.trackCTPOnPar3s) fieldCompsOn.push('Closest-to-Pin');
+    if (state.trackLongestDrive) fieldCompsOn.push('Longest Drive');
+    if (fieldCompsOn.length > 0) {
+      rvFieldCompsRow.hidden = false;
+      rvFieldComps.textContent = fieldCompsOn.join(', ');
+    } else {
+      rvFieldCompsRow.hidden = true;
+      rvFieldComps.textContent = '';
+    }
     rvRounds.textContent = state.rounds
       .map((r, i) => {
         // For Cup rounds, prefer the template-set roundName over the
@@ -1358,6 +1419,35 @@ try {
     gap: 10px;
     font-size: 15px;
     cursor: pointer;
+  }
+  .checkbox--stacked {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .checkbox--stacked input[type='checkbox'] {
+    margin-top: 3px;
+    flex-shrink: 0;
+  }
+  .checkbox--stacked > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .checkbox__hint {
+    font-style: normal;
+    font-size: 13px;
+    color: var(--ink-muted);
+    line-height: 1.4;
+  }
+  .fieldComps {
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .fieldComps .field__label {
+    margin-bottom: 4px;
   }
 
   .courseSearch { position: relative; }
