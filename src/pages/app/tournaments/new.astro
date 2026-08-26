@@ -30,6 +30,11 @@
 //     in one tap.
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { createSupabaseClient } from '../../../lib/supabase';
+import {
+  CUP_TEMPLATE_LIST,
+  BANDON_ROUND_BOUNDS,
+  bandonDunesCupRounds,
+} from '../../../lib/cupTemplates';
 
 const user = Astro.locals.user;
 const displayName =
@@ -69,6 +74,26 @@ type Friend = {
   display_name: string;
   handicap: number;
 };
+// Pre-compute the full Bandon round-count → rounds map so the
+// client picker can swap rounds without re-running any of the
+// module's derivation logic. 2..12 = 11 entries; each is small
+// so total inline payload stays under ~4KB.
+const bandonRoundsByCount: Record<number, ReturnType<typeof bandonDunesCupRounds>> = {};
+for (let n = BANDON_ROUND_BOUNDS.min; n <= BANDON_ROUND_BOUNDS.max; n++) {
+  bandonRoundsByCount[n] = bandonDunesCupRounds(n);
+}
+
+// Serialize the shared Cup templates for the client picker. Only
+// the wizard-relevant subset ships — the marketing copy stays on
+// the server (it's rendered directly into the picker cards via
+// Astro's SSR loop below).
+const cupTemplatesForClient = CUP_TEMPLATE_LIST.map((t) => ({
+  id: t.id,
+  name: t.name,
+  defaults: t.defaults,
+  rounds: t.rounds,
+}));
+
 let friends: Friend[] = [];
 try {
   const { data } = await supabase
@@ -110,7 +135,8 @@ try {
     </p>
 
     <ol class="wizard__steps" aria-hidden="true">
-      <li data-step-pill="1" class="is-current">1. Basics</li>
+      <li data-step-pill="0" class="is-current">Template</li>
+      <li data-step-pill="1">1. Basics</li>
       <li data-step-pill="2">2. Format</li>
       <li data-step-pill="3">3. Rounds</li>
       <li data-step-pill="4">4. Players</li>
@@ -118,8 +144,85 @@ try {
     </ol>
 
     <form id="wizard" novalidate>
+      <!-- Step 0 — Template picker (optional) -->
+      <section data-step="0" class="wizard__step is-current" aria-label="Template">
+        <h2 class="wizard__stepTitle">Pick a template</h2>
+        <p class="wizard__stepSub">
+          Optional — start from one of the four shipping Cup
+          templates and edit anything on the next screens, or pick
+          <em>Blank</em> to build from scratch. Cup templates come
+          pre-loaded with rounds, formats, and Cup point weights.
+        </p>
+
+        <div class="templatePicker" role="radiogroup" aria-label="Cup templates">
+          <!-- Blank card is always first. -->
+          <button
+            type="button"
+            class="templateCard is-current"
+            data-template-id="blank"
+            role="radio"
+            aria-checked="true"
+          >
+            <span class="templateCard__badge">Default</span>
+            <h3 class="templateCard__name">Blank</h3>
+            <p class="templateCard__pitch">
+              Start from scratch — pick your own rounds, formats,
+              and points. Best for one-off events or your own
+              custom trip format.
+            </p>
+            <p class="templateCard__meta">Single 18-hole stroke round to start.</p>
+          </button>
+
+          {CUP_TEMPLATE_LIST.map((t) => (
+            <button
+              type="button"
+              class="templateCard"
+              data-template-id={t.id}
+              role="radio"
+              aria-checked="false"
+            >
+              <span class="templateCard__badge templateCard__badge--cup">Cup</span>
+              <h3 class="templateCard__name">{t.name}</h3>
+              <p class="templateCard__pitch">{t.copy.pitch}</p>
+              <p class="templateCard__fit">
+                <span class="templateCard__fitlabel">Who it's for:</span> {t.copy.fit}
+              </p>
+              <ul class="templateCard__includes">
+                {t.copy.includes.slice(0, 3).map((line) => <li>{line}</li>)}
+              </ul>
+              {t.id === 'bandonDunesCup' && (
+                <div
+                  class="templateCard__bandonPicker"
+                  data-bandon-picker
+                  hidden
+                >
+                  <label>
+                    <span>Round count</span>
+                    <input
+                      type="number"
+                      id="bandonRoundCount"
+                      min={BANDON_ROUND_BOUNDS.min}
+                      max={BANDON_ROUND_BOUNDS.max}
+                      value={BANDON_ROUND_BOUNDS.default}
+                      step="1"
+                    />
+                  </label>
+                  <p class="templateCard__bandonHint">
+                    2–12 rounds. 6+ adds the Preserve par-3
+                    shootout; 10+ adds Shorty's.
+                  </p>
+                </div>
+              )}
+              <p class="templateCard__meta">{t.copy.meta}</p>
+            </button>
+          ))}
+        </div>
+
+        <p class="templatePicker__note" hidden id="templateNote"></p>
+      </section>
+
       <!-- Step 1 — Basics -->
-      <section data-step="1" class="wizard__step is-current" aria-label="Basics">
+      <section data-step="1" class="wizard__step" aria-label="Basics">
         <h2 class="wizard__stepTitle">Basics</h2>
 
         <label class="field">
@@ -284,6 +387,15 @@ try {
           Competitions — you can configure in the mobile app once
           the tournament is created.
         </p>
+
+        <aside id="reviewCupNote" class="reviewCupNote" hidden>
+          <strong>Cup template applied.</strong>
+          Rounds, formats, and Cup point weights are pre-filled.
+          Team pairings, per-round side games, and per-round
+          course overrides (Bandon's par-3 shootouts, Scarecrow's
+          two-course split) can be configured on the Manage page
+          in the mobile app after the tournament is created.
+        </aside>
       </section>
 
       <!-- Persistent error surface -->
@@ -308,6 +420,13 @@ try {
 <script is:inline define:vars={{
   defaultDirectorName: displayName,
   defaultDirectorHcp: directorHandicap,
+  cupTemplates: cupTemplatesForClient,
+  bandonRoundsByCount,
+  bandonRoundBounds: {
+    min: BANDON_ROUND_BOUNDS.min,
+    max: BANDON_ROUND_BOUNDS.max,
+    default: BANDON_ROUND_BOUNDS.default,
+  },
 }}>
   // ── Wizard state ──────────────────────────────────────────
   //
@@ -319,8 +438,17 @@ try {
   // the per-round selection AND the resolved rating/slope/par from
   // whichever tee the user picked, so the submit payload can include
   // rating/slope at the tournament level without a second fetch.
+  // Wizard step numbering: 0 = Template picker (optional; new in
+  // this PR), 1..5 = the original Basics/Format/Rounds/Players/
+  // Review flow. Kept as 0 so all existing 1..5 comparisons keep
+  // their meaning — only step 0 needed new casework.
   const state = {
-    step: 1,
+    step: 0,
+    // 'blank' = default; otherwise a template id from cupTemplates.
+    templateId: 'blank',
+    // Bandon-only: user-chosen round count. Ignored for other
+    // templates.
+    bandonRoundCount: bandonRoundBounds.default,
     course: null, // {id, clubName, courseName, teeBoxes: [...] once loaded}
     rounds: [
       // Rating/slope/par default to null until a course loads +
@@ -330,8 +458,19 @@ try {
       { teeName: '', totalHoles: 18, format: 'stroke',
         courseRating: null, slopeRating: null, parTotal: null,
         gender: 'male',
+        pointsAvailable: 1,
+        useIndividualScoring: false,
+        matchupCompositionMode: null,
+        scheduledDate: null, firstTeeTime: null, courseKey: null,
         startType: 'teeTimes', teeTimeGroupSize: 4, shotgunStartTime: '' },
     ],
+    // Tournament-level Cup defaults. Overridden when a Cup
+    // template is picked; the Format step still exposes the
+    // scoring-mode radios for manual override.
+    scoringModeOverride: null, // when non-null, replaces the Step 2 radio choice
+    useNetScoringOverride: null,
+    trackCTPOnPar3s: false,
+    trackLongestDrive: false,
     players: [],
   };
 
@@ -360,7 +499,9 @@ try {
     pills.forEach((el) => {
       el.classList.toggle('is-current', Number(el.dataset.stepPill) === step);
     });
-    backBtn.disabled = step === 1;
+    // Back is enabled from Basics onwards (Template picker is
+    // the first step and has nothing to go back to).
+    backBtn.disabled = step === 0;
     nextBtn.hidden = step === 5;
     submitBtn.hidden = step !== 5;
     errorBox.hidden = true;
@@ -395,8 +536,191 @@ try {
     show(Math.min(state.step + 1, 5));
   });
   backBtn.addEventListener('click', () => {
-    show(Math.max(state.step - 1, 1));
+    show(Math.max(state.step - 1, 0));
   });
+
+  // ── Template picker (Step 0) ─────────────────────────────
+  //
+  // Selecting a template card mutates state.rounds + a handful of
+  // tournament-level defaults (scoringMode, useNetScoring, CTP /
+  // LD tracking). The Blank card is the no-op default — resets
+  // state to the wizard's original single-round starter.
+  //
+  // Bandon Dunes Cup is the only round-count-driven template —
+  // its card exposes a number input (2..12) that swaps the round
+  // list in place from the server-precomputed `bandonRoundsByCount`
+  // map.
+  //
+  // The user can advance to Basics without picking anything (Blank
+  // stays active by default). Coming back and picking a different
+  // template REPLACES rounds — a `templateNote` warning surfaces
+  // this so the user isn't surprised.
+  //
+  // Any tournament-level defaults the template sets get echoed
+  // onto the Format step so the Format radios stay in sync. If
+  // the user manually toggles a radio afterward, that override
+  // wins on submit.
+  const templateCards = document.querySelectorAll('[data-template-id]');
+  const templateNote = document.getElementById('templateNote');
+  const bandonInput = document.getElementById('bandonRoundCount');
+  const bandonPicker = document.querySelector('[data-bandon-picker]');
+  const reviewCupNote = document.getElementById('reviewCupNote');
+  const scoringRadios = document.getElementsByName('scoringMode');
+  const useNetScoringEl = document.getElementById('useNetScoring');
+
+  function templateById(id) {
+    return cupTemplates.find((t) => t.id === id) || null;
+  }
+
+  function makeBlankRound() {
+    return {
+      teeName: '', totalHoles: 18, format: 'stroke',
+      courseRating: null, slopeRating: null, parTotal: null,
+      gender: 'male',
+      pointsAvailable: 1,
+      useIndividualScoring: false,
+      matchupCompositionMode: null,
+      scheduledDate: null, firstTeeTime: null, courseKey: null,
+      startType: 'teeTimes', teeTimeGroupSize: 4, shotgunStartTime: '',
+    };
+  }
+
+  function templateRoundToState(r) {
+    // Turn a Cup template round into the wizard's round shape.
+    // The template drives format + points + composition mode +
+    // date/time hints; tee/holes/course-specific ratings still
+    // come from the wizard's Rounds step (or fall back to the
+    // default single-tee starter shape when the user submits
+    // without editing).
+    return {
+      teeName: '',
+      totalHoles: 18,
+      format: r.format,
+      courseRating: null,
+      slopeRating: null,
+      parTotal: null,
+      gender: 'male',
+      pointsAvailable: r.pointsAvailable ?? 1,
+      useIndividualScoring: r.useIndividualScoring === true,
+      matchupCompositionMode: r.matchupCompositionMode ?? null,
+      scheduledDate: r.scheduledDate ?? null,
+      firstTeeTime: r.firstTeeTime ?? null,
+      courseKey: r.courseKey ?? null,
+      // Session label from the template — echoed as roundName
+      // on the wire so the mobile app shows "R1 · Best Ball
+      // (Pacific Dunes)" rather than a generic "R1".
+      roundName: r.name ?? null,
+      startType: 'teeTimes',
+      teeTimeGroupSize: 4,
+      shotgunStartTime: '',
+    };
+  }
+
+  function applyTemplateOverrides(id) {
+    const t = templateById(id);
+    if (!t) {
+      // Blank — reset overrides and use one starter round.
+      state.templateId = 'blank';
+      state.rounds = [makeBlankRound()];
+      state.scoringModeOverride = null;
+      state.useNetScoringOverride = null;
+      state.trackCTPOnPar3s = false;
+      state.trackLongestDrive = false;
+      return;
+    }
+    state.templateId = id;
+    // Bandon uses the round-count-driven list; other templates
+    // use the static rounds baked into the template.
+    const rounds = id === 'bandonDunesCup'
+      ? (bandonRoundsByCount[state.bandonRoundCount] || t.rounds)
+      : t.rounds;
+    state.rounds = rounds.map(templateRoundToState);
+    state.scoringModeOverride = t.defaults.scoringMode; // 'stroke_aggregate' | 'match_points'
+    state.useNetScoringOverride = t.defaults.useNetScoring;
+    state.trackCTPOnPar3s = !!t.defaults.trackCTPOnPar3s;
+    state.trackLongestDrive = !!t.defaults.trackLongestDrive;
+  }
+
+  function syncFormatRadiosToState() {
+    // Mirror the template's scoring-mode default onto the Format
+    // step's radios so the user sees the pre-fill on arrival. The
+    // Format step only has 4 buckets today (strokeAggregate /
+    // scramble / bestBall / matchPlay); match_points falls into
+    // 'matchPlay' as the closest analog since it drives Cup-style
+    // head-to-head math on the mobile side.
+    if (state.scoringModeOverride == null) return;
+    const target =
+      state.scoringModeOverride === 'match_points' ? 'matchPlay'
+      : 'strokeAggregate';
+    for (const r of scoringRadios) {
+      if (r.value === target) r.checked = true;
+    }
+    if (state.useNetScoringOverride != null) {
+      useNetScoringEl.checked = !!state.useNetScoringOverride;
+    }
+  }
+
+  function refreshTemplateCards() {
+    templateCards.forEach((card) => {
+      const id = card.getAttribute('data-template-id');
+      const isCurrent = id === state.templateId ||
+        (state.templateId === 'blank' && id === 'blank');
+      card.classList.toggle('is-current', isCurrent);
+      card.setAttribute('aria-checked', isCurrent ? 'true' : 'false');
+    });
+    if (bandonPicker) {
+      bandonPicker.hidden = state.templateId !== 'bandonDunesCup';
+    }
+    // Note when a Cup template is active — makes the "next steps
+    // will show the pre-filled rounds" behavior explicit.
+    if (state.templateId === 'blank') {
+      templateNote.hidden = true;
+      templateNote.textContent = '';
+    } else {
+      const t = templateById(state.templateId);
+      const name = t ? t.name : 'Cup template';
+      const count = state.rounds.length;
+      templateNote.hidden = false;
+      templateNote.textContent =
+        `${name} applied — ${count} round${count === 1 ? '' : 's'} pre-filled. ` +
+        `You can still edit rounds and formats on the Rounds step.`;
+    }
+    // Review-step callout only for Cup templates.
+    if (reviewCupNote) {
+      reviewCupNote.hidden = state.templateId === 'blank';
+    }
+  }
+
+  templateCards.forEach((card) => {
+    card.addEventListener('click', (ev) => {
+      // Clicks inside the Bandon round-count input shouldn't
+      // trigger a template swap — the input lives inside the card.
+      if (ev.target && ev.target.closest && ev.target.closest('[data-bandon-picker]')) {
+        return;
+      }
+      const id = card.getAttribute('data-template-id');
+      applyTemplateOverrides(id);
+      syncFormatRadiosToState();
+      refreshTemplateCards();
+    });
+  });
+
+  if (bandonInput) {
+    bandonInput.addEventListener('change', () => {
+      const raw = Number(bandonInput.value);
+      const clamped = Math.min(
+        bandonRoundBounds.max,
+        Math.max(bandonRoundBounds.min, Number.isFinite(raw) ? Math.round(raw) : bandonRoundBounds.default),
+      );
+      if (clamped !== raw) bandonInput.value = String(clamped);
+      state.bandonRoundCount = clamped;
+      // Re-apply Bandon with the new count so state.rounds refreshes.
+      if (state.templateId === 'bandonDunesCup') {
+        applyTemplateOverrides('bandonDunesCup');
+        refreshTemplateCards();
+      }
+    });
+  }
 
   // ── Course search ────────────────────────────────────────
   const courseInput = /** @type {HTMLInputElement} */ (document.getElementById('courseSearch'));
@@ -811,16 +1135,33 @@ try {
     const fg = document.querySelector('input[name="fieldGender"]:checked');
     rvField.textContent = fg && fg.value === 'female' ? 'Women' : fg && fg.value === 'mixed' ? 'Mixed' : 'Men';
     const sm = document.querySelector('input[name="scoringMode"]:checked');
-    rvScoring.textContent = ({
+    // Cup templates take precedence when they set an override —
+    // display the Cup label rather than the pre-Cup radio choice.
+    const scoringLabels = {
       strokeAggregate: 'Stroke play',
       scramble: 'Scramble',
       bestBall: 'Best ball',
       matchPlay: 'Match play',
-    })[sm ? sm.value : 'strokeAggregate'];
+      stroke_aggregate: 'Stroke aggregate',
+      match_points: 'Cup — Match Points',
+    };
+    const scoringKey = state.scoringModeOverride
+      ?? (sm ? sm.value : 'strokeAggregate');
+    rvScoring.textContent = scoringLabels[scoringKey] || String(scoringKey);
     const netEl = /** @type {HTMLInputElement} */ (document.getElementById('useNetScoring'));
-    rvNet.textContent = netEl.checked ? 'Yes' : 'No';
+    const netVal = state.useNetScoringOverride != null
+      ? state.useNetScoringOverride
+      : netEl.checked;
+    rvNet.textContent = netVal ? 'Yes' : 'No';
     rvRounds.textContent = state.rounds
-      .map((r, i) => `R${i + 1} ${r.teeName} ${r.totalHoles}h`)
+      .map((r, i) => {
+        // For Cup rounds, prefer the template-set roundName over the
+        // generic "R1 White 18h" summary.
+        const base = r.roundName || `R${i + 1} ${r.teeName || '—'} ${r.totalHoles}h`;
+        return r.pointsAvailable && r.pointsAvailable !== 1
+          ? `${base} (${r.pointsAvailable} pts)`
+          : base;
+      })
       .join(' · ');
     rvPlayers.textContent = state.players.length === 0
       ? 'None'
@@ -857,8 +1198,16 @@ try {
       slopeRating: primary.slopeRating ?? null,
       parTotal: primary.parTotal ?? null,
       fieldGender: fg ? fg.value : 'male',
-      scoringMode: sm ? sm.value : 'strokeAggregate',
-      useNetScoring: netEl.checked,
+      // Cup templates set an override in state.scoringModeOverride
+      // (snake_case wire value). When null the wizard's Format-step
+      // radio choice wins — API-side validator accepts BOTH shapes.
+      scoringMode: state.scoringModeOverride ?? (sm ? sm.value : 'strokeAggregate'),
+      useNetScoring: state.useNetScoringOverride != null
+        ? !!state.useNetScoringOverride
+        : netEl.checked,
+      templateId: state.templateId || 'blank',
+      trackCTPOnPar3s: !!state.trackCTPOnPar3s,
+      trackLongestDrive: !!state.trackLongestDrive,
       rounds: state.rounds,
       players: state.players,
     };
@@ -905,8 +1254,11 @@ try {
     })[ch] || ch);
   }
 
-  // First render
-  show(1);
+  // First render — start on the Template picker (Step 0).
+  // Blank is the default template, so a user who just wants the
+  // pre-Cup flow can hit Next once and land on Basics as before.
+  refreshTemplateCards();
+  show(0);
 </script>
 
 <style>
@@ -1264,5 +1616,179 @@ try {
     padding: 10px 14px;
     border-radius: 10px;
     font-size: 14px;
+  }
+
+  /* ── Template picker (Step 0) ─────────────────────────── */
+  .templatePicker {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+  @media (max-width: 640px) {
+    .templatePicker { grid-template-columns: 1fr; }
+  }
+  .templateCard {
+    text-align: left;
+    background: #fff;
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    position: relative;
+    transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  }
+  .templateCard:hover {
+    transform: translateY(-1px);
+    border-color: rgba(26, 92, 56, 0.35);
+    box-shadow: 0 6px 16px rgba(15, 61, 37, 0.08);
+  }
+  .templateCard.is-current {
+    border-color: var(--brand-green);
+    background: var(--brand-green-pale, #f0f7f2);
+    box-shadow: 0 4px 14px rgba(15, 61, 37, 0.10);
+  }
+  .templateCard__badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #eef1ee;
+    color: var(--ink-muted);
+  }
+  .templateCard__badge--cup {
+    background: rgba(15, 61, 37, 0.1);
+    color: var(--brand-green-dark);
+  }
+  .templateCard__name {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0;
+    padding-right: 44px; /* room for the badge */
+  }
+  .templateCard__pitch {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--ink);
+  }
+  .templateCard__fit {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ink-muted);
+    line-height: 1.4;
+  }
+  .templateCard__fitlabel {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--brand-green);
+    margin-right: 4px;
+  }
+  .templateCard__includes {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .templateCard__includes li {
+    padding-left: 18px;
+    position: relative;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.4;
+  }
+  .templateCard__includes li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--brand-green);
+    font-weight: 800;
+  }
+  .templateCard__meta {
+    margin: 6px 0 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+    color: var(--brand-green-dark);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .templateCard.is-current .templateCard__meta {
+    border-top-color: rgba(26, 92, 56, 0.28);
+  }
+  .templateCard__bandonPicker {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px dashed var(--brand-green);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .templateCard__bandonPicker label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+  }
+  .templateCard__bandonPicker input[type='number'] {
+    width: 72px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .templateCard__bandonHint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ink-muted);
+    line-height: 1.4;
+  }
+
+  .templatePicker__note {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    background: var(--brand-green-pale, #f0f7f2);
+    border-left: 3px solid var(--brand-green);
+    border-radius: 6px;
+    color: var(--brand-green-dark);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .reviewCupNote {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: var(--brand-green-pale, #f0f7f2);
+    border: 1px solid rgba(26, 92, 56, 0.25);
+    border-radius: 10px;
+    color: var(--ink);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .reviewCupNote strong {
+    color: var(--brand-green-dark);
+    display: block;
+    margin-bottom: 2px;
   }
 </style>

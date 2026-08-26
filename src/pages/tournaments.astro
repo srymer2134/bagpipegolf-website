@@ -1,10 +1,17 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AppLinkBanner from '../components/AppLinkBanner.astro';
+import { CUP_TEMPLATE_LIST } from '../lib/cupTemplates';
 
 // Content sourced from the Flutter repo's canonical `docs/HOWTO_TOURNAMENTS.md`
 // (2026-08-19). Format list + handicap allowances should stay in sync with the
 // engine — update both docs in the same PR when a new format ships.
+//
+// The Buddies Trip Templates grid pulls its round schedules from the
+// shared `src/lib/cupTemplates.ts` module — the same source the
+// wizard's Step 0 picker consumes, so the marketing pages and the
+// wizard can never drift. Copy (`pitch`, `fit`, `includes`, `meta`,
+// `detail`) also lives in that module.
 
 interface Format {
   name: string;
@@ -105,97 +112,46 @@ const formats: Format[] = [
   },
 ];
 
-// Buddies Trip Templates — three shipping presets that turn multi-day
-// team-match trips into a single wizard flow. Round-by-round breakdowns
-// mirror the canonical specs in the Flutter repo:
+// Buddies Trip Templates — pulled from the shared cupTemplates
+// module (also consumed by /buddies-trips + the wizard's Step 0).
+// Point weights + formats mirror the mobile app's canonical
+// wizard specs. Update `src/lib/cupTemplates.ts` when a preset's
+// round order or point weighting changes.
 //
-//   Ryder Cup Classic:       lib/features/tourney/screens/new_tournament_screen.dart
-//                            kRyderCupVariants[classic]
-//                            "5 sessions · Foursomes / Four-Ball / Singles · 5 pts (1 per session)"
-//   Scarecrow Cup:           kRyderCupVariants[scarecrowCup]
-//                            "5 sessions across 2 courses · Best Ball / Best 3 of 4 /
-//                             High-Low / Twelves / Singles · points 6/3/6/6/12 = 33 total"
-//   Ballyneal Brigade:       ballynealBrigadeRoundSpecs() at line 174
-//
-// Keep these in sync with the app — if a preset's round order or point
-// weighting changes in the wizard, update here in the same PR.
+// The presentation shape below (session / format / points strings)
+// is derived from the shared `CupTemplateRound` — a small helper
+// keeps the display layer decoupled from the wire values.
 
-interface BuddiesRound {
-  session: string;    // "Session 1" | "Round 1" | "Fri PM" …
-  format: string;
-  points?: string;    // "6 pts" — omit for point-per-session cups
-}
+const roundFormatLabels: Record<string, string> = {
+  stroke_play: 'Singles Stroke Play',
+  match_play_singles: 'Singles Match Play',
+  best_ball: 'Best Ball (Four-Ball)',
+  best_ball_four_man: '4-Man Best Ball',
+  best_three_of_four: 'Best Three of Four',
+  foursomes: 'Foursomes (Alt Shot)',
+  greensomes: 'Greensomes',
+  pinehurst: 'Pinehurst',
+  modified_stableford: 'Modified Stableford',
+  high_low_2v2: 'High-Low',
+  twelves: 'Twelves',
+  bramble: 'Bramble',
+  yellow_ball: 'Yellow Ball',
+};
 
-interface BuddiesTemplate {
-  name: string;
-  tagline: string;      // one-line big-picture pitch
-  rounds: BuddiesRound[];
-  meta: string;         // aggregate line under the round list
-  detail: string;       // fine-print / what the template auto-configures
-}
-
-const buddiesTemplates: BuddiesTemplate[] = [
-  {
-    name: 'Ryder Cup',
-    tagline:
-      'The classic 5-session team match — three days, alternating formats, singles to close.',
-    rounds: [
-      { session: 'Session 1', format: 'Foursomes (Alternate Shot)' },
-      { session: 'Session 2', format: 'Four-Ball (Best Ball)' },
-      { session: 'Session 3', format: 'Foursomes' },
-      { session: 'Session 4', format: 'Four-Ball' },
-      { session: 'Session 5', format: 'Singles Match Play' },
-    ],
-    meta: '5 sessions · 3 days · 5 points (1 per session)',
-    detail:
-      'Applies Match Points scoring and adds a Team Rosters step to the wizard.',
-  },
-  {
-    name: 'Scarecrow Cup',
-    tagline:
-      '5 sessions across 2 courses. Every round scores different points — the weight of the day changes as the trip unfolds.',
-    rounds: [
-      { session: 'Round 1', format: 'Best Ball', points: '6 pts' },
-      { session: 'Round 2', format: 'Best Three of Four', points: '3 pts' },
-      { session: 'Round 3', format: 'High-Low', points: '6 pts' },
-      { session: 'Round 4', format: 'Twelves', points: '6 pts' },
-      { session: 'Round 5', format: 'Singles', points: '12 pts' },
-    ],
-    meta: '5 rounds · 2 courses · 33 points total',
-    detail:
-      'Preset session grid, Cup composition with team composer, and a live Cup Scoreboard. Practice-green tiebreaker off-app when it comes down to it.',
-  },
-  {
-    name: 'Ballyneal Brigade',
-    tagline:
-      'Weekend Ballyneal event. Team Best Ball Friday and Saturday, optional afternoon round, individual Championship Sunday.',
-    rounds: [
-      { session: 'Fri PM', format: '4-Man Best Ball' },
-      { session: 'Sat AM', format: '2-Man Best Ball' },
-      { session: 'Sat PM', format: 'Optional (Individual stroke play)' },
-      { session: 'Sun AM', format: 'Championship (Individual stroke play)' },
-    ],
-    meta: '4 rounds · Team + Individual Championship aggregate',
-    detail:
-      'One board for the whole trip — net-only leaderboard, round-strip chips, and Thru-Sat carry-in for the Championship. Optional Sat PM opts skipped players out of the aggregate cleanly.',
-  },
-  {
-    name: 'Bandon Dunes Cup',
-    tagline:
-      'Round-count-driven — you pick 2–12 rounds, the template pre-populates the schedule. Team rounds early, medal round penult, Singles Match Play always closes.',
-    rounds: [
-      { session: 'R1', format: 'Best Ball (Pacific Dunes)', points: '4 pts' },
-      { session: 'R2', format: 'Bramble (Old Mac)', points: '3 pts' },
-      { session: 'R3', format: 'Preserve Par-3 Shootout', points: '3 pts' },
-      { session: 'R4', format: 'Foursomes (Bandon Trails)', points: '5 pts' },
-      { session: 'R5', format: 'Singles Stroke Play (Bandon Dunes)', points: '4 pts' },
-      { session: 'R6', format: 'Singles Match Play', points: '12 pts' },
-    ],
-    meta: '2–12 rounds · signature 6-round shape shown · 31 points total · Team Cup points, Gross + Net · Preserve par-3 competition · Shorty\'s joins at 10+ rounds',
-    detail:
-      'The Tournament Director picks the round count first, then applies the Bandon template. Trips of 4+ rounds finish with Singles Stroke Play (medal round) into Singles Match Play (Cup championship). Trips of 6+ include The Preserve par-3 shootout; trips of 10+ add Shorty\'s. Par 3 Closest-to-Pin tracked on every par 3 across the whole trip. Supports 4–48 players.',
-  },
-];
+const buddiesTemplates = CUP_TEMPLATE_LIST.map((t) => ({
+  name: t.name,
+  tagline: t.tagline,
+  rounds: t.rounds.map((r, i) => ({
+    session: `R${i + 1}`,
+    // Prefer the human name from the template (already carries
+    // course hints for Bandon signature rounds like "R1 · Best
+    // Ball (Pacific Dunes)"); fall back to the format label.
+    format: r.name.replace(/^R\d+\s*[·—-]\s*/, '') || roundFormatLabels[r.format] || r.format,
+    points: `${r.pointsAvailable} pts`,
+  })),
+  meta: t.copy.meta,
+  detail: t.copy.detail,
+}));
 ---
 
 <BaseLayout title="Tournaments · Bagpipe Golf" description="Eleven tournament formats, four Buddies Trip Cup templates (Ryder Cup, Scarecrow Cup, Ballyneal Brigade, Bandon Dunes Cup), and a wizard to build your own — every pairing, point, and payout handled on your phone.">
