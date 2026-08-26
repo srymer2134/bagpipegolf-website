@@ -23,16 +23,34 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           view — built by golfers who got tired of doing skins on a
           napkin.
         </p>
+
+        <!-- Launch banner — replaces the sitenav "Live on App Store"
+             button per Sam 2026-08-25. Prominent visual push on the
+             homepage, doesn't clutter every-page nav chrome. -->
+        <a class="launchBanner" href="https://apps.apple.com/app/id6775045734">
+          <img
+            src="/bagpipe-golf-logo.jpg"
+            alt=""
+            class="launchBanner__logo"
+            width="72"
+            height="72"
+          />
+          <div class="launchBanner__copy">
+            <span class="launchBanner__eyebrow">App Launch</span>
+            <span class="launchBanner__title">Now Available on the App Store</span>
+            <span class="launchBanner__sub">iPhone &amp; iPad · free · Android coming soon</span>
+          </div>
+          <span class="launchBanner__arrow" aria-hidden="true">↗</span>
+        </a>
+
         <div class="hero__ctas">
           <a class="btn btn--primary" href="#features">See what's inside</a>
           <a class="btn btn--ghost" href="#directors">Run a tournament</a>
         </div>
         <p class="hero__sub">
-          <span class="hero__chip">Live on the App Store</span>
-          Android coming soon ·
-          <a href="https://apps.apple.com/app/id6775045734">Download on iPhone &amp; iPad</a>
-          or email
-          <a href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf">hello@bagpipegolf.com</a>.
+          Not on iPhone? Email
+          <a href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf">hello@bagpipegolf.com</a>
+          — we'll ping you when Android ships.
         </p>
       </div>
     </section>
@@ -218,6 +236,82 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     gap: 12px;
     justify-content: center;
     flex-wrap: wrap;
+  }
+
+  /* ── Launch banner ─────────────────────────────────── */
+  .launchBanner {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 20px;
+    max-width: 640px;
+    margin: 0 auto 24px;
+    padding: 16px 22px;
+    background:
+      linear-gradient(
+        135deg,
+        var(--brand-green-dark) 0%,
+        var(--brand-green) 100%
+      );
+    border-radius: 16px;
+    box-shadow: 0 10px 32px rgba(15, 61, 37, 0.35);
+    text-decoration: none;
+    color: #fff;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .launchBanner:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 38px rgba(15, 61, 37, 0.42);
+  }
+  .launchBanner__logo {
+    width: 72px;
+    height: 72px;
+    border-radius: 12px;
+    object-fit: cover;
+    background: #fff;
+    padding: 4px;
+    box-sizing: border-box;
+  }
+  .launchBanner__copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+    min-width: 0;
+  }
+  .launchBanner__eyebrow {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.85;
+  }
+  .launchBanner__title {
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.005em;
+  }
+  .launchBanner__sub {
+    font-size: 13px;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+  .launchBanner__arrow {
+    font-size: 28px;
+    font-weight: 700;
+    opacity: 0.85;
+    padding-right: 4px;
+  }
+  @media (max-width: 520px) {
+    .launchBanner {
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      padding: 14px 16px;
+    }
+    .launchBanner__arrow { display: none; }
+    .launchBanner__logo { width: 56px; height: 56px; }
+    .launchBanner__title { font-size: 17px; }
   }
   .hero__sub {
     margin-top: 24px;
