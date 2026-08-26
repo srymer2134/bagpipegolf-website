@@ -107,7 +107,7 @@ const playerCount = players.length;
     <p class="pagewrap__eyebrow">Tournament · director controls</p>
     <h1 class="pagewrap__title">Manage tournament.</h1>
     <p class="pagewrap__sub">
-      <span class="chip chip--warn">TD only</span>
+      <span class="chip chip--warn">Director only</span>
       Wizard-equivalent surface for the tournament director.
     </p>
 
@@ -221,7 +221,7 @@ const playerCount = players.length;
                       data-name={f.display_name}
                       data-hcp={f.handicap}
                     >
-                      {f.display_name} (HCP {f.handicap})
+                      {f.display_name} (Handicap {f.handicap})
                     </option>
                   ))}
                 </select>
@@ -234,7 +234,7 @@ const playerCount = players.length;
 
           <div class="playerAdd">
             <input type="text" id="playerNameInput" placeholder="Player name" maxlength="60" />
-            <input type="number" id="playerHcpInput" placeholder="HCP" step="0.1" min="-10" max="54" />
+            <input type="number" id="playerHcpInput" placeholder="Handicap" step="0.1" min="-10" max="54" />
             <button type="button" id="addPlayerBtn" class="btn btn--ghost btn--sm">Add manually</button>
           </div>
 

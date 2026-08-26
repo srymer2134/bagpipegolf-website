@@ -242,7 +242,7 @@ try {
                     data-name={f.display_name}
                     data-hcp={f.handicap}
                   >
-                    {f.display_name} (HCP {f.handicap})
+                    {f.display_name} (Handicap {f.handicap})
                   </option>
                 ))}
               </select>
@@ -255,7 +255,7 @@ try {
 
         <div class="playerAdd">
           <input type="text" id="playerNameInput" placeholder="Player name" maxlength="60" />
-          <input type="number" id="playerHcpInput" placeholder="HCP" step="0.1" min="-10" max="54" />
+          <input type="number" id="playerHcpInput" placeholder="Handicap" step="0.1" min="-10" max="54" />
           <button type="button" id="addPlayerBtn" class="btn btn--ghost btn--sm">Add manually</button>
         </div>
 
@@ -779,7 +779,7 @@ try {
       li.className = 'playersList__row';
       li.innerHTML = `
         <span class="playersList__name">${escapeHtml(p.name)}</span>
-        <span class="playersList__hcp">HCP ${p.handicap}</span>
+        <span class="playersList__hcp">Handicap ${p.handicap}</span>
         <button type="button" class="playersList__remove" data-player-remove="${i}" aria-label="Remove ${escapeHtml(p.name)}">×</button>
       `;
       playersList.appendChild(li);
