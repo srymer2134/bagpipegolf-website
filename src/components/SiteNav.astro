@@ -21,12 +21,17 @@ type NavGroup = { title: string; links: NavLink[] };
 // account. Standard SaaS pattern: marketing site shows marketing
 // links; a Dashboard button on the right takes signed-in users into
 // the app.
+// 2026-08-25 — Pricing removed from the primary bar per Sam
+// (findable via the Menu → Product group; not on top nav until
+// paid tiers actually ship). Also removed the "Live on the App
+// Store" button that briefly lived to the right of the auth CTAs
+// — App Store discovery lives on the homepage launch banner
+// instead.
 const primaryLinks: NavLink[] = [
   { href: '/features', label: 'Features' },
   { href: '/tournaments', label: 'Tournaments' },
   { href: '/side-games', label: 'Side games' },
   { href: '/leagues', label: 'Leagues' },
-  { href: '/pricing', label: 'Pricing' },
 ];
 
 // Menu panel — grouped sitemap. Five groups for both auth states so the
@@ -53,7 +58,6 @@ const productLinks: NavLink[] = [
   { href: '/for-hosts', label: 'For Hosts' },
   { href: '/for-players', label: 'For Players' },
   { href: '/pricing', label: 'Pricing' },
-  { href: 'https://apps.apple.com/app/id6775045734', label: 'Download on the App Store' },
 ];
 
 const helpLinks: NavLink[] = [
@@ -165,23 +169,17 @@ const isActive = (href: string) =>
       </details>
 
       <div class="sitenav__cta">
-        <a
-          class="btn btn--primary btn--sm sitenav__appstore"
-          href="https://apps.apple.com/app/id6775045734"
-        >
-          Live on the App&nbsp;Store
-        </a>
         {
           isSignedIn ? (
             <form method="post" action="/api/auth/signout" class="sitenav__signoutform">
-              <a class="btn btn--ghost btn--sm" href="/app">Dashboard</a>
+              <a class="btn btn--primary btn--sm" href="/app">Dashboard</a>
               <span class="sitenav__user">{user!.email}</span>
               <button type="submit" class="btn btn--ghost btn--sm">Sign out</button>
             </form>
           ) : (
             <>
               <a class="btn btn--ghost btn--sm" href="/login">Sign in</a>
-              <a class="btn btn--ghost btn--sm" href="/signup">Create account</a>
+              <a class="btn btn--primary btn--sm" href="/signup">Create account</a>
             </>
           )
         }
