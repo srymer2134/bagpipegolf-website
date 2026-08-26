@@ -129,6 +129,70 @@ const playerCount = players.length;
 
     {tournament && (
       <>
+        <!-- Basics card (Slice A2) — rename tournament -->
+        <section class="rosterCard" data-card="basics">
+          <header class="rosterCard__head">
+            <div>
+              <h2 class="rosterCard__title">Basics</h2>
+              <p class="rosterCard__meta">
+                Rename the tournament. Anything that references it
+                (leaderboard, share links) updates automatically.
+              </p>
+            </div>
+          </header>
+
+          <div id="basicsError" class="errorbar" hidden></div>
+
+          <label class="fieldLabel" for="basicsName">Tournament name</label>
+          <input
+            type="text"
+            id="basicsName"
+            class="basicsInput"
+            value={tournament.name}
+            maxlength="80"
+          />
+
+          <div class="rosterCard__actions">
+            <button type="button" id="basicsCancelBtn" class="btn btn--ghost">
+              Cancel
+            </button>
+            <button type="button" id="basicsSaveBtn" class="btn btn--primary" disabled>
+              Save name
+            </button>
+          </div>
+        </section>
+
+        <!-- Rounds card (Slice A2) — add / remove / edit rounds -->
+        <section class="rosterCard" data-card="rounds">
+          <header class="rosterCard__head">
+            <div>
+              <h2 class="rosterCard__title">Rounds</h2>
+              <p class="rosterCard__meta">
+                <span id="roundCount">{tournament.rounds?.length ?? 0}</span> of 12 ·
+                add or edit rounds, change tee or format, remove
+                rounds that haven't been played.
+              </p>
+            </div>
+          </header>
+
+          <div id="roundsError" class="errorbar" hidden></div>
+
+          <ul id="roundsList" class="roundsList" aria-live="polite"></ul>
+
+          <button type="button" id="addRoundBtn" class="btn btn--ghost btn--sm">
+            + Add round
+          </button>
+
+          <div class="rosterCard__actions">
+            <button type="button" id="roundsCancelBtn" class="btn btn--ghost">
+              Cancel
+            </button>
+            <button type="button" id="roundsSaveBtn" class="btn btn--primary" disabled>
+              Save rounds
+            </button>
+          </div>
+        </section>
+
         <section class="rosterCard">
           <header class="rosterCard__head">
             <div>
@@ -254,6 +318,7 @@ const playerCount = players.length;
 </BaseLayout>
 
 {tournament && (
+  <>
   <script is:inline define:vars={{
     tournamentId: id,
     initialPlayers: players,
@@ -483,6 +548,327 @@ const playerCount = players.length;
     wireInitialRows();
     refreshSaveGate();
   </script>
+
+  <script is:inline define:vars={{
+    tournamentId: id,
+    initialName: tournament.name,
+  }}>
+    const nameInput = document.getElementById('basicsName');
+    const saveBtn = document.getElementById('basicsSaveBtn');
+    const cancelBtn = document.getElementById('basicsCancelBtn');
+    const errorBox = document.getElementById('basicsError');
+
+    let saving = false;
+
+    function showError(msg) { errorBox.textContent = msg; errorBox.hidden = false; }
+    function clearError() { errorBox.hidden = true; }
+
+    function refreshGate() {
+      const dirty = nameInput.value.trim() !== initialName.trim();
+      saveBtn.disabled = saving || !dirty || nameInput.value.trim().length === 0;
+    }
+    nameInput.addEventListener('input', () => { clearError(); refreshGate(); });
+
+    cancelBtn.addEventListener('click', () => {
+      nameInput.value = initialName;
+      clearError();
+      refreshGate();
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const name = nameInput.value.trim();
+      if (name.length === 0) return showError("Name can't be empty.");
+      if (saving) return;
+      saving = true;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      clearError();
+      try {
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/update`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          saving = false;
+          saveBtn.textContent = 'Save name';
+          refreshGate();
+          return showError(data.error || `Save failed with ${res.status}`);
+        }
+        window.location.reload();
+      } catch (err) {
+        saving = false;
+        saveBtn.textContent = 'Save name';
+        refreshGate();
+        showError(err?.message || 'Network error — try again.');
+      }
+    });
+  </script>
+
+  <script is:inline define:vars={{
+    tournamentId: id,
+    initialRounds: tournament.rounds ?? [],
+    tournamentTeeBoxes: tournament.tee_boxes ?? [],
+  }}>
+    // Deep-copy so dirty detection compares against a stable
+    // snapshot. `working` mutates as the user edits.
+    const initial = JSON.parse(JSON.stringify(initialRounds));
+    const teeBoxes = Array.isArray(tournamentTeeBoxes) ? tournamentTeeBoxes : [];
+    const state = {
+      working: JSON.parse(JSON.stringify(initial)),
+      saving: false,
+    };
+
+    const listEl = document.getElementById('roundsList');
+    const countEl = document.getElementById('roundCount');
+    const errorBox = document.getElementById('roundsError');
+    const saveBtn = document.getElementById('roundsSaveBtn');
+    const cancelBtn = document.getElementById('roundsCancelBtn');
+    const addBtn = document.getElementById('addRoundBtn');
+
+    // Fallback tee names when the picked course returned no per-tee
+    // data (rare — happens for GolfCourseAPI hits with sparse
+    // metadata). Matches the wizard's fallback list.
+    const FALLBACK_TEES = ['Championship', 'Blue', 'White', 'Gold', 'Red', 'Green'];
+
+    function showError(msg) { errorBox.textContent = msg; errorBox.hidden = false; }
+    function clearError() { errorBox.hidden = true; }
+
+    // Normalize each round for dirty compare. Preserves ALL keys the
+    // server sent (so scores + timestamps + unknown mobile-app fields
+    // survive the round trip) but pins the fields this editor
+    // touches to a canonical shape.
+    function normalizeForCompare(r) {
+      return {
+        teeBoxName: r.teeBoxName ?? r.teeName ?? '',
+        totalHoles: Number(r.totalHoles) || 18,
+        format: r.format ?? 'stroke',
+      };
+    }
+    function isDirty() {
+      if (state.working.length !== initial.length) return true;
+      const a = JSON.stringify(state.working.map(normalizeForCompare));
+      const b = JSON.stringify(initial.map(normalizeForCompare));
+      return a !== b;
+    }
+    function refreshGate() {
+      saveBtn.disabled = state.saving || !isDirty();
+    }
+
+    // Any non-null score in the round's player_hole_scores /
+    // playerHoleScores means the round has been played — gate the
+    // Remove button so users don't accidentally nuke recorded data.
+    function roundHasScores(r) {
+      const raw = r.player_hole_scores ?? r.playerHoleScores ?? [];
+      if (!Array.isArray(raw)) return false;
+      for (const row of raw) {
+        const scores = row?.holeScores ?? row?.hole_scores ?? [];
+        if (Array.isArray(scores) && scores.some((s) => s != null && s > 0)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function renderRounds() {
+      listEl.innerHTML = '';
+      state.working.forEach((r, i) => {
+        const currentTee = r.teeBoxName ?? r.teeName ?? '';
+        const currentHoles = Number(r.totalHoles) || 18;
+        const currentFormat = r.format ?? 'stroke';
+        const hasScores = roundHasScores(r);
+
+        const teeOptions = teeBoxes.length > 0
+          ? teeBoxes.map((t) => {
+              const val = t.tee_name ?? t.teeName ?? '';
+              const label = teeLabel(t);
+              const sel = val === currentTee ? 'selected' : '';
+              return `<option value="${escapeHtml(val)}" ${sel}>${escapeHtml(label)}</option>`;
+            }).join('')
+          : FALLBACK_TEES.map((n) => {
+              const sel = n === currentTee ? 'selected' : '';
+              return `<option value="${escapeHtml(n)}" ${sel}>${escapeHtml(n)}</option>`;
+            }).join('');
+
+        const li = document.createElement('li');
+        li.className = 'roundsList__row';
+        li.dataset.roundIdx = String(i);
+        li.innerHTML = `
+          <div class="roundsList__idx">R${i + 1}</div>
+          <label>
+            <span>Tee</span>
+            <select data-round-tee="${i}">
+              ${teeOptions}
+            </select>
+          </label>
+          <label>
+            <span>Holes</span>
+            <select data-round-holes="${i}">
+              <option value="18" ${currentHoles === 18 ? 'selected' : ''}>18</option>
+              <option value="9" ${currentHoles === 9 ? 'selected' : ''}>9</option>
+            </select>
+          </label>
+          <label>
+            <span>Format</span>
+            <select data-round-format="${i}">
+              <option value="stroke" ${currentFormat === 'stroke' ? 'selected' : ''}>Stroke</option>
+              <option value="scramble" ${currentFormat === 'scramble' ? 'selected' : ''}>Scramble</option>
+              <option value="bestBall" ${currentFormat === 'bestBall' ? 'selected' : ''}>Best ball</option>
+              <option value="matchPlay" ${currentFormat === 'matchPlay' ? 'selected' : ''}>Match</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            class="roundsList__remove"
+            data-round-remove="${i}"
+            title="${hasScores ? 'Round has scores — cannot remove' : 'Remove round'}"
+            ${hasScores ? 'disabled' : ''}
+          >×</button>
+        `;
+        listEl.appendChild(li);
+      });
+
+      // Rewire per-row listeners after re-render.
+      listEl.querySelectorAll('[data-round-tee]').forEach((el) => {
+        el.addEventListener('change', (e) => {
+          const idx = Number(el.getAttribute('data-round-tee'));
+          state.working[idx].teeBoxName = e.target.value;
+          refreshGate();
+        });
+      });
+      listEl.querySelectorAll('[data-round-holes]').forEach((el) => {
+        el.addEventListener('change', (e) => {
+          const idx = Number(el.getAttribute('data-round-holes'));
+          state.working[idx].totalHoles = Number(e.target.value);
+          refreshGate();
+        });
+      });
+      listEl.querySelectorAll('[data-round-format]').forEach((el) => {
+        el.addEventListener('change', (e) => {
+          const idx = Number(el.getAttribute('data-round-format'));
+          state.working[idx].format = e.target.value;
+          refreshGate();
+        });
+      });
+      listEl.querySelectorAll('[data-round-remove]').forEach((el) => {
+        el.addEventListener('click', () => {
+          if (el.disabled) return;
+          const idx = Number(el.getAttribute('data-round-remove'));
+          if (state.working.length <= 1) {
+            return showError('At least one round is required.');
+          }
+          state.working.splice(idx, 1);
+          renderRounds();
+          refreshGate();
+          clearError();
+          countEl.textContent = String(state.working.length);
+        });
+      });
+
+      addBtn.disabled = state.working.length >= 12;
+    }
+
+    function teeLabel(tee) {
+      const bits = [tee.tee_name ?? tee.teeName ?? '?'];
+      if (tee.gender === 'female') bits.push('(F)');
+      if (tee.course_rating != null && tee.slope_rating != null) {
+        bits.push(`— ${tee.course_rating} / ${tee.slope_rating}`);
+      } else if (tee.course_rating != null) {
+        bits.push(`— ${tee.course_rating}`);
+      }
+      return bits.join(' ');
+    }
+
+    addBtn.addEventListener('click', () => {
+      if (state.working.length >= 12) return;
+      // Default tee = first course tee_box (usually the men's back
+      // per curated ordering) or 'White' fallback.
+      const defaultTee = teeBoxes.length > 0
+        ? (teeBoxes[0].tee_name ?? teeBoxes[0].teeName ?? 'White')
+        : 'White';
+      const newRound = {
+        // Client-generated id — mobile app treats round IDs as
+        // stable strings; append-only, so the new id can't collide
+        // with existing ones in this tournament. Preserves parity
+        // with wizard-created rounds which don't set id (server
+        // handles both shapes).
+        id: `r_${tournamentId}_${Date.now()}_${state.working.length}`,
+        index: state.working.length,
+        teeBoxName: defaultTee,
+        totalHoles: 18,
+        format: 'stroke',
+        playerHoleScores: {},
+        playerStrokes: {},
+        completed: false,
+      };
+      state.working.push(newRound);
+      renderRounds();
+      refreshGate();
+      clearError();
+      countEl.textContent = String(state.working.length);
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      if (!isDirty()) return;
+      if (!confirm('Discard your round changes?')) return;
+      window.location.reload();
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      if (state.saving || !isDirty()) return;
+      state.saving = true;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      clearError();
+
+      // Merge edited fields onto each round, preserving unknown
+      // server-side fields (scores, timestamps, etc). Re-index in
+      // case rounds were added or removed.
+      const nextRounds = state.working.map((r, i) => ({
+        ...r,
+        index: i,
+      }));
+      const totalHoles = nextRounds.reduce(
+        (sum, r) => sum + (Number(r.totalHoles) || 0),
+        0,
+      );
+
+      try {
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/update`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            rounds: nextRounds,
+            total_holes: totalHoles,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          state.saving = false;
+          saveBtn.textContent = 'Save rounds';
+          refreshGate();
+          return showError(data.error || `Save failed with ${res.status}`);
+        }
+        window.location.reload();
+      } catch (err) {
+        state.saving = false;
+        saveBtn.textContent = 'Save rounds';
+        refreshGate();
+        showError(err?.message || 'Network error — try again.');
+      }
+    });
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[ch] || ch);
+    }
+
+    renderRounds();
+    refreshGate();
+  </script>
+  </>
 )}
 
 <style>
@@ -575,6 +961,85 @@ const playerCount = players.length;
     font-size: 15px;
     background: #fff;
     font-family: inherit;
+  }
+
+  /* ── Basics editor ────────────────────────────────── */
+  .fieldLabel {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-top: 4px;
+  }
+  .basicsInput {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 16px;
+    font-family: inherit;
+    width: 100%;
+    max-width: 480px;
+    box-sizing: border-box;
+  }
+
+  /* ── Rounds editor ────────────────────────────────── */
+  .roundsList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .roundsList__row {
+    display: grid;
+    grid-template-columns: auto 1fr 90px 1fr auto;
+    gap: 10px;
+    align-items: end;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fafbfa;
+  }
+  .roundsList__row label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .roundsList__row select {
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    font-family: inherit;
+  }
+  .roundsList__idx {
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    font-size: 16px;
+    padding-bottom: 10px;
+  }
+  .roundsList__remove {
+    background: transparent;
+    border: 0;
+    color: var(--ink-muted);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 0 6px;
+    align-self: end;
+    margin-bottom: 4px;
+  }
+  .roundsList__remove:hover:not(:disabled) { color: var(--error); }
+  .roundsList__remove:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
   }
 
   .playerAdd {
