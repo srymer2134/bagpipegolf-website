@@ -285,6 +285,79 @@ const playerCount = players.length;
           </div>
         </section>
 
+        <!-- Flights card — handicap-split brackets -->
+        <section class="rosterCard" data-card="flights">
+          <header class="rosterCard__head">
+            <div>
+              <h2 class="rosterCard__title">Flights</h2>
+              <p class="rosterCard__meta">
+                Split the field into handicap-bracketed brackets —
+                each flight competes for its own prizes. Empty =
+                single competition across the whole field
+                (default).
+              </p>
+            </div>
+          </header>
+
+          <div id="flightsError" class="errorbar" hidden></div>
+
+          <fieldset class="field field--group flightsMode">
+            <legend class="field__label">Flights mode</legend>
+            <div class="radios radios--stacked">
+              <label>
+                <input type="radio" name="mgFlightsMode" value="off" />
+                <span><strong>No flights</strong> — single competition</span>
+              </label>
+              <label>
+                <input type="radio" name="mgFlightsMode" value="auto" />
+                <span><strong>Auto-split by handicap</strong> — equal-count buckets</span>
+              </label>
+              <label>
+                <input type="radio" name="mgFlightsMode" value="manual" />
+                <span><strong>Manual composer</strong></span>
+              </label>
+            </div>
+          </fieldset>
+
+          <div id="mgFlightsAutoPanel" class="flightsPanel" hidden>
+            <label class="field flightsCountField">
+              <span class="field__label">Number of flights</span>
+              <select id="mgFlightsAutoCount">
+                <option value="2">2 flights</option>
+                <option value="3">3 flights</option>
+                <option value="4">4 flights</option>
+              </select>
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" id="mgFlightsAdjustToggle" />
+              <span>Adjust auto boundaries manually</span>
+            </label>
+            <div id="mgFlightsAutoPreview" class="flightsPreview" aria-live="polite"></div>
+          </div>
+
+          <div id="mgFlightsManualPanel" class="flightsPanel" hidden>
+            <div class="flightsManualHeader">
+              <button type="button" id="mgFlightsManualAddBtn" class="btn btn--ghost btn--sm">
+                + Add flight
+              </button>
+              <button type="button" id="mgFlightsManualSeedBtn" class="btn btn--ghost btn--sm">
+                Auto-assign by handicap
+              </button>
+            </div>
+            <ul id="mgFlightsManualList" class="flightsManualList"></ul>
+            <ul id="mgFlightsManualAssignments" class="flightsAssignList" aria-live="polite"></ul>
+          </div>
+
+          <div class="rosterCard__actions">
+            <button type="button" id="mgFlightsCancelBtn" class="btn btn--ghost">
+              Cancel
+            </button>
+            <button type="button" id="mgFlightsSaveBtn" class="btn btn--primary" disabled>
+              Save flights
+            </button>
+          </div>
+        </section>
+
         <!-- Danger zone (Slice A3) — duplicate + delete -->
         <section class="dangerCard">
           <header class="rosterCard__head">
@@ -1073,6 +1146,497 @@ const playerCount = players.length;
       }
     });
   </script>
+
+  <script is:inline define:vars={{
+    tournamentId: id,
+    initialFlights: tournament.flights ?? [],
+    initialPlayers: players,
+  }}>
+    // Flights editor. Mirrors the wizard step at
+    // src/pages/app/tournaments/new.astro — same auto-split
+    // algorithm (equal-count buckets sorted by handicap
+    // ascending) and same three-mode UX (off / auto / manual).
+    //
+    // Key difference from the wizard: this editor works against
+    // REAL server-generated player ids (`p_<tournamentId>_<i>`),
+    // not the wizard's `wp_<i>` local ids. Payload writes those
+    // ids straight through — no re-mapping needed.
+    const MAX_FLIGHTS = 6;
+    const DEFAULT_FLIGHT_NAMES = [
+      'Championship', 'First', 'Second', 'Third', 'Fourth', 'Fifth',
+    ];
+
+    // Normalize server flights (snake_case + tolerant camel/snake
+    // for compat with older writes) to the editor's canonical
+    // camelCase shape.
+    function normalizeFlight(raw, i) {
+      const idsRaw = Array.isArray(raw?.playerIds)
+        ? raw.playerIds
+        : Array.isArray(raw?.player_ids)
+          ? raw.player_ids
+          : [];
+      return {
+        id: (typeof raw?.id === 'string' && raw.id.length > 0)
+          ? raw.id
+          : `flight_${i}_${Date.now()}`,
+        name: (typeof raw?.name === 'string' && raw.name.trim().length > 0)
+          ? raw.name.trim()
+          : `Flight ${i + 1}`,
+        handicapMin: (typeof (raw?.handicapMin ?? raw?.handicap_min) === 'number')
+          ? Number(raw.handicapMin ?? raw.handicap_min)
+          : null,
+        handicapMax: (typeof (raw?.handicapMax ?? raw?.handicap_max) === 'number')
+          ? Number(raw.handicapMax ?? raw.handicap_max)
+          : null,
+        playerIds: idsRaw
+          .filter((x) => typeof x === 'string'),
+      };
+    }
+
+    const normalizedInitial = (Array.isArray(initialFlights) ? initialFlights : [])
+      .map(normalizeFlight)
+      .slice(0, MAX_FLIGHTS);
+
+    const state = {
+      // Mode derived from initial: any flights on disk → 'manual'
+      // (safest — preserves the exact server state until the user
+      // opts into an auto reshuffle). No flights → 'off'.
+      mode: normalizedInitial.length > 0 ? 'manual' : 'off',
+      autoCount: 2,
+      autoAdjusted: false,
+      // Deep copy so dirty compare works against a stable baseline.
+      flights: JSON.parse(JSON.stringify(normalizedInitial)),
+      saving: false,
+    };
+
+    // Snapshot for dirty compare. Compares canonical JSON so
+    // pure-cosmetic reorderings still register.
+    const initialSnapshot = JSON.stringify({
+      mode: normalizedInitial.length > 0 ? 'manual' : 'off',
+      flights: normalizedInitial,
+    });
+
+    const flightsModeRadios = document.getElementsByName('mgFlightsMode');
+    const autoPanel = document.getElementById('mgFlightsAutoPanel');
+    const manualPanel = document.getElementById('mgFlightsManualPanel');
+    const autoCountEl = document.getElementById('mgFlightsAutoCount');
+    const adjustToggle = document.getElementById('mgFlightsAdjustToggle');
+    const autoPreview = document.getElementById('mgFlightsAutoPreview');
+    const manualAddBtn = document.getElementById('mgFlightsManualAddBtn');
+    const manualSeedBtn = document.getElementById('mgFlightsManualSeedBtn');
+    const manualList = document.getElementById('mgFlightsManualList');
+    const manualAssignments = document.getElementById('mgFlightsManualAssignments');
+    const errorBox = document.getElementById('flightsError');
+    const saveBtn = document.getElementById('mgFlightsSaveBtn');
+    const cancelBtn = document.getElementById('mgFlightsCancelBtn');
+
+    function showError(msg) { errorBox.textContent = msg; errorBox.hidden = false; }
+    function clearError() { errorBox.hidden = true; }
+
+    // Set the initial radio checked state from state.mode.
+    for (const r of flightsModeRadios) {
+      if (r.value === state.mode) r.checked = true;
+    }
+
+    function currentSnapshot() {
+      return JSON.stringify({
+        mode: state.mode === 'off' ? 'off' : 'manual',
+        flights: state.mode === 'off' ? [] : state.flights,
+      });
+    }
+    function isDirty() {
+      return currentSnapshot() !== initialSnapshot;
+    }
+    function refreshSaveGate() {
+      saveBtn.disabled = state.saving || !isDirty();
+    }
+
+    function playerHcp(p) {
+      const v = Number(p?.handicapIndex);
+      return Number.isFinite(v) ? v : 18;
+    }
+
+    function autoSplit(count) {
+      const n = initialPlayers.length;
+      const c = Math.max(1, Math.min(MAX_FLIGHTS, Math.floor(count)));
+      if (n === 0) return [];
+      const indexed = initialPlayers.map((p) => ({
+        id: p.id,
+        hcp: playerHcp(p),
+      }));
+      indexed.sort((a, b) => a.hcp - b.hcp);
+      const perFlight = Math.ceil(n / c);
+      const stamp = Date.now();
+      const out = [];
+      for (let i = 0; i < c; i++) {
+        const start = i * perFlight;
+        if (start >= n) break;
+        const end = Math.min(start + perFlight, n);
+        const slice = indexed.slice(start, end);
+        out.push({
+          id: `flight_${i}_${stamp + i}`,
+          name: DEFAULT_FLIGHT_NAMES[i] ?? `Flight ${i + 1}`,
+          handicapMin: slice[0].hcp,
+          handicapMax: slice[slice.length - 1].hcp,
+          playerIds: slice.map((s) => s.id),
+        });
+      }
+      return out;
+    }
+
+    function defaultCountFor(n) {
+      if (n <= 16) return 2;
+      if (n <= 32) return 3;
+      return 4;
+    }
+
+    for (const r of flightsModeRadios) {
+      r.addEventListener('change', () => {
+        if (!r.checked) return;
+        state.mode = r.value;
+        if (state.mode === 'off') {
+          state.autoAdjusted = false;
+        }
+        if (state.mode === 'auto') {
+          if (!state.autoAdjusted) state.flights = autoSplit(state.autoCount);
+        }
+        if (state.mode === 'manual') {
+          if (state.flights.length === 0) {
+            state.flights = autoSplit(defaultCountFor(initialPlayers.length));
+          }
+        }
+        render();
+      });
+    }
+
+    autoCountEl.addEventListener('change', () => {
+      const n = Math.max(2, Math.min(4, Number(autoCountEl.value) || 2));
+      state.autoCount = n;
+      state.autoAdjusted = false;
+      adjustToggle.checked = false;
+      state.flights = autoSplit(n);
+      render();
+    });
+
+    adjustToggle.addEventListener('change', () => {
+      state.autoAdjusted = !!adjustToggle.checked;
+      render();
+    });
+
+    manualAddBtn.addEventListener('click', () => {
+      if (state.flights.length >= MAX_FLIGHTS) {
+        showError(`Up to ${MAX_FLIGHTS} flights per tournament.`);
+        return;
+      }
+      const idx = state.flights.length;
+      state.flights.push({
+        id: `flight_manual_${Date.now()}_${idx}`,
+        name: DEFAULT_FLIGHT_NAMES[idx] ?? `Flight ${idx + 1}`,
+        handicapMin: null,
+        handicapMax: null,
+        playerIds: [],
+      });
+      clearError();
+      render();
+    });
+
+    manualSeedBtn.addEventListener('click', () => {
+      const count = state.flights.length > 0
+        ? state.flights.length
+        : Math.min(MAX_FLIGHTS, defaultCountFor(initialPlayers.length));
+      state.flights = autoSplit(count);
+      render();
+    });
+
+    function render() {
+      autoPanel.hidden = state.mode !== 'auto';
+      manualPanel.hidden = state.mode !== 'manual';
+      if (state.mode === 'auto') {
+        autoCountEl.value = String(state.autoCount);
+        renderAutoPreview();
+      }
+      if (state.mode === 'manual') {
+        renderManual();
+      }
+      refreshSaveGate();
+    }
+
+    function playerLookup() {
+      const map = new Map();
+      for (const p of initialPlayers) map.set(p.id, p);
+      return map;
+    }
+
+    function renderAutoPreview() {
+      autoPreview.innerHTML = '';
+      if (initialPlayers.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'rosterCard__meta';
+        p.textContent = 'No players yet — auto-split needs at least one player. Add players in the Roster card first.';
+        autoPreview.appendChild(p);
+        return;
+      }
+      const lookup = playerLookup();
+      const adjusted = state.autoAdjusted;
+      state.flights.forEach((f, fi) => {
+        const card = document.createElement('div');
+        card.className = 'flightCard';
+        const minStr = f.handicapMin != null ? String(f.handicapMin) : '';
+        const maxStr = f.handicapMax != null ? String(f.handicapMax) : '';
+        const boundaryHtml = adjusted
+          ? `<label class="flightCard__bound">
+               <span>Min HCP</span>
+               <input type="number" step="0.1" data-flight-bound="min" data-flight-idx="${fi}" value="${escapeHtml(minStr)}" />
+             </label>
+             <label class="flightCard__bound">
+               <span>Max HCP</span>
+               <input type="number" step="0.1" data-flight-bound="max" data-flight-idx="${fi}" value="${escapeHtml(maxStr)}" />
+             </label>`
+          : `<span class="flightCard__range">
+               ${minStr === '' && maxStr === '' ? 'no bounds' : `${minStr} – ${maxStr}`}
+             </span>`;
+        const nameHtml = adjusted
+          ? `<input type="text" class="flightCard__nameInput" data-flight-name="${fi}" value="${escapeHtml(f.name)}" maxlength="30" />`
+          : `<strong class="flightCard__name">${escapeHtml(f.name)}</strong>`;
+        const rows = (f.playerIds || [])
+          .map((pid) => {
+            const p = lookup.get(pid);
+            if (!p) return '';
+            const hcp = playerHcp(p);
+            return `<li>${escapeHtml(p.name)} <span class="playersList__hcp">Handicap ${escapeHtml(String(hcp))}</span></li>`;
+          }).join('');
+        card.innerHTML = `
+          <div class="flightCard__head">
+            ${nameHtml}
+            ${boundaryHtml}
+            <span class="flightCard__count">${(f.playerIds || []).length} player${(f.playerIds || []).length === 1 ? '' : 's'}</span>
+          </div>
+          <ul class="flightCard__players">${rows || '<li class="rosterCard__meta">No players in this flight.</li>'}</ul>
+        `;
+        autoPreview.appendChild(card);
+      });
+      if (adjusted) {
+        autoPreview.querySelectorAll('[data-flight-bound]').forEach((el) => {
+          el.addEventListener('input', (e) => {
+            const fi = Number(el.getAttribute('data-flight-idx'));
+            const which = el.getAttribute('data-flight-bound');
+            const raw = e.target.value.trim();
+            const v = raw === '' ? null : Number(raw);
+            if (raw !== '' && !Number.isFinite(v)) return;
+            if (which === 'min') state.flights[fi].handicapMin = v;
+            if (which === 'max') state.flights[fi].handicapMax = v;
+            rebucketFromBoundaries();
+            refreshSaveGate();
+          });
+        });
+        autoPreview.querySelectorAll('[data-flight-name]').forEach((el) => {
+          el.addEventListener('input', (e) => {
+            const fi = Number(el.getAttribute('data-flight-name'));
+            state.flights[fi].name = e.target.value;
+            refreshSaveGate();
+          });
+        });
+      }
+    }
+
+    function rebucketFromBoundaries() {
+      const flights = state.flights;
+      if (flights.length === 0) return;
+      const assignments = flights.map(() => []);
+      for (const p of initialPlayers) {
+        const hcp = playerHcp(p);
+        let placed = false;
+        for (let fi = 0; fi < flights.length; fi++) {
+          const f = flights[fi];
+          if (f.handicapMin == null || f.handicapMax == null) continue;
+          if (hcp >= f.handicapMin && hcp <= f.handicapMax) {
+            assignments[fi].push(p.id);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) assignments[assignments.length - 1].push(p.id);
+      }
+      for (let fi = 0; fi < flights.length; fi++) {
+        flights[fi].playerIds = assignments[fi];
+      }
+      // Only refresh the count chips + player rosters, not the
+      // input the user is typing into.
+      const cards = autoPreview.querySelectorAll('.flightCard');
+      const lookup = playerLookup();
+      cards.forEach((card, fi) => {
+        const list = card.querySelector('.flightCard__players');
+        const count = card.querySelector('.flightCard__count');
+        if (list) {
+          const ids = flights[fi].playerIds || [];
+          list.innerHTML = ids
+            .map((pid) => {
+              const p = lookup.get(pid);
+              if (!p) return '';
+              const hcp = playerHcp(p);
+              return `<li>${escapeHtml(p.name)} <span class="playersList__hcp">Handicap ${escapeHtml(String(hcp))}</span></li>`;
+            }).join('') || '<li class="rosterCard__meta">No players in this flight.</li>';
+        }
+        if (count) {
+          const n = (flights[fi].playerIds || []).length;
+          count.textContent = `${n} player${n === 1 ? '' : 's'}`;
+        }
+      });
+    }
+
+    function renderManual() {
+      manualList.innerHTML = '';
+      state.flights.forEach((f, fi) => {
+        const li = document.createElement('li');
+        li.className = 'flightsManualRow';
+        li.innerHTML = `
+          <input type="text" class="flightsManualRow__name" data-flight-name="${fi}" value="${escapeHtml(f.name)}" maxlength="30" />
+          <span class="flightsManualRow__count">${(f.playerIds || []).length} player${(f.playerIds || []).length === 1 ? '' : 's'}</span>
+          <button type="button" class="flightsManualRow__remove" data-flight-remove="${fi}" aria-label="Remove ${escapeHtml(f.name)}">×</button>
+        `;
+        manualList.appendChild(li);
+      });
+      manualList.querySelectorAll('[data-flight-name]').forEach((el) => {
+        el.addEventListener('input', (e) => {
+          const fi = Number(el.getAttribute('data-flight-name'));
+          state.flights[fi].name = e.target.value;
+          refreshSaveGate();
+        });
+      });
+      manualList.querySelectorAll('[data-flight-remove]').forEach((el) => {
+        el.addEventListener('click', () => {
+          const fi = Number(el.getAttribute('data-flight-remove'));
+          if (state.flights.length <= 1) {
+            showError('At least one flight in manual mode. Switch to "No flights" to remove all.');
+            return;
+          }
+          state.flights.splice(fi, 1);
+          clearError();
+          render();
+        });
+      });
+
+      manualAssignments.innerHTML = '';
+      if (initialPlayers.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'rosterCard__meta';
+        li.textContent = 'No players yet — add players in the Roster card to assign them here.';
+        manualAssignments.appendChild(li);
+        return;
+      }
+      initialPlayers.forEach((p) => {
+        const pid = p.id;
+        const currentFlight = state.flights.findIndex((f) =>
+          (f.playerIds || []).includes(pid));
+        const options = state.flights.map((f, fi) => {
+          const sel = fi === currentFlight ? 'selected' : '';
+          return `<option value="${fi}" ${sel}>${escapeHtml(f.name)}</option>`;
+        }).join('');
+        const unassignedSel = currentFlight < 0 ? 'selected' : '';
+        const hcp = playerHcp(p);
+        const li = document.createElement('li');
+        li.className = 'flightsAssignRow';
+        li.dataset.playerId = pid;
+        li.innerHTML = `
+          <span class="flightsAssignRow__name">${escapeHtml(p.name)}</span>
+          <span class="flightsAssignRow__hcp">Handicap ${escapeHtml(String(hcp))}</span>
+          <select data-flight-assign="${escapeHtml(pid)}">
+            <option value="-1" ${unassignedSel}>— unassigned —</option>
+            ${options}
+          </select>
+        `;
+        manualAssignments.appendChild(li);
+      });
+      manualAssignments.querySelectorAll('[data-flight-assign]').forEach((el) => {
+        el.addEventListener('change', (e) => {
+          const pid = el.getAttribute('data-flight-assign');
+          const targetFi = Number(e.target.value);
+          for (const f of state.flights) {
+            f.playerIds = (f.playerIds || []).filter((id) => id !== pid);
+          }
+          if (targetFi >= 0 && targetFi < state.flights.length) {
+            state.flights[targetFi].playerIds.push(pid);
+          }
+          // Cheap re-count without full re-render.
+          const rows = manualList.querySelectorAll('.flightsManualRow');
+          rows.forEach((row, fi) => {
+            const count = row.querySelector('.flightsManualRow__count');
+            if (count) {
+              const n = (state.flights[fi].playerIds || []).length;
+              count.textContent = `${n} player${n === 1 ? '' : 's'}`;
+            }
+          });
+          refreshSaveGate();
+        });
+      });
+    }
+
+    cancelBtn.addEventListener('click', () => {
+      if (!isDirty()) return;
+      if (!confirm('Discard your flight changes?')) return;
+      window.location.reload();
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      if (state.saving || !isDirty()) return;
+      state.saving = true;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      clearError();
+
+      // Emit snake_case on the wire to match the mobile app's
+      // canonical TournamentFlight.toJson shape. The Railway
+      // PATCH allowlist accepts `flights` (verified 2026-08-26
+      // in packages/api/src/routes/tournaments.ts line 59).
+      const wireFlights = state.mode === 'off'
+        ? []
+        : state.flights.map((f, i) => {
+            const out = {
+              id: f.id,
+              name: (f.name && f.name.trim().length > 0)
+                ? f.name.trim() : `Flight ${i + 1}`,
+              player_ids: (f.playerIds || []).filter((id) =>
+                initialPlayers.some((p) => p.id === id)),
+            };
+            if (typeof f.handicapMin === 'number' && Number.isFinite(f.handicapMin)) {
+              out.handicap_min = f.handicapMin;
+            }
+            if (typeof f.handicapMax === 'number' && Number.isFinite(f.handicapMax)) {
+              out.handicap_max = f.handicapMax;
+            }
+            return out;
+          });
+
+      try {
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/update`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ flights: wireFlights }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          state.saving = false;
+          saveBtn.textContent = 'Save flights';
+          refreshSaveGate();
+          return showError(data.error || `Save failed with ${res.status}`);
+        }
+        window.location.reload();
+      } catch (err) {
+        state.saving = false;
+        saveBtn.textContent = 'Save flights';
+        refreshSaveGate();
+        showError(err?.message || 'Network error — try again.');
+      }
+    });
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[ch] || ch);
+    }
+
+    render();
+  </script>
   </>
 )}
 
@@ -1385,5 +1949,187 @@ const playerCount = players.length;
   .btn--danger:disabled {
     opacity: 0.55;
     cursor: not-allowed;
+  }
+
+  /* ── Flights card ─────────────────────────────────── */
+  .flightsMode { margin-bottom: 4px; padding: 0; border: 0; }
+  .flightsMode legend {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .radios--stacked { display: flex; flex-direction: column; gap: 10px; }
+  .flightsPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--line, #d1d5db);
+    border-radius: 12px;
+    background: #fafbfa;
+  }
+  .flightsCountField {
+    max-width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .flightsCountField select,
+  .flightsPanel select,
+  .flightsPanel input[type="text"],
+  .flightsPanel input[type="number"] {
+    padding: 8px 10px;
+    border: 1px solid var(--line, #d1d5db);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+  }
+  .flightsPreview {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .flightCard {
+    background: #fff;
+    border: 1px solid var(--line, #d1d5db);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .flightCard__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+  .flightCard__name {
+    color: var(--brand-green-dark, #14432b);
+    font-size: 15px;
+  }
+  .flightCard__nameInput {
+    font-weight: 700;
+    color: var(--brand-green-dark, #14432b);
+    max-width: 180px;
+  }
+  .flightCard__range {
+    font-size: 12px;
+    color: var(--ink-muted, #6b7280);
+    font-weight: 600;
+  }
+  .flightCard__bound {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 11px;
+    color: var(--ink-muted, #6b7280);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .flightCard__bound input { width: 70px; }
+  .flightCard__count {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--brand-green-dark, #14432b);
+    background: rgba(47, 125, 68, 0.1);
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .flightCard__players {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+  }
+  .flightCard__players li {
+    padding: 4px 8px;
+    background: #fafbfa;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .flightsManualHeader {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .flightsManualList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .flightsManualRow {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid var(--line, #d1d5db);
+    border-radius: 8px;
+  }
+  .flightsManualRow__name {
+    font-weight: 700;
+    color: var(--brand-green-dark, #14432b);
+  }
+  .flightsManualRow__count {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--brand-green-dark, #14432b);
+    background: rgba(47, 125, 68, 0.1);
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .flightsManualRow__remove {
+    background: transparent;
+    border: 0;
+    color: var(--ink-muted, #6b7280);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  .flightsManualRow__remove:hover { color: var(--error, #B91C1C); }
+  .flightsAssignList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .flightsAssignRow {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    background: #fff;
+    border: 1px solid var(--line, #d1d5db);
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .flightsAssignRow__name { font-weight: 600; }
+  .flightsAssignRow__hcp {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--brand-green-dark, #14432b);
+    background: rgba(47, 125, 68, 0.1);
+    padding: 3px 8px;
+    border-radius: 999px;
   }
 </style>

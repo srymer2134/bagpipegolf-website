@@ -2,7 +2,9 @@ import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../lib/railway';
 import {
   buildCreatePayload,
+  MAX_FLIGHTS,
   type CreateTournamentResponse,
+  type WizardFlightInput,
   type WizardInput,
   type WizardRoundInput,
 } from '../../../lib/tournamentCreate';
@@ -262,6 +264,49 @@ function validateWizardInput(
   const num = (v: unknown): number | null =>
     typeof v === 'number' && Number.isFinite(v) ? v : null;
 
+  // Flights (optional). Empty / missing = single competition
+  // (original wizard behavior). Each flight is sanitized:
+  //   * name: trimmed, defaults to `Flight N` when empty
+  //   * handicap min/max: numeric or null (metadata only)
+  //   * player_ids: array of the wizard's local `wp_<i>` ids
+  //     that reference a real player index. Bad ids are dropped
+  //     silently — the payload builder does the wp→server-id
+  //     rewrite and will refuse to persist unknown ids.
+  //
+  // The wizard prevents > MAX_FLIGHTS entries in the UI; this
+  // validator caps as a belt-and-suspenders defense against a
+  // tampered client.
+  const validPlayerIds = new Set(
+    playersRaw.map((_, i) => `wp_${i}`),
+  );
+  const flightsRaw = Array.isArray(r.flights) ? r.flights : [];
+  if (flightsRaw.length > MAX_FLIGHTS) {
+    return { error: `Up to ${MAX_FLIGHTS} flights per tournament.` };
+  }
+  const flights: WizardFlightInput[] = flightsRaw.map((entry, i) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new Error(`Flight ${i + 1} is malformed.`);
+    }
+    const e = entry as Record<string, unknown>;
+    const rawName = typeof e.name === 'string' ? e.name.trim() : '';
+    const name = rawName.length > 0 ? rawName : `Flight ${i + 1}`;
+    const id =
+      typeof e.id === 'string' && e.id.length > 0
+        ? e.id
+        : `flight_${i}_${Date.now()}`;
+    const rawIds = Array.isArray(e.playerIds) ? e.playerIds : [];
+    const playerIds = rawIds
+      .filter((pid): pid is string => typeof pid === 'string')
+      .filter((pid) => validPlayerIds.has(pid));
+    return {
+      id,
+      name,
+      handicapMin: num(e.handicapMin),
+      handicapMax: num(e.handicapMax),
+      playerIds,
+    };
+  });
+
   return {
     input: {
       name,
@@ -282,6 +327,7 @@ function validateWizardInput(
       trackLongestDrive,
       rounds,
       players,
+      flights,
     },
   };
 }

@@ -151,6 +151,29 @@ export type WizardTeeBox = {
   par_total: number | null;
 };
 
+/** One flight on the wire. Mirrors the mobile app's
+ *  `TournamentFlight.toJson()` (flutter repo,
+ *  `lib/core/models/tournament.dart` line 2503). Emitted as
+ *  snake_case to match the app's canonical shape. Empty
+ *  `flights` array on the tournament = no flighting (single
+ *  competition, default behavior). */
+export type WizardFlightInput = {
+  /** Stable id inside the tournament (e.g. `flight_a_<ts>`). */
+  id: string;
+  /** Display name — Championship / First / Second / etc. */
+  name: string;
+  /** Handicap-index min/max the auto-splitter observed for this
+   *  flight. Both inclusive. Null on either bound = unbounded
+   *  that direction. Metadata only — playerIds is the source of
+   *  truth for membership. */
+  handicapMin?: number | null;
+  handicapMax?: number | null;
+  /** Player ids assigned to this flight. Must match ids in the
+   *  wizard's `players` array (post-`buildCreatePayload` id
+   *  generation, `p_<tournamentId>_<i>`). */
+  playerIds: string[];
+};
+
 export type WizardInput = {
   name: string;
   course: WizardCourseInput;
@@ -176,6 +199,14 @@ export type WizardInput = {
   trackLongestDrive?: boolean;
   rounds: WizardRoundInput[];
   players: WizardPlayerInput[];
+  /** Optional handicap-bucketed sub-competitions. Empty = no
+   *  flighting (single competition across the whole field —
+   *  original wizard behavior). See the mobile app's
+   *  `TournamentFlight` shape for the wire contract; the payload
+   *  builder rewrites each flight's `playerIds` to match the
+   *  server-generated player ids (wizard IDs like `wp_0` become
+   *  `p_<tournamentId>_0`). */
+  flights?: WizardFlightInput[];
 };
 
 // Client-generated id — matches the mobile app's `tourney_<ts>`
@@ -271,12 +302,51 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
   // friends picker (bindable to the real Supabase user); null for
   // manually-typed guests, matching the mobile app's guest-player
   // shape.
+  //
+  // The wizard tracks per-player flight assignment against a
+  // client-local id (typically the player's index in the players
+  // array — see `wizardPlayerId(i)` below). We rewrite each flight's
+  // `playerIds` to the server-generated `p_<tournamentId>_<i>` ids
+  // so the persisted flights actually reference real roster rows.
   const players = input.players.map((p, i) => ({
     id: `p_${id}_${i}`,
     name: p.name.trim(),
     handicap: p.handicap,
     userId: p.userId ?? null,
   }));
+
+  // Build a `wizardId -> serverId` map so flight assignments
+  // survive the id rewrite above. The wizard-side flight editor
+  // stores playerIds as `wp_<index>`; anything else is passed
+  // through unchanged (defensive — a caller could bypass the
+  // wizard convention).
+  const wizardIdToServerId = new Map<string, string>();
+  for (let i = 0; i < input.players.length; i++) {
+    wizardIdToServerId.set(wizardPlayerId(i), players[i].id);
+  }
+
+  const flights = (input.flights ?? [])
+    .filter((f) => f && typeof f === 'object')
+    .map((f, i) => {
+      const remappedIds = (f.playerIds ?? [])
+        .map((pid) => wizardIdToServerId.get(pid) ?? pid)
+        // Drop any ids that don't resolve to a real player row.
+        .filter((pid) => players.some((p) => p.id === pid));
+      const out: Record<string, unknown> = {
+        id: (f.id && f.id.length > 0) ? f.id : `flight_${i}_${Date.now()}`,
+        name: (f.name && f.name.trim().length > 0)
+          ? f.name.trim()
+          : `Flight ${i + 1}`,
+        player_ids: remappedIds,
+      };
+      if (typeof f.handicapMin === 'number' && Number.isFinite(f.handicapMin)) {
+        out.handicap_min = f.handicapMin;
+      }
+      if (typeof f.handicapMax === 'number' && Number.isFinite(f.handicapMax)) {
+        out.handicap_max = f.handicapMax;
+      }
+      return out;
+    });
 
   return {
     id,
@@ -304,7 +374,11 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
     tee_boxes: input.teeBoxes,
     // Fields defaulted for Phase 1 — later wizard steps fill them:
     teams: [],
-    flights: [],
+    // Flights (Phase 2 — handicap-split brackets). Empty = single
+    // competition across the whole field. See `WizardFlightInput`
+    // for the wire shape; each entry is emitted snake_case to
+    // match the mobile app's `TournamentFlight.toJson()`.
+    flights,
     skins_competitions: [],
     pools: [],
     sponsors: [],
@@ -379,3 +453,83 @@ export type CreateTournamentResponse = {
     [key: string]: unknown;
   };
 };
+
+// ── Flights helpers ─────────────────────────────────────────
+//
+// The wizard tracks per-player flight assignment against a stable
+// client-local id (`wp_<index>`); the payload builder rewrites
+// these to the server-generated `p_<tournamentId>_<index>` on
+// submit. Manage-page edits work off the already-server-generated
+// ids, so `wp_*` mapping is a no-op there.
+//
+// `autoSplitFlightsForCount` mirrors the mobile app's algorithm
+// (see `_ensureDefaultFlights` in
+// `lib/features/tourney/screens/new_tournament_screen.dart` +
+// `_runAutoFlight` immediately below it). Equal-count buckets,
+// sorted by handicap ascending — lowest index → Championship
+// (first flight).
+
+export const MAX_FLIGHTS = 6;
+export const DEFAULT_FLIGHT_NAMES = [
+  'Championship',
+  'First',
+  'Second',
+  'Third',
+  'Fourth',
+  'Fifth',
+];
+
+/** Wizard-side stable id for the player at `index` in the roster.
+ *  The payload builder rewrites these to `p_<tournamentId>_<index>`
+ *  server-side ids before POSTing. */
+export function wizardPlayerId(index: number): string {
+  return `wp_${index}`;
+}
+
+/** Mobile-app parity — auto-flight count from field size.
+ *  Matches `_ensureDefaultFlights`: n≤16 → 2, n≤32 → 3, else 4. */
+export function defaultFlightCountFor(playerCount: number): number {
+  if (playerCount <= 16) return 2;
+  if (playerCount <= 32) return 3;
+  return 4;
+}
+
+/** Auto-split a roster into equal-count flights bucketed by
+ *  handicap (lowest → Championship). Returns flights with
+ *  `handicapMin`/`Max` populated from the roster's observed range
+ *  per bucket. Empty roster → an empty flight list.
+ *
+ *  This is the shared engine both the wizard step and the
+ *  Manage-page card lean on so the two surfaces produce
+ *  identical assignments.
+ *
+ *  `players` here is the wizard's local shape (id + handicap);
+ *  wizard callers pass `wizardPlayerId(i)` as each id so the
+ *  payload builder can rewrite to server ids on submit. Manage
+ *  callers pass the real server ids and get them back unchanged. */
+export function autoSplitFlights(
+  players: Array<{ id: string; handicap: number }>,
+  flightCount: number,
+): WizardFlightInput[] {
+  const n = players.length;
+  const count = Math.max(1, Math.min(MAX_FLIGHTS, Math.floor(flightCount)));
+  if (n === 0) return [];
+  const sorted = [...players].sort((a, b) => a.handicap - b.handicap);
+  const perFlight = Math.ceil(n / count);
+  const stamp = Date.now();
+  const out: WizardFlightInput[] = [];
+  for (let i = 0; i < count; i++) {
+    const start = i * perFlight;
+    if (start >= n) break;
+    const end = Math.min(start + perFlight, n);
+    const slice = sorted.slice(start, end);
+    out.push({
+      id: `flight_${i}_${stamp + i}`,
+      name: DEFAULT_FLIGHT_NAMES[i] ?? `Flight ${i + 1}`,
+      handicapMin: slice[0].handicap,
+      handicapMax: slice[slice.length - 1].handicap,
+      playerIds: slice.map((p) => p.id),
+    });
+  }
+  return out;
+}
