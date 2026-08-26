@@ -665,10 +665,23 @@ const playerCount = players.length;
     // survive the round trip) but pins the fields this editor
     // touches to a canonical shape.
     function normalizeForCompare(r) {
+      const rawStart = r.start_type ?? r.startType;
+      const start = rawStart === 'shotgun' ? 'shotgun' : 'teeTimes';
+      const rawGroup = Number(r.tee_time_group_size ?? r.teeTimeGroupSize);
+      const group = rawGroup === 2 || rawGroup === 3 ? rawGroup : 4;
+      const shotgunTime =
+        typeof (r.shotgun_start_time ?? r.shotgunStartTime) === 'string'
+          ? (r.shotgun_start_time ?? r.shotgunStartTime)
+          : null;
       return {
         teeBoxName: r.teeBoxName ?? r.teeName ?? '',
         totalHoles: Number(r.totalHoles) || 18,
         format: r.format ?? 'stroke',
+        // Phase 2a: include start / group / shotgun-time in the
+        // dirty compare so editing any of them enables Save.
+        start,
+        group,
+        shotgunTime: start === 'shotgun' && shotgunTime ? shotgunTime : null,
       };
     }
     function isDirty() {
@@ -716,6 +729,20 @@ const playerCount = players.length;
               return `<option value="${escapeHtml(n)}" ${sel}>${escapeHtml(n)}</option>`;
             }).join('');
 
+        // Phase 2a: pull start_type / tee_time_group_size /
+        // shotgun_start_time from the round's persisted shape.
+        // Server writes snake_case per Tournament.toApiJson; older
+        // rounds without these fields default to teeTimes / 4 / null.
+        const rawStart = (r.start_type ?? r.startType);
+        const currentStart = rawStart === 'shotgun' ? 'shotgun' : 'teeTimes';
+        const rawGroup = Number(r.tee_time_group_size ?? r.teeTimeGroupSize);
+        const currentGroup =
+          rawGroup === 2 || rawGroup === 3 ? rawGroup : 4;
+        const currentShotgunTime =
+          typeof (r.shotgun_start_time ?? r.shotgunStartTime) === 'string'
+            ? (r.shotgun_start_time ?? r.shotgunStartTime)
+            : '';
+
         const li = document.createElement('li');
         li.className = 'roundsList__row';
         li.dataset.roundIdx = String(i);
@@ -742,6 +769,29 @@ const playerCount = players.length;
               <option value="bestBall" ${currentFormat === 'bestBall' ? 'selected' : ''}>Best ball</option>
               <option value="matchPlay" ${currentFormat === 'matchPlay' ? 'selected' : ''}>Match</option>
             </select>
+          </label>
+          <label>
+            <span>Start</span>
+            <select data-round-starttype="${i}">
+              <option value="teeTimes" ${currentStart === 'teeTimes' ? 'selected' : ''}>Tee times</option>
+              <option value="shotgun" ${currentStart === 'shotgun' ? 'selected' : ''}>Shotgun</option>
+            </select>
+          </label>
+          <label>
+            <span>Groups</span>
+            <select data-round-groupsize="${i}">
+              <option value="4" ${currentGroup === 4 ? 'selected' : ''}>Foursomes (4)</option>
+              <option value="3" ${currentGroup === 3 ? 'selected' : ''}>Threesomes (3)</option>
+              <option value="2" ${currentGroup === 2 ? 'selected' : ''}>Twosomes (2)</option>
+            </select>
+          </label>
+          <label data-round-shotguntime-wrap="${i}" ${currentStart !== 'shotgun' ? 'hidden' : ''}>
+            <span>Shotgun time</span>
+            <input
+              type="time"
+              data-round-shotguntime="${i}"
+              value="${escapeHtml(currentShotgunTime)}"
+            />
           </label>
           <button
             type="button"
@@ -773,6 +823,47 @@ const playerCount = players.length;
         el.addEventListener('change', (e) => {
           const idx = Number(el.getAttribute('data-round-format'));
           state.working[idx].format = e.target.value;
+          refreshGate();
+        });
+      });
+      // Phase 2a: start type + group size + shotgun time. Writes
+      // BOTH snake_case (mobile-app canonical) and camelCase (web
+      // wizard convention) so a round object round-tripping through
+      // this editor always carries both keys — no upstream consumer
+      // gets confused by a shape drift.
+      listEl.querySelectorAll('[data-round-starttype]').forEach((el) => {
+        el.addEventListener('change', (e) => {
+          const idx = Number(el.getAttribute('data-round-starttype'));
+          const val = e.target.value === 'shotgun' ? 'shotgun' : 'teeTimes';
+          state.working[idx].startType = val;
+          state.working[idx].start_type = val === 'shotgun' ? 'shotgun' : 'tee_times';
+          // Toggle visibility of the shotgun-time input inline so
+          // the field appears without a full re-render.
+          const wrap = listEl.querySelector(`[data-round-shotguntime-wrap="${idx}"]`);
+          if (wrap) wrap.hidden = val !== 'shotgun';
+          if (val !== 'shotgun') {
+            state.working[idx].shotgunStartTime = '';
+            state.working[idx].shotgun_start_time = null;
+          }
+          refreshGate();
+        });
+      });
+      listEl.querySelectorAll('[data-round-groupsize]').forEach((el) => {
+        el.addEventListener('change', (e) => {
+          const idx = Number(el.getAttribute('data-round-groupsize'));
+          const v = Number(e.target.value);
+          const size = v === 2 || v === 3 ? v : 4;
+          state.working[idx].teeTimeGroupSize = size;
+          state.working[idx].tee_time_group_size = size;
+          refreshGate();
+        });
+      });
+      listEl.querySelectorAll('[data-round-shotguntime]').forEach((el) => {
+        el.addEventListener('input', (e) => {
+          const idx = Number(el.getAttribute('data-round-shotguntime'));
+          const v = e.target.value ?? '';
+          state.working[idx].shotgunStartTime = v;
+          state.working[idx].shotgun_start_time = v.length > 0 ? v : null;
           refreshGate();
         });
       });
@@ -823,6 +914,17 @@ const playerCount = players.length;
         teeBoxName: defaultTee,
         totalHoles: 18,
         format: 'stroke',
+        // Phase 2a defaults — tee times, foursomes, no shotgun time.
+        // Snake-case matches Tournament.toApiJson on mobile so any
+        // round-trip through the mobile app doesn't lose these
+        // fields; camelCase is set on edit for consistency with the
+        // wizard's in-memory shape.
+        start_type: 'tee_times',
+        startType: 'teeTimes',
+        tee_time_group_size: 4,
+        teeTimeGroupSize: 4,
+        shotgun_start_time: null,
+        shotgunStartTime: '',
         playerHoleScores: {},
         playerStrokes: {},
         completed: false,
@@ -1095,15 +1197,30 @@ const playerCount = players.length;
     flex-direction: column;
     gap: 10px;
   }
+  /* Phase 2a: flex-wrap so Start / Groups / Shotgun-time fields
+   * added alongside Tee / Holes / Format wrap gracefully on narrow
+   * viewports instead of overflowing the row.
+   */
   .roundsList__row {
-    display: grid;
-    grid-template-columns: auto 1fr 90px 1fr auto;
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     align-items: end;
     padding: 12px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: #fafbfa;
+  }
+  .roundsList__row > label { flex: 1 1 120px; min-width: 100px; }
+  .roundsList__row > .roundsList__idx { flex: 0 0 auto; }
+  .roundsList__row > .roundsList__remove { flex: 0 0 auto; margin-left: auto; }
+  .roundsList__row input[type="time"] {
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    font-family: inherit;
   }
   .roundsList__row label {
     display: flex;
