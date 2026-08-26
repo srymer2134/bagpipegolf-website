@@ -285,6 +285,31 @@ const playerCount = players.length;
           </div>
         </section>
 
+        <!-- Danger zone (Slice A3) — duplicate + delete -->
+        <section class="dangerCard">
+          <header class="rosterCard__head">
+            <div>
+              <h2 class="rosterCard__title">Danger zone</h2>
+              <p class="rosterCard__meta">
+                Duplicate for "same event, next season" — or delete
+                if this was a test. Delete is permanent + wipes all
+                scores, calcutta, and payouts for this tournament.
+              </p>
+            </div>
+          </header>
+
+          <div id="dangerError" class="errorbar" hidden></div>
+
+          <div class="dangerCard__actions">
+            <button type="button" id="duplicateBtn" class="btn btn--ghost">
+              Duplicate tournament
+            </button>
+            <button type="button" id="deleteBtn" class="btn btn--danger">
+              Delete tournament…
+            </button>
+          </div>
+        </section>
+
         <section class="grid grid--2 coming">
           <article class="card">
             <span class="chip chip--muted">Coming soon</span>
@@ -868,6 +893,84 @@ const playerCount = players.length;
     renderRounds();
     refreshGate();
   </script>
+
+  <script is:inline define:vars={{
+    tournamentId: id,
+    tournamentName: tournament.name,
+  }}>
+    const duplicateBtn = document.getElementById('duplicateBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const errorBox = document.getElementById('dangerError');
+    let busy = false;
+
+    function showError(msg) { errorBox.textContent = msg; errorBox.hidden = false; }
+    function clearError() { errorBox.hidden = true; }
+
+    duplicateBtn.addEventListener('click', async () => {
+      if (busy) return;
+      busy = true;
+      duplicateBtn.disabled = true;
+      duplicateBtn.textContent = 'Duplicating…';
+      clearError();
+      try {
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/duplicate`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.id) {
+          busy = false;
+          duplicateBtn.disabled = false;
+          duplicateBtn.textContent = 'Duplicate tournament';
+          return showError(data.error || `Duplicate failed with ${res.status}`);
+        }
+        // Land on the new tournament's Manage page so the director
+        // can immediately tweak roster/rounds for the new event.
+        window.location.href = `/app/tournaments/${encodeURIComponent(data.id)}/manage`;
+      } catch (err) {
+        busy = false;
+        duplicateBtn.disabled = false;
+        duplicateBtn.textContent = 'Duplicate tournament';
+        showError(err?.message || 'Network error — try again.');
+      }
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      if (busy) return;
+      // Typed confirmation — user must type the tournament name.
+      // Standard pattern from the mobile Delete Account flow.
+      const typed = prompt(
+        `This permanently deletes "${tournamentName}" — including all rounds, scores, and calcutta. This cannot be undone.\n\nType the tournament name to confirm:`,
+      );
+      if (typed == null) return; // cancel
+      if (typed.trim() !== tournamentName.trim()) {
+        return showError("Name didn't match — nothing was deleted.");
+      }
+      busy = true;
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = 'Deleting…';
+      clearError();
+      try {
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/delete`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          busy = false;
+          deleteBtn.disabled = false;
+          deleteBtn.textContent = 'Delete tournament…';
+          return showError(data.error || `Delete failed with ${res.status}`);
+        }
+        window.location.href = '/app/tournaments';
+      } catch (err) {
+        busy = false;
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = 'Delete tournament…';
+        showError(err?.message || 'Network error — try again.');
+      }
+    });
+  </script>
   </>
 )}
 
@@ -1124,5 +1227,46 @@ const playerCount = players.length;
   .coming {
     margin-top: 32px;
     opacity: 0.85;
+  }
+
+  /* ── Danger zone (Slice A3) ────────────────────────── */
+  .dangerCard {
+    background: #fff;
+    border: 1px solid #FECACA;
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .dangerCard .rosterCard__title { color: var(--error, #B91C1C); }
+  .dangerCard__actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .btn--danger {
+    background: var(--error, #B91C1C);
+    color: #fff;
+    border: 1px solid var(--error, #B91C1C);
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn--danger:hover:not(:disabled) {
+    background: #991B1B;
+    border-color: #991B1B;
+  }
+  .btn--danger:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 </style>
