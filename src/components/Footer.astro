@@ -1,5 +1,10 @@
 ---
 const year = new Date().getFullYear();
+// Auth-aware Account column: signed-in users see Dashboard instead
+// of Sign in / Create account (both of which are meaningless when
+// they're already signed in). Middleware populates `locals.user`
+// on every request; null for signed-out visitors.
+const isSignedIn = !!Astro.locals.user;
 ---
 
 <footer class="sitefoot">
@@ -14,6 +19,7 @@ const year = new Date().getFullYear();
       <a href="/features">Features</a>
       <a href="/for-hosts">For Hosts</a>
       <a href="/for-players">For Players</a>
+      <a href="/pricing">Pricing</a>
       <a href="/faq">FAQ</a>
     </div>
 
@@ -27,8 +33,14 @@ const year = new Date().getFullYear();
 
     <div class="sitefoot__col">
       <span class="sitefoot__label">Account</span>
-      <a href="/login">Sign in</a>
-      <a href="/signup">Create account</a>
+      {isSignedIn ? (
+        <a href="/app">Dashboard</a>
+      ) : (
+        <>
+          <a href="/login">Sign in</a>
+          <a href="/signup">Create account</a>
+        </>
+      )}
     </div>
   </div>
   <div class="sitefoot__bottom">
