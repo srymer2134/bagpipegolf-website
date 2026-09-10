@@ -1,4 +1,6 @@
 ---
+import SocialLinks from './SocialLinks.astro';
+
 const year = new Date().getFullYear();
 // Auth-aware Account column: signed-in users see Dashboard instead
 // of Sign in / Create account (both of which are meaningless when
@@ -12,6 +14,7 @@ const isSignedIn = !!Astro.locals.user;
     <div class="sitefoot__col">
       <strong class="sitefoot__brand">Bagpipe Golf</strong>
       <p class="sitefoot__tag">Play games. Settle scores.</p>
+      <SocialLinks variant="footer" source="footer" />
     </div>
 
     <div class="sitefoot__col">

@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import SocialLinks from '../components/SocialLinks.astro';
 ---
 
 <BaseLayout title="Bagpipe Golf — Play games. Settle scores.">
@@ -53,69 +54,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           — we'll ping you when Android ships.
         </p>
 
-        <!-- ───── Social row (2026-09-10) ─────
-             Links to the four claimed handles. Plain @bagpipegolf on
-             Instagram + X was unavailable, hence the app / -1 variants.
-             `target="_blank" rel="noopener noreferrer"` on all — these
-             are external hand-offs. -->
-        <nav class="hero__social" aria-label="Bagpipe Golf on social media">
-          <a
-            href="https://www.tiktok.com/@bagpipegolf"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Bagpipe Golf on TikTok (@bagpipegolf)"
-            class="hero__social-link"
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M19.6 7.3a5.4 5.4 0 0 1-3.2-1.1 5.5 5.5 0 0 1-2.2-3.7h-3.4v13.2a2.4 2.4 0 1 1-2.4-2.4c.3 0 .5 0 .8.1V9.9a5.9 5.9 0 1 0 5 5.8V10a8.7 8.7 0 0 0 5.4 1.8V8.4c-.3 0-.5-.1-.8-.1a5.6 5.6 0 0 1 .8-1z"
-              />
-            </svg>
-          </a>
-          <a
-            href="https://www.instagram.com/bagpipegolfapp/"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Bagpipe Golf on Instagram (@bagpipegolfapp)"
-            class="hero__social-link"
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.3 2.2.5.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .5 2.2.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.3 1.8-.5 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.5-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.3-2.2-.5a3.8 3.8 0 0 1-1.4-.9 3.8 3.8 0 0 1-.9-1.4c-.2-.4-.4-1-.5-2.2-.1-1.2-.1-1.6-.1-4.8s0-3.6.1-4.8c.1-1.2.3-1.8.5-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.5 1.2-.1 1.6-.1 4.8-.1zm0 3.4a6.4 6.4 0 1 0 0 12.8 6.4 6.4 0 0 0 0-12.8zm0 10.6a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm6.7-10.9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"
-              />
-            </svg>
-          </a>
-          <a
-            href="https://www.youtube.com/@bagpipegolf"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Bagpipe Golf on YouTube (@bagpipegolf)"
-            class="hero__social-link"
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.5A3 3 0 0 0 .5 6.1C0 8 0 12 0 12s0 4 .5 5.9c.3 1 1.1 1.8 2.1 2 1.9.6 9.4.6 9.4.6s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1C24 16 24 12 24 12s0-4-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z"
-              />
-            </svg>
-          </a>
-          <a
-            href="https://x.com/bagpipegolf1"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Bagpipe Golf on X (@bagpipegolf1)"
-            class="hero__social-link"
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M18.9 2.5h3.3l-7.2 8.2 8.4 11.1h-6.6l-5.1-6.7-5.9 6.7H2.5l7.7-8.8L2.2 2.5h6.8l4.6 6.1 5.3-6.1zm-1.2 17.4h1.8L6.4 4.3H4.5l13.2 15.6z"
-              />
-            </svg>
-          </a>
-        </nav>
+        <!-- Social row — component handles the 4 platforms + click
+             tracking. Source tag lets the analytics hook distinguish
+             hero clicks from footer clicks. -->
+        <SocialLinks variant="hero" source="hero" />
       </div>
     </section>
 
@@ -409,52 +351,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     border-radius: 999px;
   }
 
-  /* ── Social row (2026-09-10) ─────────────────────────
-     Icon-only social links sitting under the "Not on iPhone?" line
-     in the hero. Circle buttons with brand-green outline; fill on
-     hover so they read as active without shouting for attention
-     above the primary CTAs.
-  */
-  .hero__social {
-    margin-top: 18px;
-    display: flex;
-    justify-content: center;
-    gap: 14px;
-    flex-wrap: wrap;
-  }
-  .hero__social-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 999px;
-    border: 1.5px solid var(--brand-green);
-    color: var(--brand-green);
-    background: transparent;
-    text-decoration: none;
-    transition:
-      background 0.15s ease,
-      color 0.15s ease,
-      transform 0.08s ease,
-      box-shadow 0.15s ease;
-  }
-  .hero__social-link:hover,
-  .hero__social-link:focus-visible {
-    background: var(--brand-green);
-    color: #fff;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(26, 92, 56, 0.22);
-    outline: none;
-  }
-  .hero__social-link:focus-visible {
-    box-shadow:
-      0 0 0 3px rgba(26, 92, 56, 0.28),
-      0 6px 14px rgba(26, 92, 56, 0.22);
-  }
-  .hero__social-link svg {
-    display: block;
-  }
+  /* Social row styles moved into src/components/SocialLinks.astro
+     when Footer picked up the same component 2026-09-10. */
 
   /* ── Features ──────────────────────────────────────── */
   .features { padding: 32px 24px 50px; }
