@@ -1,6 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { createSupabaseClient } from './lib/supabase';
 import { handleWellKnownRequest } from './lib/wellKnown';
+import { ensureSentryInit, captureServerError } from './lib/sentryServer';
 
 // Routes that require an authenticated Supabase session. If a request
 // to one of these comes in without a session, we redirect to /login
@@ -37,6 +38,17 @@ const SIGNED_IN_BOUNCE = ['/login', '/signup', '/forgot-password'];
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const { pathname } = new URL(ctx.request.url);
+  const locals = ctx.locals as App.Locals;
+
+  // Lazy Sentry init (idempotent per Worker isolate). Runs before the
+  // .well-known short-circuit so a bug in the well-known handler still
+  // captures. Reads `SENTRY_DSN` + `SENTRY_ENVIRONMENT` from the
+  // Cloudflare env binding; silent no-op when unset (matches the app's
+  // guard).
+  ensureSentryInit({
+    dsn: locals.env?.SENTRY_DSN,
+    environment: locals.env?.SENTRY_ENVIRONMENT,
+  });
 
   // Short-circuit .well-known/* before Supabase init. The
   // apple-app-site-association + assetlinks.json paths are polled by
@@ -53,7 +65,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     const supabase = createSupabaseClient({
       request: ctx.request,
       cookies: ctx.cookies,
-      locals: ctx.locals as App.Locals,
+      locals,
     });
     const { data } = await supabase.auth.getUser();
     user = data.user ?? null;
@@ -63,10 +75,18 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     }
   } catch (err) {
     console.error('[middleware] supabase init failed', err);
+    // Non-fatal — Supabase init failure means unauthenticated view of
+    // the site, which is the intended fallback. Still worth capturing
+    // so a Cloudflare-side or upstream Supabase incident shows up in
+    // Sentry instead of just Worker logs.
+    captureServerError(err, {
+      path: pathname,
+      tags: { stage: 'middleware.supabase_init' },
+    });
   }
 
-  (ctx.locals as App.Locals).session = session;
-  (ctx.locals as App.Locals).user = user;
+  locals.session = session;
+  locals.user = user;
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
   const isPublicApp = PUBLIC_APP_PATTERNS.some((r) => r.test(pathname));
@@ -80,5 +100,19 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     return ctx.redirect('/app', 302);
   }
 
-  return next();
+  // Wrap the downstream chain (page renders, API routes) in a
+  // try/catch so an uncaught exception surfaces to Sentry with the
+  // path + user context. Rethrow so Astro's own error boundary still
+  // renders the standard 500 page — we're only tapping the wire, not
+  // altering it.
+  try {
+    return await next();
+  } catch (err) {
+    captureServerError(err, {
+      path: pathname,
+      userId: user?.id ?? null,
+      tags: { stage: 'page_render' },
+    });
+    throw err;
+  }
 });
