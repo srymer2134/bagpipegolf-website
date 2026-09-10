@@ -39,7 +39,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <li><strong>Round-of-play location</strong> — when you tap a course in search results, we use your device's location to surface nearby courses. The app does not continuously track your location; location is used only when you actively search for or open a course screen. iOS asks your permission via the standard Location prompt.</li>
         <li><strong>Voice input</strong> — if you use the voice-input feature for shot advice or issue reports, the app uses your device's speech recognition service to transcribe what you say. The transcript is processed in the app and is not stored on our servers as raw audio.</li>
         <li><strong>Push notification token</strong> — if you opt in to tournament push notifications, the app registers a Firebase Cloud Messaging (FCM) token with our backend so we can deliver tee-time, pairing, and update messages. You can turn off push at any time from Profile → Notifications or in your device settings.</li>
-        <li><strong>Crash and error reports</strong> — when the app crashes or hits an unhandled error, we send a crash report (stack trace, OS version, app build number, release tag) to Sentry. Crash reports do not include the content of your scorecards, bet games, or messages.</li>
+        <li><strong>Crash and error reports</strong> — when the app or the bagpipegolf.com website crashes or hits an unhandled error, we send a crash report (stack trace, OS / browser version, app build number, release tag, and the URL path that triggered the error on the website) to Sentry. Crash reports do not include the content of your scorecards, bet games, or messages. On the website your user ID may be attached to a crash report when you're signed in (so we can distinguish account-specific bugs from general ones); email and IP address are NOT sent.</li>
         <li><strong>Usage analytics</strong> — we use PostHog to record product usage (which screens are visited, which buttons are tapped, error rates, feature adoption). Analytics events <strong>are tied to your account</strong> — your user ID, email, display name, and handicap are attached as PostHog profile properties so we can debug account-specific issues and understand usage by segment. This is not anonymous analytics. You can ask us to opt your account out of analytics collection (see §6). We never sell analytics data and never use it for third-party advertising.</li>
         <li><strong>Authentication metadata</strong> — when you sign in, Supabase records the timestamp of the sign-in along with a session token. This is standard authentication infrastructure.</li>
       </ul>
@@ -100,8 +100,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             </tr>
             <tr>
               <td><strong>Sentry</strong></td>
-              <td>Crash reporting</td>
-              <td>Stack traces, OS / app version, release tag</td>
+              <td>Crash reporting (app + website)</td>
+              <td>Stack traces, OS / browser / app version, release tag, URL path (website only); signed-in user ID attached but no email or IP</td>
             </tr>
             <tr>
               <td><strong>PostHog</strong></td>
