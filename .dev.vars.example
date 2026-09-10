@@ -1,2 +1,13 @@
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-publishable-key
+
+# Sentry (optional — leave blank for local dev with no Sentry project).
+# When both are set the Worker forwards uncaught exceptions to Sentry.
+# Client-side DSN is separate — set as `PUBLIC_SENTRY_DSN` in
+# Cloudflare Pages env vars so Astro exposes it to the browser bundle.
+#
+# `SENTRY_ENVIRONMENT` gates the `beforeSend` filter — only 'production'
+# events actually forward; 'preview' / 'development' are dropped to
+# keep the prod dashboard's signal-to-noise ratio meaningful.
+SENTRY_DSN=
+SENTRY_ENVIRONMENT=development
