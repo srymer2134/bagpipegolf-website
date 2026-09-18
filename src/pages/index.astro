@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import SocialLinks from '../components/SocialLinks.astro';
 ---
 
 <BaseLayout title="Bagpipe Golf — Play games. Settle scores.">
@@ -52,6 +53,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <a href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf">hello@bagpipegolf.com</a>
           — we'll ping you when Android ships.
         </p>
+
+        <!-- Social row — component handles the 4 platforms + click
+             tracking. Source tag lets the analytics hook distinguish
+             hero clicks from footer clicks. -->
+        <SocialLinks variant="hero" source="hero" />
       </div>
     </section>
 
@@ -344,6 +350,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     padding: 4px 10px;
     border-radius: 999px;
   }
+
+  /* Social row styles moved into src/components/SocialLinks.astro
+     when Footer picked up the same component 2026-09-10. */
 
   /* ── Features ──────────────────────────────────────── */
   .features { padding: 32px 24px 50px; }

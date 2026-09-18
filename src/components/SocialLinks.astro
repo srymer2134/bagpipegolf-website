@@ -1,0 +1,178 @@
+---
+/**
+ * Social media link row for Bagpipe Golf.
+ *
+ * Used in the hero (index.astro) and the site-wide Footer. Two size
+ * variants — `hero` (40px, prominent) and `footer` (32px, muted).
+ *
+ * Handles claimed 2026-09-10; plain `@bagpipegolf` was unavailable on
+ * Instagram + X, hence the `-app` / `-1` variants. See
+ * `.claude/projects/-Users-bacon-fairwayiq-flutter/memory/reference_social_handles.md`.
+ *
+ * Click tracking: every anchor carries `data-social-platform` and
+ * `data-social-source` attributes. A tiny delegated listener at the
+ * bottom of this component fires a `bpg:social_click` CustomEvent on
+ * `window`; any analytics library (PostHog, Plausible, GA4, etc.) can
+ * attach to the same listener without touching this component again.
+ * No analytics tool is currently wired up — the event fires but nobody
+ * listens yet. That's deliberate: the plumbing lands now, the tool
+ * choice is Sam's later.
+ */
+
+interface Props {
+  variant?: 'hero' | 'footer';
+  source?: string;
+}
+
+const { variant = 'hero', source = variant } = Astro.props;
+const size = variant === 'hero' ? 22 : 18;
+const rootClass = `social social--${variant}`;
+
+const links = [
+  {
+    platform: 'tiktok',
+    href: 'https://www.tiktok.com/@bagpipegolf',
+    label: 'Bagpipe Golf on TikTok (@bagpipegolf)',
+    path: 'M19.6 7.3a5.4 5.4 0 0 1-3.2-1.1 5.5 5.5 0 0 1-2.2-3.7h-3.4v13.2a2.4 2.4 0 1 1-2.4-2.4c.3 0 .5 0 .8.1V9.9a5.9 5.9 0 1 0 5 5.8V10a8.7 8.7 0 0 0 5.4 1.8V8.4c-.3 0-.5-.1-.8-.1a5.6 5.6 0 0 1 .8-1z',
+  },
+  {
+    platform: 'instagram',
+    href: 'https://www.instagram.com/bagpipegolfapp/',
+    label: 'Bagpipe Golf on Instagram (@bagpipegolfapp)',
+    path: 'M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.3 2.2.5.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .5 2.2.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.3 1.8-.5 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.5-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.3-2.2-.5a3.8 3.8 0 0 1-1.4-.9 3.8 3.8 0 0 1-.9-1.4c-.2-.4-.4-1-.5-2.2-.1-1.2-.1-1.6-.1-4.8s0-3.6.1-4.8c.1-1.2.3-1.8.5-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.5 1.2-.1 1.6-.1 4.8-.1zm0 3.4a6.4 6.4 0 1 0 0 12.8 6.4 6.4 0 0 0 0-12.8zm0 10.6a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm6.7-10.9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z',
+  },
+  {
+    platform: 'youtube',
+    href: 'https://www.youtube.com/@bagpipegolf',
+    label: 'Bagpipe Golf on YouTube (@bagpipegolf)',
+    path: 'M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.5A3 3 0 0 0 .5 6.1C0 8 0 12 0 12s0 4 .5 5.9c.3 1 1.1 1.8 2.1 2 1.9.6 9.4.6 9.4.6s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1C24 16 24 12 24 12s0-4-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z',
+  },
+  {
+    platform: 'threads',
+    href: 'https://www.threads.net/@bagpipegolfapp',
+    label: 'Bagpipe Golf on Threads (@bagpipegolfapp)',
+    path: 'M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.781 3.63 2.695 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.308-.883-2.359-.89h-.029c-.844 0-1.992.232-2.721 1.32L7.4 7.686c.98-1.454 2.568-2.256 4.478-2.256h.044c3.194.02 5.097 1.975 5.287 5.388.108.046.213.093.318.142 1.487.7 2.577 1.762 3.15 3.07.797 1.822.87 4.79-1.548 7.16-1.85 1.81-4.094 2.628-7.277 2.65Zm1.003-11.69c-.242 0-.487.007-.739.021-1.836.103-2.98.946-2.916 2.143.067 1.256 1.452 1.839 2.784 1.767 1.224-.065 2.818-.543 3.086-3.71a10.5 10.5 0 0 0-2.215-.221z',
+  },
+  {
+    platform: 'x',
+    href: 'https://x.com/bagpipegolf1',
+    label: 'Bagpipe Golf on X (@bagpipegolf1)',
+    path: 'M18.9 2.5h3.3l-7.2 8.2 8.4 11.1h-6.6l-5.1-6.7-5.9 6.7H2.5l7.7-8.8L2.2 2.5h6.8l4.6 6.1 5.3-6.1zm-1.2 17.4h1.8L6.4 4.3H4.5l13.2 15.6z',
+  },
+];
+---
+
+<nav class={rootClass} aria-label="Bagpipe Golf on social media">
+  {
+    links.map((l) => (
+      <a
+        href={l.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={l.label}
+        class="social__link"
+        data-social-platform={l.platform}
+        data-social-source={source}
+      >
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+          <path fill="currentColor" d={l.path} />
+        </svg>
+      </a>
+    ))
+  }
+</nav>
+
+<script>
+  // Delegated click tracker. Fires `bpg:social_click` on window with
+  // { platform, source, path, ts }. Any analytics tool (PostHog,
+  // Plausible, GA4) can subscribe:
+  //
+  //   window.addEventListener('bpg:social_click', (e) => {
+  //     posthog?.capture('social_click', e.detail);
+  //   });
+  //
+  // No listener is wired up today — the plumbing lands now, the
+  // analytics tool choice is Sam's later. Runs once per page load
+  // regardless of how many SocialLinks components render.
+  if (!(window as any).__bpgSocialClickTracker) {
+    (window as any).__bpgSocialClickTracker = true;
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement | null;
+      const link = target?.closest?.('[data-social-platform]') as
+        | HTMLAnchorElement
+        | null;
+      if (!link) return;
+      const detail = {
+        platform: link.dataset.socialPlatform,
+        source: link.dataset.socialSource,
+        path: window.location.pathname,
+        ts: Date.now(),
+      };
+      window.dispatchEvent(new CustomEvent('bpg:social_click', { detail }));
+    });
+  }
+</script>
+
+<style>
+  .social {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .social--hero {
+    margin-top: 18px;
+    justify-content: center;
+  }
+  .social--footer {
+    margin-top: 12px;
+    gap: 10px;
+  }
+  .social__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    text-decoration: none;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
+      transform 0.08s ease,
+      box-shadow 0.15s ease;
+  }
+  .social--hero .social__link {
+    width: 40px;
+    height: 40px;
+    border: 1.5px solid var(--brand-green);
+    color: var(--brand-green);
+    background: transparent;
+  }
+  .social--hero .social__link:hover,
+  .social--hero .social__link:focus-visible {
+    background: var(--brand-green);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(26, 92, 56, 0.22);
+    outline: none;
+  }
+  .social--hero .social__link:focus-visible {
+    box-shadow:
+      0 0 0 3px rgba(26, 92, 56, 0.28),
+      0 6px 14px rgba(26, 92, 56, 0.22);
+  }
+  .social--footer .social__link {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--line);
+    color: var(--ink-muted);
+    background: var(--paper);
+  }
+  .social--footer .social__link:hover,
+  .social--footer .social__link:focus-visible {
+    color: var(--brand-green-dark);
+    border-color: var(--brand-green);
+    outline: none;
+  }
+  .social__link svg {
+    display: block;
+  }
+</style>
