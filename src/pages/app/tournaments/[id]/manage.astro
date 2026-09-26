@@ -393,6 +393,18 @@ if (tournament) {
             <button type="button" id="regCopyBtn" class="btn btn--ghost btn--sm">Copy link</button>
             <a class="btn btn--ghost btn--sm" href={`/t/${id}`} target="_blank" rel="noopener">Preview</a>
           </div>
+          <label class="regToggle">
+            <input type="checkbox" id="regOpenToggle" checked={(tournament as { registration_open?: boolean | null }).registration_open !== false} />
+            <span class="regToggle__text">
+              <strong id="regToggleTitle">{(tournament as { registration_open?: boolean | null }).registration_open === false ? 'Sign-ups closed' : 'Accepting sign-ups via link'}</strong>
+              <span id="regToggleHint" class="inviteBox__hint inviteBox__hint--muted inviteBox__hint--tight">
+                {(tournament as { registration_open?: boolean | null }).registration_open === false
+                  ? 'Players who open the link can only watch. Turn on to reopen.'
+                  : 'Turn off to stop new players joining themselves. Email invites still work.'}
+              </span>
+            </span>
+          </label>
+          <div id="regToggleError" class="errorbar" hidden></div>
           <p class="inviteBox__hint inviteBox__hint--muted">
             Prefer to hand-pick the field? Use email invites above — only the people you
             invite can accept those.
@@ -557,6 +569,40 @@ if (tournament) {
   </main>
   <script is:inline>
     (() => {
+      const toggle = document.getElementById('regOpenToggle');
+      const title = document.getElementById('regToggleTitle');
+      const hint = document.getElementById('regToggleHint');
+      const tErr = document.getElementById('regToggleError');
+      if (toggle) {
+        const id = window.location.pathname.split('/')[3] || '';
+        toggle.addEventListener('change', async () => {
+          const open = toggle.checked;
+          toggle.disabled = true;
+          if (tErr) { tErr.hidden = true; tErr.textContent = ''; }
+          try {
+            const res = await fetch(`/api/tournaments/${encodeURIComponent(id)}/update`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ registration_open: open }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              toggle.checked = !open;
+              if (tErr) { tErr.textContent = (body && body.error) || `Could not save (${res.status}).`; tErr.hidden = false; }
+            } else {
+              if (title) title.textContent = open ? 'Accepting sign-ups via link' : 'Sign-ups closed';
+              if (hint) hint.textContent = open
+                ? 'Turn off to stop new players joining themselves. Email invites still work.'
+                : 'Players who open the link can only watch. Turn on to reopen.';
+            }
+          } catch (_) {
+            toggle.checked = !open;
+            if (tErr) { tErr.textContent = 'Network error. Please try again.'; tErr.hidden = false; }
+          } finally {
+            toggle.disabled = false;
+          }
+        });
+      }
       const btn = document.getElementById('regCopyBtn');
       const link = document.getElementById('regLink');
       if (!btn || !link || !navigator.clipboard) return;
@@ -3576,6 +3622,15 @@ if (tournament) {
     gap: 10px;
     margin: 12px 0;
   }
+  .regToggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 12px 0 4px;
+    cursor: pointer;
+  }
+  .regToggle input { margin-top: 4px; width: 18px; height: 18px; }
+  .regToggle__text { display: flex; flex-direction: column; gap: 2px; }
   .regBox__link {
     flex: 1 1 260px;
     padding: 10px 12px;

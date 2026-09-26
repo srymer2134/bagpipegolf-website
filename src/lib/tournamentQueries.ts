@@ -89,6 +89,9 @@ export type TournamentRow = {
   created_at: string | null;
   updated_at: string | null;
   completed_at: string | null;
+  /// Director's "accept sign-ups via the public link" toggle
+  /// (20261012 migration). Absent/null = open.
+  registration_open?: boolean | null;
   players: TournamentPlayer[];
   rounds: TournamentRound[];
   tee_boxes: TournamentTeeBox[];
@@ -103,11 +106,12 @@ export type TournamentRow = {
   teams?: TournamentTopTeam[] | null;
 };
 
-const TOURNAMENT_COLS =
-  'id, user_id, name, course_name, total_holes, par_total, ' +
-  'created_at, updated_at, completed_at, players, rounds, ' +
-  'tee_boxes, scoring_mode, use_net_scoring, ' +
-  'skins_competitions, flights, teams';
+// `*` rather than an explicit list: PostgREST 42703s on a column that
+// doesn't exist yet, and columns land on dev/prod at different times
+// (`registration_open`, 2026-09-26). Every column this site reads is
+// typed on TournamentRow; extras are ignored. RLS scopes rows, not
+// columns, so nothing new leaks.
+const TOURNAMENT_COLS = '*';
 
 /// List tournaments owned by the currently-authenticated user.
 /// The `tournaments` RLS "owner-only" policy on authenticated

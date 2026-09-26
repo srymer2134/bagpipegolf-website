@@ -93,9 +93,32 @@ if (kind !== 'invalid') {
   }
 }
 
+// Registration toggle (tournaments.registration_open, 20261012). The
+// code RPC doesn't carry it, so read it directly (public-read policy)
+// and tolerate the column not existing yet → open.
+let registrationClosed = false;
+if (tournament?.tournament_row_id) {
+  try {
+    const supabase = createSupabaseClient({
+      request: Astro.request,
+      cookies: Astro.cookies,
+      locals: Astro.locals as App.Locals,
+    });
+    const { data } = await supabase
+      .from('tournaments')
+      .select('registration_open')
+      .eq('id', tournament.tournament_row_id)
+      .maybeSingle();
+    registrationClosed = (data as { registration_open?: boolean | null } | null)?.registration_open === false;
+  } catch (_) {
+    registrationClosed = false;
+  }
+}
+
 const inviteStatus = invite?.status ?? null;
 const inviteActionable = inviteStatus === 'pending';
-const tournamentJoinable = tournament !== null && tournament.status !== 'completed';
+const tournamentFinished = tournament !== null && tournament.status === 'completed';
+const tournamentJoinable = tournament !== null && !tournamentFinished && !registrationClosed;
 
 const appScheme =
   kind === 'invite' ? `fairwayiq://join/${token}` : kind === 'code' ? `fairwayiq://join/${code}` : null;
@@ -210,8 +233,10 @@ const title =
               </>
             )}
           </section>
-        ) : (
+        ) : tournamentFinished ? (
           <div class="notice notice--warn">This tournament has finished. You can still view the results.</div>
+        ) : (
+          <div class="notice notice--warn">Registration is closed — the host isn't accepting sign-ups via link right now. You can still follow along, or ask the host for an email invite.</div>
         )}
 
         <div id="joinDone" class="notice notice--ok" hidden>
