@@ -62,7 +62,11 @@ const viewerIsHost = Boolean(viewer && t && t.user_id === viewer.id);
 const viewerOnRoster = Boolean(
   viewer && players.some((p) => (p.userId ?? (p as { user_id?: string | null }).user_id) === viewer.id),
 );
-const canOfferJoin = Boolean(t) && !completed && !kiosk && !viewerIsHost && !viewerOnRoster;
+const registrationClosed = Boolean(t) && (t as { registration_open?: boolean | null }).registration_open === false;
+const canOfferJoin =
+  Boolean(t) && !completed && !kiosk && !viewerIsHost && !viewerOnRoster && !registrationClosed;
+const showClosedNotice =
+  Boolean(t) && !completed && !kiosk && !viewerIsHost && !viewerOnRoster && registrationClosed;
 const joinNext = `/app/tournaments/${id}`;
 const scored = t ? hasAnyScores(t) : false;
 const state: 'upcoming' | 'active' | 'completed' = completed
@@ -231,6 +235,14 @@ const sortedPlayers = [...players].sort((a, b) => {
                 <a class="btn btn--ghost" href={`/signup?next=${encodeURIComponent(joinNext)}`}>Create account</a>
               </div>
             )}
+          </section>
+        )}
+        {showClosedNotice && (
+          <section class="joinCard joinCard--done">
+            <div class="joinCard__text">
+              <h2 class="joinCard__title">Registration is closed</h2>
+              <p class="joinCard__hint">The host isn't accepting sign-ups via link right now. You can still follow the leaderboard, or ask the host for an email invite.</p>
+            </div>
           </section>
         )}
         <div id="joinDone" class="joinCard joinCard--done" hidden>
