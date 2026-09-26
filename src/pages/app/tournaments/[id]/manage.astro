@@ -377,6 +377,28 @@ if (tournament) {
           </p>
         </section>
 
+        <section class="rosterCard" data-card="registration">
+          <header class="rosterCard__head">
+            <div>
+              <h2 class="rosterCard__title">Registration link</h2>
+              <p class="rosterCard__meta">
+                Anyone with this link can view the tournament and, once signed in, add
+                themselves to the field with the name and handicap on their profile.
+                Players who join show up in the app and here as soon as they do.
+              </p>
+            </div>
+          </header>
+          <div class="regBox">
+            <code id="regLink" class="regBox__link">https://bagpipegolf.com/t/{id}</code>
+            <button type="button" id="regCopyBtn" class="btn btn--ghost btn--sm">Copy link</button>
+            <a class="btn btn--ghost btn--sm" href={`/t/${id}`} target="_blank" rel="noopener">Preview</a>
+          </div>
+          <p class="inviteBox__hint inviteBox__hint--muted">
+            Prefer to hand-pick the field? Use email invites above — only the people you
+            invite can accept those.
+          </p>
+        </section>
+
         <!-- Flights card — handicap-split brackets -->
         <section class="rosterCard" data-card="flights">
           <header class="rosterCard__head">
@@ -533,6 +555,21 @@ if (tournament) {
       </>
     )}
   </main>
+  <script is:inline>
+    (() => {
+      const btn = document.getElementById('regCopyBtn');
+      const link = document.getElementById('regLink');
+      if (!btn || !link || !navigator.clipboard) return;
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(link.textContent || '');
+          const original = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(() => { btn.textContent = original || 'Copy link'; }, 1500);
+        } catch (_) { /* clipboard blocked — link is still visible */ }
+      });
+    })();
+  </script>
 </BaseLayout>
 
 {tournament && (
@@ -3531,4 +3568,21 @@ if (tournament) {
     font-size: 16px; padding: 2px 6px; font-family: inherit; line-height: 1;
   }
   .pairingsPlayerRow__remove:hover { color: var(--error, #b91c1c); }
+
+  .regBox {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+  }
+  .regBox__link {
+    flex: 1 1 260px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(47, 125, 68, 0.08);
+    font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 14px;
+    word-break: break-all;
+  }
 </style>
