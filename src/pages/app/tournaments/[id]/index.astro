@@ -27,6 +27,10 @@ import {
 const { id } = Astro.params;
 const url = new URL(Astro.request.url);
 const kiosk = url.searchParams.get('kiosk') === '1';
+// Viewer identity for the "Join this tournament" card. This page is
+// public (middleware exempts /app/tournaments/tourney_*), so `user`
+// may be null.
+const viewer = Astro.locals.user;
 
 const supabase = createSupabaseClient({
   request: Astro.request,
@@ -53,6 +57,13 @@ try {
 const players: TournamentPlayer[] = t?.players ?? [];
 const rounds: TournamentRound[] = t?.rounds ?? [];
 const completed = t ? isCompleted(t) : false;
+// Join card gating: not the host, not already on the roster, not done.
+const viewerIsHost = Boolean(viewer && t && t.user_id === viewer.id);
+const viewerOnRoster = Boolean(
+  viewer && players.some((p) => (p.userId ?? (p as { user_id?: string | null }).user_id) === viewer.id),
+);
+const canOfferJoin = Boolean(t) && !completed && !kiosk && !viewerIsHost && !viewerOnRoster;
+const joinNext = `/app/tournaments/${id}`;
 const scored = t ? hasAnyScores(t) : false;
 const state: 'upcoming' | 'active' | 'completed' = completed
   ? 'completed'
@@ -201,6 +212,34 @@ const sortedPlayers = [...players].sort((a, b) => {
           </a>
         </div>
 
+        {canOfferJoin && (
+          <section class="joinCard" id="joinCard" data-tournament-id={id}>
+            <div class="joinCard__text">
+              <h2 class="joinCard__title">Join this tournament</h2>
+              <p class="joinCard__hint">
+                {viewer
+                  ? 'Adds you to the field with the name and handicap on your profile.'
+                  : 'Sign in or create an account to add yourself to the field.'}
+              </p>
+              <div id="joinError" class="joinCard__error" hidden></div>
+            </div>
+            {viewer ? (
+              <button type="button" id="joinBtn" class="btn btn--primary">Join</button>
+            ) : (
+              <div class="joinCard__cta">
+                <a class="btn btn--primary" href={`/login?next=${encodeURIComponent(joinNext)}`}>Sign in to join</a>
+                <a class="btn btn--ghost" href={`/signup?next=${encodeURIComponent(joinNext)}`}>Create account</a>
+              </div>
+            )}
+          </section>
+        )}
+        <div id="joinDone" class="joinCard joinCard--done" hidden>
+          <div class="joinCard__text">
+            <h2 class="joinCard__title">You're in.</h2>
+            <p class="joinCard__hint" id="joinDoneHint">You've been added to the field. Reload to see yourself on the roster, or open the app.</p>
+          </div>
+        </div>
+
         {/* Key stats */}
         <section class="stats">
           <div class="stat">
@@ -336,6 +375,42 @@ const sortedPlayers = [...players].sort((a, b) => {
       </>
     )}
   </main>
+  <script is:inline>
+    (() => {
+      const card = document.getElementById('joinCard');
+      const btn = document.getElementById('joinBtn');
+      if (!card || !btn) return;
+      const err = document.getElementById('joinError');
+      const done = document.getElementById('joinDone');
+      const hint = document.getElementById('joinDoneHint');
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const label = btn.textContent;
+        btn.textContent = 'Joining…';
+        if (err) { err.hidden = true; err.textContent = ''; }
+        try {
+          const res = await fetch(`/api/tournaments/${encodeURIComponent(card.dataset.tournamentId || '')}/join`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            if (err) { err.textContent = (body && body.error) || `Request failed (${res.status}).`; err.hidden = false; }
+            btn.disabled = false; btn.textContent = label;
+            return;
+          }
+          if (hint && body && body.handicap_defaulted) {
+            hint.textContent += ' No handicap was set on your profile, so 18.0 was used — update it in Profile any time.';
+          }
+          card.hidden = true;
+          if (done) done.hidden = false;
+        } catch (_) {
+          if (err) { err.textContent = 'Network error. Please try again.'; err.hidden = false; }
+          btn.disabled = false; btn.textContent = label;
+        }
+      });
+    })();
+  </script>
 </BaseLayout>
 
 <style>
@@ -635,4 +710,31 @@ const sortedPlayers = [...players].sort((a, b) => {
 
   .pagefoot { margin: 32px 0 16px; }
   .card--warn { border-color: #b00020; }
+
+  .joinCard {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 18px 0;
+    padding: 18px 20px;
+    border: 1px solid var(--brand-green, #2f7d44);
+    border-radius: 14px;
+    background: var(--brand-green-soft, #f0f7f2);
+  }
+  .joinCard--done { border-style: dashed; }
+  .joinCard__text { flex: 1 1 280px; }
+  .joinCard__title { margin: 0 0 4px; font-size: 18px; }
+  .joinCard__hint { margin: 0; color: var(--ink-muted, #4b5b54); line-height: 1.5; }
+  .joinCard__cta { display: flex; flex-wrap: wrap; gap: 10px; }
+  .joinCard__error {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #fdecec;
+    border: 1px solid #d64545;
+    color: #7a1f1f;
+    font-size: 14px;
+  }
 </style>

@@ -1,44 +1,243 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../lib/supabase';
 
-// Join-code landing page.
+// Join landing page — `https://bagpipegolf.com/join/<id>`.
 //
-// Reached when someone taps a `https://bagpipegolf.com/join/<CODE>`
-// link and:
-//   (a) the app isn't installed yet — show install + manual-entry
-//       instructions, OR
-//   (b) iOS / Android failed the Universal-Link / App-Link
-//       verification (placeholder Android cert fingerprint until the
-//       release key is minted), so the OS landed on the web page
-//       instead of opening the app.
+// Three shapes land here, disambiguated by the id:
 //
-// When the app IS installed and verified, iOS / Android intercept
-// this URL before the page ever renders — so the "Open in app"
-// affordance below is a graceful fallback rather than the primary
-// flow.
+//   1. UUID (36 chars)  → an email-to-join INVITE TOKEN. Preview the
+//      invite (anon RPC `get_invite_by_token`), then:
+//        * signed in  → "Accept" (POST /api/invites/[token]/accept)
+//        * signed out → sign in / create account with ?next= back here
+//      Plus "Open in the app" (`fairwayiq://join/<token>` — the app's
+//      deep-link parser routes a UUID to its invite-accept screen).
 //
-// Codes here are ambiguous by design: the same 6-char alphabet
-// covers both shared bet games and shared tournaments. The
-// Flutter side dispatches on lookup (`JoinDispatcherScreen`) once
-// the app opens, so this page stays game-agnostic.
+//   2. 6-char code → a SHARED TOURNAMENT or SIDE GAME code. Resolve
+//      via the anon RPC `get_shared_tournament_by_code`:
+//        * tournament found → preview + "Join this tournament"
+//          (POST /api/tournaments/[id]/join) for signed-in visitors,
+//          sign-in links otherwise, "Open in the app" for both.
+//        * not a tournament → the game-agnostic fallback (the app
+//          dispatches side-game codes itself once opened).
+//
+//   3. anything else → malformed.
+//
+// When the app IS installed and the universal link verified, iOS /
+// Android intercept this URL before the page renders — so everything
+// here is the not-installed / laptop / unverified-Android path, and the
+// place a web-only user can complete the join without the app.
 
-const rawCode = (Astro.params.code ?? '').toUpperCase();
-// Tighten the displayed code to 6 alphanumerics so a typo URL
-// doesn't render a giant blob. We keep the user on the page with
-// an error state when the code is malformed.
-const isValid = /^[A-Z0-9]{6}$/.test(rawCode);
-const code = isValid ? rawCode : '';
-const fairwayiqScheme = isValid ? `fairwayiq://join/${code}` : null;
+type InviteRow = {
+  tournament_id: string | null;
+  tournament_name: string | null;
+  inviter_name: string | null;
+  email: string | null;
+  status: string | null;
+};
+
+type TournamentPreview = {
+  tournament_row_id: string | null;
+  tournament_name: string | null;
+  course_name: string | null;
+  scorekeeper_name: string | null;
+  player_count: number | null;
+  round_count: number | null;
+  status: string | null;
+};
+
+const raw = (Astro.params.code ?? '').trim();
+const uuidShape = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const codeShape = /^[A-Za-z0-9]{6}$/;
+
+const kind: 'invite' | 'code' | 'invalid' = uuidShape.test(raw)
+  ? 'invite'
+  : codeShape.test(raw)
+    ? 'code'
+    : 'invalid';
+
+const token = kind === 'invite' ? raw.toLowerCase() : '';
+const code = kind === 'code' ? raw.toUpperCase() : '';
+
+const user = (Astro.locals as App.Locals).user;
+const signedIn = Boolean(user);
+const here = `/join/${kind === 'invite' ? token : code}`;
+const loginHref = `/login?next=${encodeURIComponent(here)}`;
+const signupHref = `/signup?next=${encodeURIComponent(here)}`;
+
+let invite: InviteRow | null = null;
+let tournament: TournamentPreview | null = null;
+let lookupFailed = false;
+
+if (kind !== 'invalid') {
+  try {
+    const supabase = createSupabaseClient({
+      request: Astro.request,
+      cookies: Astro.cookies,
+      locals: Astro.locals as App.Locals,
+    });
+    if (kind === 'invite') {
+      const { data, error } = await supabase.rpc('get_invite_by_token', { p_token: token });
+      if (error) throw error;
+      const row = (Array.isArray(data) ? data[0] : data) as InviteRow | undefined;
+      invite = row && row.status && row.status !== 'not_found' ? row : null;
+    } else {
+      const { data, error } = await supabase.rpc('get_shared_tournament_by_code', { p_code: code });
+      if (error) throw error;
+      const row = (Array.isArray(data) ? data[0] : data) as TournamentPreview | undefined;
+      tournament = row && row.tournament_row_id && row.status !== 'not_found' ? row : null;
+    }
+  } catch (err) {
+    console.error('[join] lookup failed', err);
+    lookupFailed = true;
+  }
+}
+
+const inviteStatus = invite?.status ?? null;
+const inviteActionable = inviteStatus === 'pending';
+const tournamentJoinable = tournament !== null && tournament.status !== 'completed';
+
+const appScheme =
+  kind === 'invite' ? `fairwayiq://join/${token}` : kind === 'code' ? `fairwayiq://join/${code}` : null;
+const appStoreHref = 'https://apps.apple.com/app/id6775045734';
+
+const title =
+  kind === 'invite'
+    ? `You're invited · Bagpipe Golf`
+    : kind === 'code'
+      ? `Join code ${code} · Bagpipe Golf`
+      : 'Join · Bagpipe Golf';
 ---
 
-<BaseLayout title={isValid ? `Join code ${code} · Bagpipe Golf` : 'Join · Bagpipe Golf'}>
+<BaseLayout title={title}>
   <main class="pagewrap pagewrap--narrow">
-    {isValid ? (
+    {kind === 'invite' && (
+      <>
+        <p class="pagewrap__eyebrow">Tournament invite</p>
+        {invite === null ? (
+          <>
+            <h1 class="pagewrap__title">{lookupFailed ? "We couldn't load this invite." : "This invite isn't valid."}</h1>
+            <p class="pagewrap__sub">
+              {lookupFailed
+                ? 'Something went wrong looking it up. Try again in a moment.'
+                : 'It may have been withdrawn, or the link was copied incompletely. Ask the host to send a fresh one.'}
+            </p>
+            <a class="btn btn--primary" href="/">Back to home</a>
+          </>
+        ) : (
+          <>
+            <h1 class="pagewrap__title">You're invited.</h1>
+            <p class="pagewrap__sub">
+              <strong>{invite.inviter_name ?? 'The host'}</strong> invited you to play in{' '}
+              <strong>{invite.tournament_name ?? 'a tournament'}</strong>.
+            </p>
+
+            {inviteStatus === 'accepted' && (
+              <div class="notice notice--ok">
+                You've already accepted this invite.
+                {invite.tournament_id && (
+                  <> <a href={`/app/tournaments/${invite.tournament_id}`}>Open the tournament</a>.</>
+                )}
+              </div>
+            )}
+            {(inviteStatus === 'revoked' || inviteStatus === 'expired') && (
+              <div class="notice notice--warn">
+                This invite has {inviteStatus === 'revoked' ? 'been withdrawn by the host' : 'expired'}. Ask them to send a new one.
+              </div>
+            )}
+
+            {inviteActionable && (
+              <section class="joincard" id="joinCard" data-kind="invite" data-token={token}>
+                <div id="joinError" class="errorbar" hidden></div>
+                {signedIn ? (
+                  <>
+                    <p class="joincard__hint">Accepting adds you to the roster with the name and handicap on your profile.</p>
+                    <button type="button" id="acceptBtn" class="btn btn--primary btn--block">Accept invite</button>
+                  </>
+                ) : (
+                  <>
+                    <p class="joincard__hint">Sign in to accept, or create an account — you'll land right back here.</p>
+                    <div class="cta-row">
+                      <a class="btn btn--primary" href={loginHref}>Sign in to accept</a>
+                      <a class="btn btn--ghost" href={signupHref}>Create an account</a>
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
+
+            <div id="joinDone" class="notice notice--ok" hidden>
+              You're in. <a id="joinDoneLink" href={invite.tournament_id ? `/app/tournaments/${invite.tournament_id}` : '/app/tournaments'}>Open the tournament</a>, or open it in the app below.
+            </div>
+
+            <div class="cta-row">
+              {appScheme && <a class="btn btn--ghost" href={appScheme}>Open in the app</a>}
+              <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
+            </div>
+          </>
+        )}
+      </>
+    )}
+
+    {kind === 'code' && tournament !== null && (
+      <>
+        <p class="pagewrap__eyebrow">Tournament registration</p>
+        <h1 class="pagewrap__title">{tournament.tournament_name ?? 'Tournament'}</h1>
+        <p class="pagewrap__sub">
+          {tournament.course_name ? <>{tournament.course_name} · </> : null}
+          Hosted by <strong>{tournament.scorekeeper_name ?? 'the host'}</strong>
+          {typeof tournament.player_count === 'number' ? <> · {tournament.player_count} in the field</> : null}
+          {typeof tournament.round_count === 'number' && tournament.round_count > 0
+            ? <> · {tournament.round_count} {tournament.round_count === 1 ? 'round' : 'rounds'}</>
+            : null}
+        </p>
+
+        {tournamentJoinable ? (
+          <section class="joincard" id="joinCard" data-kind="tournament" data-tournament-id={tournament.tournament_row_id}>
+            <div id="joinError" class="errorbar" hidden></div>
+            {signedIn ? (
+              <>
+                <p class="joincard__hint">Joining adds you to the field with the name and handicap on your profile.</p>
+                <button type="button" id="acceptBtn" class="btn btn--primary btn--block">Join this tournament</button>
+              </>
+            ) : (
+              <>
+                <p class="joincard__hint">Sign in to join, or create an account — you'll land right back here.</p>
+                <div class="cta-row">
+                  <a class="btn btn--primary" href={loginHref}>Sign in to join</a>
+                  <a class="btn btn--ghost" href={signupHref}>Create an account</a>
+                </div>
+              </>
+            )}
+          </section>
+        ) : (
+          <div class="notice notice--warn">This tournament has finished. You can still view the results.</div>
+        )}
+
+        <div id="joinDone" class="notice notice--ok" hidden>
+          You're in. <a id="joinDoneLink" href={`/app/tournaments/${tournament.tournament_row_id}`}>Open the tournament</a>, or open it in the app below.
+        </div>
+
+        <section class="codecard">
+          <span class="codecard__label">Join code</span>
+          <code class="codecard__value" data-code={code}>{code}</code>
+          <button id="copyBtn" class="codecard__copy" type="button" aria-label="Copy code">Copy</button>
+        </section>
+
+        <div class="cta-row">
+          {appScheme && <a class="btn btn--ghost" href={appScheme}>Open in the app</a>}
+          <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
+          <a class="btn btn--ghost" href={`/app/tournaments/${tournament.tournament_row_id}/leaderboard`}>Leaderboard</a>
+        </div>
+      </>
+    )}
+
+    {kind === 'code' && tournament === null && (
       <>
         <p class="pagewrap__eyebrow">Join a live game</p>
         <h1 class="pagewrap__title">You're invited.</h1>
         <p class="pagewrap__sub">
-          Tap "Open in Bagpipe Golf" below to jump straight to the live game — the app will figure out whether it's a tournament or a side-bet game. If the app isn't installed yet, grab it first and your code will be ready.
+          Tap "Open in the app" to jump straight to the live game — the app works out whether it's a tournament or a side game. If the app isn't installed yet, grab it first and your code will be ready.
         </p>
 
         <section class="codecard">
@@ -48,42 +247,36 @@ const fairwayiqScheme = isValid ? `fairwayiq://join/${code}` : null;
         </section>
 
         <div class="cta-row">
-          {fairwayiqScheme && (
-            <a class="btn btn--primary" href={fairwayiqScheme}>
-              Open in Bagpipe Golf
-            </a>
-          )}
-          <a class="btn btn--ghost" href="https://apps.apple.com/app/id6775045734">
-            Get the app (App Store)
-          </a>
+          {appScheme && <a class="btn btn--primary" href={appScheme}>Open in the app</a>}
+          <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
         </div>
 
         <details class="manual">
           <summary>Or enter the code manually</summary>
           <ol>
             <li>Open <strong>Bagpipe Golf</strong> on your phone.</li>
-            <li>For a <strong>side-bet game</strong>: tap the <strong>Play</strong> tab and choose <strong>Join Game</strong>, then paste <code>{code}</code>.</li>
+            <li>For a <strong>side game</strong>: tap the <strong>Play</strong> tab and choose <strong>Join Game</strong>, then paste <code>{code}</code>.</li>
             <li>For a <strong>tournament</strong>: tap the <strong>Events</strong> tab and choose <strong>Join Tournament</strong>, then paste <code>{code}</code>.</li>
             <li>Not sure which? Either flow will bounce you to the right screen once the code resolves.</li>
           </ol>
         </details>
       </>
-    ) : (
+    )}
+
+    {kind === 'invalid' && (
       <>
         <p class="pagewrap__eyebrow">Join a live game</p>
-        <h1 class="pagewrap__title">That code doesn't look right.</h1>
+        <h1 class="pagewrap__title">That link doesn't look right.</h1>
         <p class="pagewrap__sub">
-          Bagpipe Golf join codes are 6 letters and numbers — like <code>ABC123</code>. Check the link you tapped and try again, or open the app and use <strong>Join Game</strong> (Play tab) or <strong>Join Tournament</strong> (Events tab) to type the code manually.
+          Bagpipe Golf join codes are 6 letters and numbers — like <code>ABC123</code> — and invite links are longer. Check the link you tapped and try again, or open the app and use <strong>Join Game</strong> (Play tab) or <strong>Join Tournament</strong> (Events tab) to type a code manually.
         </p>
         <a class="btn btn--primary" href="/">Back to home</a>
       </>
     )}
   </main>
 
-  {isValid && (
+  {kind === 'code' && (
     <script is:inline define:vars={{ code }}>
-      // Copy-to-clipboard for the code chip. Inline so the page works
-      // without the marketing-site JS bundle (which is empty today).
       const btn = document.getElementById('copyBtn');
       if (btn && navigator.clipboard) {
         btn.addEventListener('click', async () => {
@@ -93,16 +286,111 @@ const fairwayiqScheme = isValid ? `fairwayiq://join/${code}` : null;
             btn.textContent = 'Copied';
             setTimeout(() => { btn.textContent = original ?? 'Copy'; }, 1500);
           } catch (_) {
-            // Clipboard API blocked — no-op. The code is still visible.
+            // Clipboard API blocked — the code is still visible.
           }
         });
       }
     </script>
   )}
+
+  <script is:inline>
+    // Accept / join. Same-origin POST to the Astro proxy, which forwards
+    // the session JWT to Railway. Both upstreams are idempotent.
+    (() => {
+      const card = document.getElementById('joinCard');
+      const accept = document.getElementById('acceptBtn');
+      if (!card || !accept) return;
+      const errorBar = document.getElementById('joinError');
+      const done = document.getElementById('joinDone');
+      const doneLink = document.getElementById('joinDoneLink');
+      const kind = card.dataset.kind;
+      const url =
+        kind === 'invite'
+          ? `/api/invites/${encodeURIComponent(card.dataset.token || '')}/accept`
+          : `/api/tournaments/${encodeURIComponent(card.dataset.tournamentId || '')}/join`;
+
+      accept.addEventListener('click', async () => {
+        accept.disabled = true;
+        const label = accept.textContent;
+        accept.textContent = kind === 'invite' ? 'Accepting…' : 'Joining…';
+        if (errorBar) { errorBar.hidden = true; errorBar.textContent = ''; }
+        try {
+          const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' } });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const msg = body && body.error ? body.error : `Request failed (${res.status}).`;
+            if (errorBar) { errorBar.textContent = msg; errorBar.hidden = false; }
+            accept.disabled = false;
+            accept.textContent = label;
+            return;
+          }
+          if (body && body.tournament_id && doneLink) {
+            doneLink.setAttribute('href', `/app/tournaments/${body.tournament_id}`);
+          }
+          if (done) {
+            if (body && body.handicap_defaulted) {
+              const note = document.createElement('div');
+              note.className = 'notice__sub';
+              note.textContent = 'No handicap was set on your profile, so 18.0 was used. Update it in Profile any time.';
+              done.appendChild(note);
+            }
+            done.hidden = false;
+          }
+          card.hidden = true;
+        } catch (err) {
+          if (errorBar) { errorBar.textContent = 'Network error. Please try again.'; errorBar.hidden = false; }
+          accept.disabled = false;
+          accept.textContent = label;
+        }
+      });
+    })();
+  </script>
 </BaseLayout>
 
 <style>
   .pagewrap--narrow { max-width: 560px; }
+
+  .joincard {
+    padding: 20px;
+    border: 1px solid var(--brand-green, #2f7d44);
+    border-radius: 16px;
+    background: var(--brand-green-soft, #f0f7f2);
+    margin: 20px 0;
+  }
+  .joincard__hint {
+    margin: 0 0 14px;
+    color: var(--ink-muted, #4b5b54);
+    line-height: 1.5;
+  }
+
+  .notice {
+    padding: 14px 16px;
+    border-radius: 12px;
+    margin: 16px 0;
+    line-height: 1.5;
+  }
+  .notice--ok {
+    background: var(--brand-green-soft, #f0f7f2);
+    border: 1px solid var(--brand-green, #2f7d44);
+    color: var(--brand-green-dark, #1f5b30);
+  }
+  .notice--warn {
+    background: #fff7e6;
+    border: 1px solid #e0a53c;
+    color: #6b4a00;
+  }
+  .notice__sub { margin-top: 8px; font-size: 14px; }
+  .notice a { font-weight: 700; color: inherit; }
+
+  .errorbar {
+    background: #fdecec;
+    border: 1px solid #d64545;
+    color: #7a1f1f;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
 
   .codecard {
     display: flex;
@@ -156,12 +444,16 @@ const fairwayiqScheme = isValid ? `fairwayiq://join/${code}` : null;
     font-weight: 700;
     font-size: 16px;
     text-decoration: none;
+    cursor: pointer;
   }
+  .btn--block { flex-basis: 100%; }
   .btn--primary {
     background: var(--brand-green, #2f7d44);
     color: white;
+    border: 1px solid var(--brand-green, #2f7d44);
   }
   .btn--primary:hover { background: var(--brand-green-dark, #1f5b30); }
+  .btn--primary:disabled { opacity: 0.6; cursor: default; }
   .btn--ghost {
     background: transparent;
     border: 1px solid var(--brand-green, #2f7d44);

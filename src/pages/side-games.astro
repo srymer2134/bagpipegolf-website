@@ -36,7 +36,7 @@ const categories: Record<Category, { title: string; blurb: string }> = {
     blurb: '2v2 and rotating-partner formats — best-ball, alternate-shot, and every variation in between.',
   },
   'dots': {
-    title: 'Dots & side bets',
+    title: 'Dots & side games',
     blurb: 'Per-hole events layered on any round: greenies, sandies, snake, arnies, and the rest of the garbage bag.',
   },
 };
@@ -146,7 +146,7 @@ const games: Game[] = [
     players: '2–4',
     category: 'dots',
     what:
-      'A bag of small side bets. Positive dots: Greenie (closest on a par 3, +1), Sandie (up-and-down from a bunker, +1), Chip-in (+2), Birdie (+1). Negative dots: 3-putt (−1), Double bogey or worse (−1). Tally at end; pay the difference.',
+      'A bag of small side games. Positive dots: Greenie (closest on a par 3, +1), Sandie (up-and-down from a bunker, +1), Chip-in (+2), Birdie (+1). Negative dots: 3-putt (−1), Double bogey or worse (−1). Tally at end; pay the difference.',
     example: '$1/dot. After 18: A=+8, B=+2, C=−3. A collects $6 from B and $11 from C.',
   },
   {
@@ -170,7 +170,7 @@ const games: Game[] = [
     players: '2–4',
     category: 'dots',
     what:
-      'Par-3 side bet. On every par 3 the tee shot closest to the pin wins the Greenie — but ONLY if the player then makes par or better. Miss the par and the Greenie is void.',
+      'Par-3 side game. On every par 3 the tee shot closest to the pin wins the Greenie — but ONLY if the player then makes par or better. Miss the par and the Greenie is void.',
     example: '$5 Greenies. Hole 7 (par 3): C hits to 8 ft, two-putts for par. C collects $5 from each player. Hole 12: A hits to 4 ft but 3-putts for bogey — no Greenie.',
   },
   {
@@ -274,7 +274,7 @@ const games: Game[] = [
     players: '2–4',
     category: 'dots',
     what:
-      'A putting side bet that stacks on top of any other game. The first player to 3-putt "gets the Snake." Snake passes to whoever 3-putts next. At round end, whoever holds the Snake pays everyone a unit. Only one payer.',
+      'A putting side game that stacks on top of any other game. The first player to 3-putt "gets the Snake." Snake passes to whoever 3-putts next. At round end, whoever holds the Snake pays everyone a unit. Only one payer.',
     example: '$10 Snake, 4 players. A 3-putts hole 4 (gets Snake). C 3-putts hole 11 (Snake passes). Nobody else 3-putts. C pays $30 total.',
     needsTracking: 'Putts',
   },
