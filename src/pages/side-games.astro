@@ -1,6 +1,13 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AppLinkBanner from '../components/AppLinkBanner.astro';
+import { sideGames as gamePages } from '../lib/sideGames';
+
+// Games with a full rules page at /side-games/<slug>. Matched by name
+// (the catalog's `name` may carry a parenthetical; strip it).
+const pageSlugByName = new Map(gamePages.map((g) => [g.name.toLowerCase(), g.slug]));
+const slugFor = (name: string): string | undefined =>
+  pageSlugByName.get(name.replace(/\s*\(.*\)\s*$/, '').toLowerCase());
 
 // Content sourced from the Flutter repo's canonical `docs/HOWTO_SIDE_GAMES.md`
 // (2026-08-21). If the game catalog on the app changes, update both docs in the
@@ -373,7 +380,7 @@ const categoryOrder: Category[] = ['match-play', 'points', 'team', 'dots'];
                 {catGames.map((g) => (
                   <article class={`gcard${g.featured ? ' gcard--featured' : ''}`}>
                     <header class="gcard__head">
-                      <h4>{g.name}</h4>
+                      <h4>{slugFor(g.name) ? <a href={`/side-games/${slugFor(g.name)}`}>{g.name}</a> : g.name}</h4>
                       <div class="gcard__chips">
                         {g.featured && (
                           <span class="chip chip--pop">Most played</span>
@@ -390,6 +397,11 @@ const categoryOrder: Category[] = ['match-play', 'points', 'team', 'dots'];
                     {g.needsTracking && (
                       <p class="gcard__meta">
                         Requires <strong>{g.needsTracking}</strong> tracking on.
+                      </p>
+                    )}
+                    {slugFor(g.name) && (
+                      <p class="gcard__more">
+                        <a href={`/side-games/${slugFor(g.name)}`}>Full rules, example &amp; FAQ →</a>
                       </p>
                     )}
                   </article>
@@ -603,4 +615,10 @@ const categoryOrder: Category[] = ['match-play', 'points', 'team', 'dots'];
     flex-wrap: wrap;
     justify-content: center;
   }
+
+  .gcard__head h4 a { color: inherit; text-decoration: none; }
+  .gcard__head h4 a:hover { text-decoration: underline; }
+  .gcard__more { margin: 8px 0 0; font-size: 14px; }
+  .gcard__more a { color: var(--brand-green-dark, #1f5b30); font-weight: 700; text-decoration: none; }
+  .gcard__more a:hover { text-decoration: underline; }
 </style>

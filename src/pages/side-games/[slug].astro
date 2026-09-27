@@ -1,0 +1,197 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { sideGameBySlug, sideGames } from '../../lib/sideGames';
+
+// One page per side game — rules, worked money example, variations, what
+// the scorekeeper taps in the app, FAQ, related games. See
+// src/lib/sideGames.ts for the content and the GTM rationale.
+
+const slug = (Astro.params.slug ?? '').toLowerCase();
+const game = sideGameBySlug(slug);
+if (!game) {
+  return new Response(null, { status: 404, statusText: 'Not found' });
+}
+
+const title = `${game.name} golf game: rules, example, how to score · Bagpipe Golf`;
+const description = `${game.summary} How to play ${game.name}, a worked money example, common variations, and how Bagpipe Golf tracks it hole by hole.`;
+const related = game.related.map(sideGameBySlug).filter(Boolean);
+const appStoreHref = 'https://apps.apple.com/app/id6775045734';
+
+// FAQ rich-result markup — the questions are literal user searches.
+const faqJsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: game.faq.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+});
+const breadcrumbJsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Side games', item: 'https://bagpipegolf.com/side-games' },
+    { '@type': 'ListItem', position: 2, name: game.name, item: `https://bagpipegolf.com/side-games/${game.slug}` },
+  ],
+});
+---
+
+<BaseLayout title={title} description={description}>
+  <script type="application/ld+json" set:html={faqJsonLd} />
+  <script type="application/ld+json" set:html={breadcrumbJsonLd} />
+
+  <main class="pagewrap game">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/side-games">Side games</a>
+      <span aria-hidden="true">›</span>
+      <span>{game.name}</span>
+    </nav>
+
+    <header class="game__hero">
+      <p class="pagewrap__eyebrow">Side game · {game.players} players</p>
+      <h1 class="pagewrap__title">How to play {game.name}</h1>
+      {game.aka && game.aka.length > 0 && (
+        <p class="game__aka">Also called: {game.aka.join(' · ')}</p>
+      )}
+      <p class="pagewrap__sub">{game.summary}</p>
+      <div class="game__cta">
+        <a class="btn btn--primary" href={appStoreHref}>Get Bagpipe Golf — it settles this for you</a>
+        <a class="btn btn--ghost" href="/side-games">All {sideGames.length}+ side games</a>
+      </div>
+    </header>
+
+    <section class="block" id="rules">
+      <h2>The rules</h2>
+      <ol class="rules">
+        {game.rules.map((r) => <li>{r}</li>)}
+      </ol>
+    </section>
+
+    <section class="block block--example" id="example">
+      <h2>A worked example</h2>
+      <p class="example__setup"><strong>Setup.</strong> {game.example.setup}</p>
+      <ol class="example__play">
+        {game.example.play.map((p) => <li>{p}</li>)}
+      </ol>
+      <p class="example__result"><strong>Result.</strong> {game.example.result}</p>
+      <p class="example__note">This is exactly how Bagpipe Golf settles it: hole by hole, zero-sum, no arguing at the 19th.</p>
+    </section>
+
+    {game.variations && game.variations.length > 0 && (
+      <section class="block" id="variations">
+        <h2>Variations and house rules</h2>
+        <ul class="plain">
+          {game.variations.map((v) => <li>{v}</li>)}
+        </ul>
+      </section>
+    )}
+
+    <section class="block block--app" id="in-the-app">
+      <h2>How it works in the app</h2>
+      <ol class="rules">
+        {game.inApp.map((s) => <li>{s}</li>)}
+      </ol>
+      {game.needsTracking && (
+        <p class="example__note">Requires <strong>{game.needsTracking}</strong> tracking turned on for the round.</p>
+      )}
+      <a class="btn btn--primary" href={appStoreHref}>Download on the App Store</a>
+    </section>
+
+    <section class="block" id="faq">
+      <h2>{game.name} FAQ</h2>
+      <dl class="faq">
+        {game.faq.map((f) => (
+          <>
+            <dt>{f.q}</dt>
+            <dd>{f.a}</dd>
+          </>
+        ))}
+      </dl>
+    </section>
+
+    {related.length > 0 && (
+      <section class="block" id="related">
+        <h2>Games that pair well with {game.name}</h2>
+        <div class="related">
+          {related.map((g) => (
+            <a class="related__card" href={`/side-games/${g!.slug}`}>
+              <strong>{g!.name}</strong>
+              <span>{g!.players} players</span>
+              <p>{g!.summary}</p>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+  </main>
+</BaseLayout>
+
+<style>
+  .game { max-width: 760px; }
+  .crumbs {
+    display: flex;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--ink-muted, #4b5b54);
+    margin-bottom: 12px;
+  }
+  .crumbs a { color: var(--brand-green-dark, #1f5b30); font-weight: 700; text-decoration: none; }
+  .game__hero { margin-bottom: 28px; }
+  .game__aka { margin: 4px 0 10px; color: var(--ink-muted, #4b5b54); font-size: 14px; }
+  .game__cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+
+  .block { margin: 28px 0; }
+  .block h2 { font-size: 22px; margin: 0 0 12px; }
+  .rules { padding-left: 22px; line-height: 1.6; }
+  .rules li { margin: 8px 0; }
+  .plain { padding-left: 22px; line-height: 1.6; }
+  .plain li { margin: 8px 0; }
+
+  .block--example {
+    padding: 20px 22px;
+    border-radius: 16px;
+    background: var(--brand-green-soft, #f0f7f2);
+    border: 1px solid var(--brand-green, #2f7d44);
+  }
+  .example__setup, .example__result { margin: 8px 0; line-height: 1.6; }
+  .example__play { padding-left: 22px; line-height: 1.6; }
+  .example__play li { margin: 6px 0; }
+  .example__note { margin: 12px 0 0; font-size: 14px; color: var(--ink-muted, #4b5b54); }
+
+  .block--app {
+    padding: 20px 22px;
+    border-radius: 16px;
+    border: 1px dashed var(--brand-green, #2f7d44);
+  }
+  .block--app .btn { display: inline-block; margin-top: 12px; }
+
+  .faq dt { font-weight: 700; margin-top: 14px; }
+  .faq dd { margin: 6px 0 0; line-height: 1.6; color: var(--ink-muted, #4b5b54); }
+
+  .related { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .related__card {
+    display: block;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--brand-green, #2f7d44);
+    text-decoration: none;
+    color: inherit;
+  }
+  .related__card:hover { background: var(--brand-green-soft, #f0f7f2); }
+  .related__card strong { display: block; font-size: 16px; }
+  .related__card span { font-size: 13px; color: var(--ink-muted, #4b5b54); }
+  .related__card p { margin: 8px 0 0; font-size: 14px; line-height: 1.5; }
+
+  .btn {
+    display: inline-block;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    text-decoration: none;
+  }
+  .btn--primary { background: var(--brand-green, #2f7d44); color: white; }
+  .btn--primary:hover { background: var(--brand-green-dark, #1f5b30); }
+  .btn--ghost { border: 1px solid var(--brand-green, #2f7d44); color: var(--brand-green-dark, #1f5b30); }
+</style>
