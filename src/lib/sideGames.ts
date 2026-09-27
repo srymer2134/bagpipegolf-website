@@ -43,13 +43,13 @@ export const sideGames: SideGame[] = [
     aka: ['Wolf golf game', 'Lone Wolf'],
     players: '4 (exactly)',
     summary:
-      'The foursome game where one player is the Wolf each hole, picks a partner after watching the tee shots, or goes it alone for double stakes.',
+      'The foursome game where one player is the Wolf each hole, picks a partner after watching the tee shots, or goes it alone against all three.',
     rules: [
       'Set a Wolf order on the first tee. Players rotate as the Wolf in that order; the Wolf tees off first on their hole.',
       'The Wolf watches each opponent tee off in turn. After any tee shot the Wolf can claim that player as a partner for the hole. Once passed, a player cannot be picked later.',
-      'If the Wolf passes on all three, they play the hole alone as the Lone Wolf, one against three, for double stakes.',
+      'If the Wolf passes on all three, they play the hole alone as the Lone Wolf, one against three. Win and the Wolf collects one unit from each of the other three; lose and the Wolf pays one unit to each.',
       'Partners play best ball against the other two. Lowest net score for each side decides the hole; ties push.',
-      'Money settles hole by hole. In a 2v2 hole each winner collects one unit from each loser. On a Lone Wolf hole the Wolf collects two units from each opponent, or pays two units to each if they lose.',
+      'Money settles hole by hole. In a 2v2 hole each loser pays one unit and each winner collects one unit. On a Lone Wolf hole the Wolf collects one unit from each opponent, or pays one unit to each. There is no doubling for going alone; the Wolf simply has three bets on instead of one.',
     ],
     example: {
       setup: '$5 per unit. Casey is the Wolf on hole 7.',
@@ -59,10 +59,11 @@ export const sideGames: SideGame[] = [
         'Nets on the hole: Casey 4, Patrick 5, Sam 5, Tim 6. Best ball: 4 versus 5.',
       ],
       result:
-        'Casey and Patrick win the hole. Each collects $5 from Sam and $5 from Tim, so the winners are +$10 apiece and the losers −$10 apiece. Zero-sum.',
+        'Casey and Patrick win the hole. Sam and Tim each pay $5; Casey and Patrick each collect $5. Had Casey gone Lone Wolf and won, Casey would collect $5 from each of the other three, +$15. Zero-sum either way.',
     },
     variations: [
-      'Blind Wolf: the Wolf declares Lone Wolf before anyone tees off, for triple stakes. Not in the app yet; play it as a Lone Wolf hole and settle the extra by hand.',
+      'Double for going alone: many groups pay a Lone Wolf hole at double. Bagpipe pays one unit per player either way; if your group doubles, settle the extra off-app.',
+      'Blind Wolf: the Wolf declares Lone Wolf before anyone tees off, usually for a bigger stake. Not in the app; play it as a Lone Wolf hole and settle the extra by hand.',
       'Wolf Hammer: the same game with a per-hole doubling tap. Bagpipe ships it as its own game, "Wolf Hammer".',
       'Some groups let the Wolf pick the last player to tee off only by default. The app lets the Wolf pick or pass after each shot.',
     ],
