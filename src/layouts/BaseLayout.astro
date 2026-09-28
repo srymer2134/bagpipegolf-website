@@ -8,13 +8,26 @@ interface Props {
   // Pages that ship their own full-bleed chrome (the landing hero today)
   // can opt out of the standard nav + footer. Default false = standard chrome.
   bare?: boolean;
+  /** Absolute or site-relative canonical path for this page, e.g.
+   *  `/side-games/wolf`. Added 2026-09-27 with the side-game page
+   *  library (GTM R3): og:url used to be `Astro.site` on EVERY page, so
+   *  32 pages would have shared one canonical URL and one og:url —
+   *  which is how a library of long-tail pages gets read as duplicates
+   *  of the home page instead of 32 distinct landing pages. Omit for
+   *  the legacy behaviour. */
+  canonical?: string;
 }
 
 const {
   title,
   description = "Bagpipe Golf — the on-course caddie, scorecard, and side-bet engine for golfers and tournament directors.",
   bare = false,
+  canonical,
 } = Astro.props;
+
+const pageUrl = canonical
+  ? new URL(canonical, Astro.site ?? 'https://bagpipegolf.com').toString()
+  : (Astro.site?.toString() ?? 'https://bagpipegolf.com');
 ---
 
 <!doctype html>
@@ -33,7 +46,8 @@ const {
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content={Astro.site} />
+    <link rel="canonical" href={pageUrl} />
+    <meta property="og:url" content={pageUrl} />
     <meta property="og:image" content="/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
   </head>
