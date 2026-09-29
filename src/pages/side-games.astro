@@ -197,6 +197,15 @@ const games: Game[] = [
     example: 'Hole 5 — Team A: 4, 6. Team B: 5, 5. Low ball: A wins (4 vs 5). High ball: B wins (5 vs 6). Split — 1 point each.',
   },
   {
+    name: 'Lost Balls',
+    players: '2–4',
+    category: 'dots',
+    what:
+      'Every ball you lose costs a unit, and the pot is split among the ball-savers on that hole — the players who lost none. If everyone loses at least one, the rebate is weighted so whoever lost the fewest still comes out ahead. Zero-sum per hole, so it layers on anything. The count also feeds your career stats whether or not the side game is on.',
+    example: '$2 unit, 3 players. Hole 7: A loses 2 balls, B and C lose none. Pot = $4. A pays $4; B and C take $2 each.',
+    needsTracking: 'FIR/GIR/putts',
+  },
+  {
     name: 'Match Play',
     players: '2–4',
     category: 'match-play',
