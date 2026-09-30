@@ -1,0 +1,81 @@
+---
+// Public league page — every week: date, tees, first tee, and the
+// matchups with tee times (first tee + index × interval, the app's
+// week-sheet arithmetic). Position rounds and rainouts are labelled.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import LeagueNav from '../../../components/LeagueNav.astro';
+import { createSupabaseClient } from '../../../lib/supabase';
+import { getPublicLeague, teamName, teeTimeAt, dateLabel, matchupsFor, type PublicLeague } from '../../../lib/leaguePublic';
+
+const { id } = Astro.params;
+if (!id) return Astro.redirect('/leagues', 302);
+let league: PublicLeague | null = null;
+try {
+  const supabase = createSupabaseClient({ request: Astro.request, cookies: Astro.cookies, locals: Astro.locals as App.Locals });
+  league = await getPublicLeague(supabase, id);
+} catch (err) {
+  console.error('[league schedule] lookup failed', err);
+}
+if (!league) return Astro.redirect(`/l/${id}`, 302);
+const today = new Date().toISOString().slice(0, 10);
+---
+<BaseLayout title={`Schedule · ${league.league.name} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">League</p>
+    <h1 class="pagewrap__title">{league.league.name}</h1>
+    <p class="pagewrap__sub">Schedule · {league.weeks.length} week{league.weeks.length === 1 ? '' : 's'}</p>
+    <LeagueNav id={league.league.id} active="schedule" />
+
+    {league.weeks.length === 0 ? (
+      <section class="card"><p class="muted">No weeks scheduled yet.</p></section>
+    ) : (
+      league.weeks.map((w) => {
+        const ms = matchupsFor(league!, w.slot_index);
+        const interval = w.tee_interval_minutes ?? 9;
+        const past = w.week_of < today;
+        return (
+          <section class:list={['card', 'week', { 'week--past': past }]}>
+            <div class="week__head">
+              <h3>Week {w.slot_index + 1} · {dateLabel(w.week_of)}</h3>
+              <span class="muted">
+                {w.status === 'cancelled' ? 'Rained out' : [
+                  w.first_tee_at ? `first tee ${teeTimeAt(w.first_tee_at, 0)}` : null,
+                  w.tee ? `${w.tee} tees` : null,
+                  w.holes ? `${w.holes} holes` : null,
+                  w.position_round ? 'position round' : null,
+                  w.locked_at ? 'final' : null,
+                ].filter(Boolean).join(' · ')}
+              </span>
+            </div>
+            {w.status === 'cancelled' ? null : ms.length === 0 ? (
+              <p class="muted">Matchups not set yet.</p>
+            ) : (
+              <ul class="list">
+                {ms.map((m) => (
+                  <li>
+                    <span class="tee">{m.away_team_id ? teeTimeAt(w.first_tee_at, m.match_index * interval) : ''}</span>
+                    <span>
+                      {teamName(league!, m.home_team_id)}{m.away_team_id ? ` v ${teamName(league!, m.away_team_id)}` : ' — bye'}
+                      {m.outcome === 'cancelled' ? ' (cancelled)' : m.outcome === 'forfeit_home' ? ` (${teamName(league!, m.home_team_id)} forfeited)` : m.outcome === 'forfeit_away' ? ` (${teamName(league!, m.away_team_id)} forfeited)` : m.has_round && !w.locked_at ? ' · in play' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })
+    )}
+  </main>
+</BaseLayout>
+<style>
+  .week { margin-bottom: 14px; }
+  .week--past { opacity: .8; }
+  .week__head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .week__head h3 { margin: 0; }
+  .muted { color: var(--ink-muted); font-size: 13.5px; }
+  .list { list-style: none; padding: 0; margin: 8px 0 0; }
+  .list li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .list li:last-child { border-bottom: 0; }
+  .list .tee { min-width: 68px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+</style>

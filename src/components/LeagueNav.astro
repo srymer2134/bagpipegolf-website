@@ -1,0 +1,16 @@
+---
+// Sub-nav shared by the three public league pages.
+interface Props { id: string; active: 'overview' | 'standings' | 'schedule' }
+const { id, active } = Astro.props;
+---
+<nav class="subnav">
+  <a class:list={['subnav__link', { 'is-active': active === 'overview' }]} href={`/l/${id}`}>Overview</a>
+  <a class:list={['subnav__link', { 'is-active': active === 'standings' }]} href={`/l/${id}/standings`}>Standings</a>
+  <a class:list={['subnav__link', { 'is-active': active === 'schedule' }]} href={`/l/${id}/schedule`}>Schedule</a>
+</nav>
+<style>
+  .subnav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 28px; overflow-x: auto; }
+  .subnav__link { padding: 10px 14px; color: var(--ink-muted); text-decoration: none; font-weight: 600; font-size: 14px; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .subnav__link:hover { color: var(--brand-green-dark); }
+  .subnav__link.is-active { color: var(--brand-green-dark); border-bottom-color: var(--brand-green); }
+</style>
