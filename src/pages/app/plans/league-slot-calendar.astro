@@ -1,0 +1,720 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { isAdminEmail } from '../../../lib/admins';
+
+// Internal plan page — the League Slot Calendar (T3).
+//
+// Lives under /app so the middleware auth gate applies, and then
+// narrows to the admin allowlist: any signed-in golfer would otherwise
+// be able to read internal schema and migration detail by guessing the
+// URL. A non-admin gets a 404 rather than a 403, so the page's
+// existence isn't confirmed.
+//
+// Plan of record is the repo doc — docs/plans/LEAGUE_SLOT_CALENDAR_PLAN.md
+// in fairwayiq-flutter. This page exists to be *shared* with Casey and
+// Patrick, and to let them try the calendar rather than read about it.
+const user = (Astro.locals as App.Locals).user;
+if (!isAdminEmail(user?.email)) {
+  return new Response('Not found', { status: 404 });
+}
+---
+
+<BaseLayout
+  title="League Slot Calendar · Bagpipe Golf"
+  description="Internal plan — per-slot editable dates, the director's calendar, and per-event signup windows."
+>
+  <main class="planpage">
+    <header class="pl-mast">
+      <p class="pl-eyebrow">Internal · League module · T3 plan</p>
+      <h1 class="pl-h1">League Slot Calendar</h1>
+      <p class="pl-stand">
+        Half of our leagues are not weekly. Today a season is an arithmetic
+        series — a start date plus a fixed interval — so a Member-Guest and a
+        Standard League cannot express the dates they actually play. This
+        replaces the series with dates a director sets, and gives each event a
+        signup window the director opens.
+      </p>
+      <div class="pl-meta">
+        <span>Verified <b>2026-09-30</b> on dev</span>
+        <span>Migration <b>20261022</b></span>
+        <span>Patrick <b>§42</b></span>
+        <span>PR <b>flutter #1327</b></span>
+      </div>
+    </header>
+
+    <section>
+      <h2 class="pl-h2">Four templates, one of which breaks</h2>
+      <p class="pl-lede">
+        The cadence field (<code>intervalDays</code>) already supports
+        non-weekly spacing. What it cannot do is <em>irregular</em> spacing,
+        because every date is derived as
+        <code>startDate + k × intervalDays</code>.
+      </p>
+      <div class="pl-grid">
+        <div class="pl-card">
+          <span class="pl-tag">7-day interval · 16 events</span>
+          <h4>Weekly League</h4>
+          <p>A fixed weekly cadence. The arithmetic series describes it exactly.</p>
+        </div>
+        <div class="pl-card">
+          <span class="pl-tag">7-day interval · 16 events</span>
+          <h4>Member-Member</h4>
+          <p>Two-player teams, head to head. Also weekly, so also fine.</p>
+        </div>
+        <div class="pl-card">
+          <span class="pl-tag">1-day interval · 2 events</span>
+          <h4>Member-Guest</h4>
+          <p>Two consecutive days. A clean series — interval of one.</p>
+        </div>
+        <div class="pl-card pl-card--fails">
+          <span class="pl-tag">30-day placeholder · 6 events · breaks</span>
+          <h4>Standard League</h4>
+          <p>Events on dates the director picks. No interval describes them, so today they land on evenly spaced placeholders that are all wrong.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="pl-h2">The calendar a director would use</h2>
+      <p class="pl-lede">
+        Working prototype. Seed a season from a template, then move dates where
+        they belong. Tap a day to place an event; tap an event, then a day, to
+        move it. Add and remove events with the counter — adding asks
+        <em>where</em>, which is the thing that is missing today.
+      </p>
+
+      <div class="pl-tool">
+        <div class="pl-toolbar">
+          <span class="pl-lbl">Template</span>
+          <button class="pl-chip" type="button" data-tpl="standard" aria-pressed="true">Standard League</button>
+          <button class="pl-chip" type="button" data-tpl="weekly" aria-pressed="false">Weekly League</button>
+          <button class="pl-chip" type="button" data-tpl="mm" aria-pressed="false">Member-Member</button>
+          <button class="pl-chip" type="button" data-tpl="mg" aria-pressed="false">Member-Guest</button>
+        </div>
+
+        <div class="pl-body">
+          <div class="pl-cal">
+            <div class="pl-months" id="plMonths"></div>
+            <p class="pl-hint" id="plHint">Green events are played and locked — their dates cannot move.</p>
+          </div>
+
+          <aside class="pl-rail">
+            <h4 id="plSeasonName">Standard League</h4>
+            <p class="pl-sub" id="plSeasonMeta"></p>
+
+            <div class="pl-counter">
+              <span class="pl-counter__lbl">Events this season</span>
+              <div class="pl-counter__ctl">
+                <button class="pl-btn" type="button" id="plMinus" aria-label="Remove the last event">−</button>
+                <span class="pl-counter__n" id="plCount">6</span>
+                <button class="pl-btn" type="button" id="plPlus" aria-label="Add an event">+</button>
+              </div>
+            </div>
+
+            <ul class="pl-slots" id="plSlots"></ul>
+            <div class="pl-sheet" id="plSheet"></div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="pl-h2">What changes in the data</h2>
+      <div class="pl-note">
+        <p>
+          <strong>The carve-out already exists.</strong> The
+          <code>league_weeks</code> table comment reads: <em>"Authority for slot
+          → date <strong>in a match_play league</strong>;
+          LeagueSchedule.startDate/intervalDays/eventCount are seed-only
+          there."</em> This generalizes that sentence to every league shape, so
+          slot → date stops living in two stores. The change <em>removes</em> a
+          home rather than adding one.
+        </p>
+      </div>
+
+      <div class="pl-scroll">
+        <table class="pl-table">
+          <thead><tr><th>Change</th><th>Store</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>Slot → date authority</b></td>
+              <td><code>league_weeks.week_of</code></td>
+              <td>Already authoritative for match-play leagues. Generalized to all. <code>LeagueSchedule</code> becomes seed-only and leaves every read path.</td>
+            </tr>
+            <tr>
+              <td><b>Slots materialize</b></td>
+              <td><code>league_weeks</code></td>
+              <td>Rows stop being lazy, so there is never a mixed read path where some dates come from a row and some from arithmetic.</td>
+            </tr>
+            <tr>
+              <td><b>Signups open</b></td>
+              <td><code>signups_open_at</code></td>
+              <td>New, nullable. Null means open — today's behaviour, preserved by construction. "Open signups" writes <code>now()</code>.</td>
+            </tr>
+            <tr>
+              <td><b>Signups close</b></td>
+              <td><code>signups_close_at</code></td>
+              <td>New, nullable. Null means closes when the week locks. <code>locked_at</code> is not reused — that is the matchup lock, a different fact.</td>
+            </tr>
+            <tr>
+              <td><b>Window enforced</b></td>
+              <td>trigger on <code>league_signups</code></td>
+              <td>In the database, not the UI. A UI-only window is defeated by any direct API call.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="pl-h2">Event count: already editable, but the date isn't</h2>
+      <p class="pl-lede">
+        Half of this ships today. A director sets the count in the wizard and
+        changes it mid-season in the Edit-schedule dialog. What they cannot do
+        is say <em>when</em> an added event falls.
+      </p>
+      <div class="pl-scroll">
+        <table class="pl-table">
+          <thead><tr><th>Action</th><th>Today</th><th>After</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>Add an event</b></td>
+              <td>count + 1 → an arithmetic date nobody chose</td>
+              <td>count + 1 → <b>prompt for the date</b>, defaulting to last + interval</td>
+            </tr>
+            <tr>
+              <td><b>Remove an event</b></td>
+              <td>count − 1 → trailing slot vanishes; slot-indexed bindings silently orphaned</td>
+              <td>count − 1 → the trailing <b>unbridged</b> slot is deleted; a played one is refused, with the reason</td>
+            </tr>
+            <tr>
+              <td><b>Move an event</b></td>
+              <td>impossible</td>
+              <td>tap the slot, tap the day</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Removal is the sharper edge. Today shrinking the count is lossless
+        because nothing persists per slot; afterwards it deletes a
+        <code>league_weeks</code> row, and the bridge guard refuses to delete a
+        played one.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="pl-h2">Two constraints the calendar must respect</h2>
+      <div class="pl-grid pl-grid--2">
+        <div class="pl-card">
+          <span class="pl-tag">Enforced by trigger</span>
+          <h4>A played date cannot move</h4>
+          <p>Once a slot is bridged to a spine event, <code>league_weeks_immutable_once_bridged()</code> refuses changes to its date, course, tee and holes, and refuses to delete it. The calendar renders those slots locked with the reason shown, rather than letting a tap fail.</p>
+        </div>
+        <div class="pl-card">
+          <span class="pl-tag">Enforced by unique index</span>
+          <h4>Two events cannot share a date</h4>
+          <p><code>unique (league_id, week_of)</code> means a 36-hole day or a split field needs two dates. Kept for v1 — it catches a real duplicate-slot bug — so the calendar validates before writing and explains the collision in plain words.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="pl-h2">Why this is cheap to do now</h2>
+      <p>
+        Every table the migration touches is empty on dev, and production has
+        none of the league work at all. No backfill, no compatibility burden.
+        The first real season closes this window.
+      </p>
+      <div class="pl-scroll">
+        <table class="pl-table">
+          <thead><tr><th>Measured on dev, 2026-09-30</th><th>Rows</th></tr></thead>
+          <tbody>
+            <tr><td><code>league_weeks</code></td><td><b>0</b></td></tr>
+            <tr><td><code>league_weeks</code> bridged to an event</td><td><b>0</b></td></tr>
+            <tr><td><code>league_signups</code></td><td><b>0</b></td></tr>
+            <tr><td><code>leagues</code> with a stored schedule</td><td><b>0</b> of 3</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="pl-h2">The one call for Patrick</h2>
+      <p>
+        The <code>league_signups</code> trigger must exempt the service role, or
+        the commissioner's server-side "assign a sub" path breaks against a
+        closed week. Filed as <b>§42</b>: confirm that exemption is the right
+        shape rather than a separate bypass RPC.
+      </p>
+    </section>
+
+    <footer class="pl-foot">
+      Plan of record: <code>docs/plans/LEAGUE_SLOT_CALENDAR_PLAN.md</code> ·
+      Backlog: <code>docs/PATRICK_BACKLOG.md §42</code> · Prototype dates are
+      illustrative.
+    </footer>
+  </main>
+</BaseLayout>
+
+<style is:global>
+  .planpage {
+    --pl-surface:   #FFFFFF;
+    --pl-surface-2: #ECF1ED;
+    --pl-ink:       #14211B;
+    --pl-ink-2:     #4C5A53;
+    --pl-ink-3:     #7C8A82;
+    --pl-line:      #D8E1DA;
+    --pl-line-2:    #B9C7BE;
+    --pl-green:     #1A5C38;
+    --pl-wash:      #E8F5EE;
+    --pl-amber:     #D97706;
+    --pl-amber-w:   #FDF0DC;
+    --pl-red:       #B3261E;
+    --pl-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: 0 1.5rem 5rem;
+    color: var(--pl-ink);
+    line-height: 1.6;
+  }
+
+  .planpage * { box-sizing: border-box; }
+  .planpage section { margin-top: 3rem; }
+  .planpage p { margin: 0 0 1rem; }
+  .planpage code {
+    font-family: var(--pl-mono);
+    font-size: .88em;
+    background: var(--pl-surface-2);
+    padding: .1em .35em;
+    border-radius: 3px;
+  }
+
+  .pl-mast { border-bottom: 1px solid var(--pl-line); padding: 2rem 0; }
+  .pl-eyebrow {
+    font-family: var(--pl-mono);
+    font-size: .72rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--pl-ink-3);
+    margin: 0 0 .75rem;
+  }
+  .pl-h1 {
+    font-size: clamp(2rem, 4.5vw, 2.9rem);
+    font-weight: 700;
+    letter-spacing: -.028em;
+    line-height: 1.06;
+    margin: 0 0 .85rem;
+    text-wrap: balance;
+  }
+  .pl-stand { font-size: 1.1rem; color: var(--pl-ink-2); max-width: 40rem; }
+  .pl-meta {
+    display: flex; flex-wrap: wrap; gap: .4rem 1.4rem;
+    margin-top: 1.25rem;
+    font-family: var(--pl-mono); font-size: .78rem; color: var(--pl-ink-3);
+  }
+  .pl-meta b { color: var(--pl-ink-2); font-weight: 500; }
+
+  .pl-h2 {
+    font-size: 1.45rem; font-weight: 600; letter-spacing: -.018em;
+    margin: 0 0 .7rem; text-wrap: balance;
+  }
+  .pl-lede { font-size: 1.03rem; color: var(--pl-ink-2); max-width: 42rem; }
+
+  .pl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1px; background: var(--pl-line);
+    border: 1px solid var(--pl-line); border-radius: 8px;
+    overflow: hidden; margin-top: 1.25rem;
+  }
+  .pl-grid--2 { grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
+  .pl-card { background: var(--pl-surface); padding: 1.1rem 1.2rem; }
+  .pl-card h4 { margin: 0 0 .3rem; font-size: .95rem; font-weight: 600; }
+  .pl-card p { margin: 0; font-size: .87rem; color: var(--pl-ink-2); line-height: 1.5; }
+  .pl-tag {
+    display: block; margin-bottom: .5rem;
+    font-family: var(--pl-mono); font-size: .68rem;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--pl-ink-3);
+  }
+  .pl-card--fails { background: var(--pl-amber-w); }
+  .pl-card--fails .pl-tag { color: var(--pl-amber); }
+
+  .pl-tool {
+    margin-top: 1.25rem; background: var(--pl-surface);
+    border: 1px solid var(--pl-line); border-radius: 10px; overflow: hidden;
+  }
+  .pl-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+    padding: .85rem 1rem; border-bottom: 1px solid var(--pl-line);
+    background: var(--pl-surface-2);
+  }
+  .pl-lbl {
+    font-family: var(--pl-mono); font-size: .68rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--pl-ink-3);
+  }
+  .pl-chip {
+    font: inherit; font-size: .84rem; font-weight: 500;
+    padding: .35rem .75rem; border-radius: 999px;
+    border: 1px solid var(--pl-line-2); background: var(--pl-surface);
+    color: var(--pl-ink-2); cursor: pointer;
+  }
+  .pl-chip:hover { border-color: var(--pl-green); color: var(--pl-green); }
+  .pl-chip[aria-pressed="true"] {
+    background: var(--pl-green); border-color: var(--pl-green); color: #fff;
+  }
+
+  .pl-body { display: grid; grid-template-columns: minmax(0,1fr) 20rem; }
+  @media (max-width: 62rem) { .pl-body { grid-template-columns: minmax(0,1fr); } }
+
+  .pl-cal { padding: 1.2rem; min-width: 0; }
+  .pl-months { display: flex; flex-wrap: wrap; gap: 1.4rem; }
+  .pl-month { flex: 1 1 16rem; min-width: 15rem; }
+  .pl-month h5 {
+    margin: 0 0 .55rem; font-family: var(--pl-mono); font-size: .74rem;
+    font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--pl-ink-2);
+  }
+  .pl-dow, .pl-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+  .pl-dow span {
+    text-align: center; font-family: var(--pl-mono); font-size: .62rem;
+    color: var(--pl-ink-3); padding-bottom: .25rem;
+  }
+  .pl-day {
+    position: relative; aspect-ratio: 1; border: 1px solid transparent;
+    border-radius: 5px; background: var(--pl-surface-2);
+    font-family: var(--pl-mono); font-size: .76rem; color: var(--pl-ink-3);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0;
+  }
+  .pl-day.is-pad { background: transparent; cursor: default; }
+  .pl-day:not(.is-pad):hover { border-color: var(--pl-green); color: var(--pl-ink); }
+  .pl-day.is-has {
+    background: var(--pl-amber); color: #241503; font-weight: 600;
+    border-color: var(--pl-amber);
+  }
+  .pl-day.is-bridged { background: var(--pl-green); color: #fff; border-color: var(--pl-green); }
+  .pl-day.is-sel { outline: 2px solid var(--pl-ink); outline-offset: 2px; }
+  .pl-day .pl-n {
+    position: absolute; top: 2px; left: 4px; font-size: .52rem;
+    opacity: .8; font-weight: 600;
+  }
+  .pl-day:focus-visible { outline: 2px solid var(--pl-green); outline-offset: 2px; }
+
+  .pl-rail { border-left: 1px solid var(--pl-line); padding: 1.2rem; min-width: 0; }
+  @media (max-width: 62rem) { .pl-rail { border-left: 0; border-top: 1px solid var(--pl-line); } }
+  .pl-rail h4 { margin: 0 0 .2rem; font-size: .95rem; font-weight: 600; }
+  .pl-sub { font-family: var(--pl-mono); font-size: .73rem; color: var(--pl-ink-3); margin: 0 0 1rem; }
+
+  .pl-counter {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: .75rem; padding: .6rem .7rem; margin-bottom: 1rem;
+    border: 1px solid var(--pl-line); border-radius: 7px;
+    background: var(--pl-surface-2);
+  }
+  .pl-counter__lbl { font-size: .82rem; color: var(--pl-ink-2); }
+  .pl-counter__ctl { display: flex; align-items: center; gap: .4rem; }
+  .pl-counter__n {
+    font-family: var(--pl-mono); font-weight: 600; font-size: .95rem;
+    min-width: 1.5rem; text-align: center; font-variant-numeric: tabular-nums;
+  }
+
+  .pl-slots { list-style: none; margin: 0 0 1.1rem; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .pl-slotrow {
+    display: grid; grid-template-columns: 1.6rem 1fr auto;
+    align-items: center; gap: .5rem; padding: .42rem .5rem;
+    border-radius: 5px; border: 1px solid transparent; cursor: pointer;
+    background: none; font: inherit; text-align: left; color: var(--pl-ink); width: 100%;
+  }
+  .pl-slotrow:hover { background: var(--pl-surface-2); }
+  .pl-slotrow[aria-current="true"] { border-color: var(--pl-ink); background: var(--pl-surface-2); }
+  .pl-slotrow .pl-i { font-family: var(--pl-mono); font-size: .68rem; color: var(--pl-ink-3); font-variant-numeric: tabular-nums; }
+  .pl-slotrow .pl-d { font-family: var(--pl-mono); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .pl-state {
+    font-family: var(--pl-mono); font-size: .6rem; letter-spacing: .06em;
+    text-transform: uppercase; padding: .1rem .38rem; border-radius: 3px; white-space: nowrap;
+  }
+  .pl-state.is-notopen { background: var(--pl-surface-2); color: var(--pl-ink-3); border: 1px solid var(--pl-line); }
+  .pl-state.is-open    { background: var(--pl-wash); color: var(--pl-green); }
+  .pl-state.is-closed  { background: var(--pl-amber-w); color: var(--pl-amber); }
+  .pl-state.is-played  { background: var(--pl-green); color: #fff; }
+
+  .pl-sheet { border: 1px solid var(--pl-line); border-radius: 8px; padding: .85rem; background: var(--pl-surface-2); }
+  .pl-kv {
+    display: flex; justify-content: space-between; gap: 1rem;
+    font-size: .83rem; padding: .26rem 0; border-bottom: 1px dashed var(--pl-line);
+  }
+  .pl-kv:last-of-type { border-bottom: 0; }
+  .pl-kv span:first-child { color: var(--pl-ink-3); }
+  .pl-kv span:last-child { font-family: var(--pl-mono); font-variant-numeric: tabular-nums; }
+  .pl-acts { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .75rem; }
+
+  .pl-btn {
+    font: inherit; font-size: .79rem; font-weight: 500;
+    padding: .35rem .65rem; border-radius: 5px;
+    border: 1px solid var(--pl-line-2); background: var(--pl-surface);
+    color: var(--pl-ink); cursor: pointer;
+  }
+  .pl-btn:hover:not(:disabled) { border-color: var(--pl-green); color: var(--pl-green); }
+  .pl-btn.is-primary { background: var(--pl-green); border-color: var(--pl-green); color: #fff; }
+  .pl-btn.is-danger:hover:not(:disabled) { border-color: var(--pl-red); color: var(--pl-red); }
+  .pl-btn:disabled { opacity: .42; cursor: not-allowed; }
+
+  .pl-hint { font-size: .79rem; color: var(--pl-ink-3); margin: .7rem 0 0; line-height: 1.45; }
+  .pl-hint.is-warn { color: var(--pl-amber); }
+
+  .pl-scroll { overflow-x: auto; margin: 1rem 0; }
+  .pl-table { border-collapse: collapse; width: 100%; font-size: .89rem; }
+  .pl-table th, .pl-table td {
+    text-align: left; padding: .58rem .78rem;
+    border-bottom: 1px solid var(--pl-line); vertical-align: top;
+  }
+  .pl-table th {
+    font-family: var(--pl-mono); font-size: .66rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--pl-ink-3); font-weight: 500; white-space: nowrap;
+  }
+
+  .pl-note {
+    border-left: 3px solid var(--pl-green); background: var(--pl-wash);
+    padding: .85rem 1.05rem; border-radius: 0 6px 6px 0; margin: 1.25rem 0;
+  }
+  .pl-note p { margin: 0; font-size: .91rem; }
+
+  .pl-foot {
+    margin-top: 3.5rem; padding-top: 1.25rem; border-top: 1px solid var(--pl-line);
+    font-family: var(--pl-mono); font-size: .74rem; color: var(--pl-ink-3);
+  }
+
+  @media (prefers-reduced-motion: reduce) { .planpage * { transition: none !important; } }
+</style>
+
+<script is:inline>
+(function () {
+  "use strict";
+  var DOW = ["S","M","T","W","T","F","S"];
+  var MON = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+  function parse(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2]);}
+  function pretty(s){var d=parse(s);return MON[d.getMonth()].slice(0,3)+" "+d.getDate()+", "+d.getFullYear();}
+  function addDays(s,n){var d=parse(s);return iso(new Date(d.getFullYear(),d.getMonth(),d.getDate()+n));}
+  function series(start,n,step){var out=[],d=start;for(var i=0;i<n;i++){out.push(d);d=addDays(d,step);}return out;}
+
+  var TEMPLATES = {
+    standard: { name:"Standard League", note:"6 events · dates the director picks",
+      dates:["2026-04-18","2026-05-23","2026-06-13","2026-07-11","2026-08-22","2026-09-19"],
+      played:2, interval:30, holes:18 },
+    weekly:   { name:"Weekly League", note:"16 events · every 7 days",
+      dates:series("2026-05-05",16,7), played:3, interval:7, holes:9 },
+    mm:       { name:"Member-Member", note:"16 events · every 7 days · two-player teams",
+      dates:series("2026-05-07",16,7), played:1, interval:7, holes:9 },
+    mg:       { name:"Member-Guest", note:"2 events · consecutive days",
+      dates:["2026-08-14","2026-08-15"], played:0, interval:1, holes:18 }
+  };
+
+  var slots=[], selected=null, tpl="standard", pendingNew=false;
+
+  function seed(key){
+    var t=TEMPLATES[key];
+    slots=t.dates.map(function(d,i){
+      return { date:d, bridged:i<t.played,
+        signups: i<t.played ? "closed" : (i===t.played ? "open" : "notopen"),
+        holes:t.holes };
+    });
+    selected=null; pendingNew=false;
+  }
+  function sorted(){return slots.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});}
+  function numberOf(s){return sorted().indexOf(s)+1;}
+  function byDate(d){for(var i=0;i<slots.length;i++) if(slots[i].date===d) return slots[i]; return null;}
+  function stateOf(s){
+    if(s.bridged) return {cls:"is-played",txt:"Played"};
+    if(s.signups==="open") return {cls:"is-open",txt:"Signups open"};
+    if(s.signups==="closed") return {cls:"is-closed",txt:"Signups closed"};
+    return {cls:"is-notopen",txt:"Not open"};
+  }
+
+  var hintEl=document.getElementById("plHint");
+  function setHint(m,warn){ hintEl.textContent=m; hintEl.className=warn?"pl-hint is-warn":"pl-hint"; }
+
+  function renderMonths(){
+    var host=document.getElementById("plMonths");
+    host.innerHTML="";
+    var all=sorted(); if(!all.length) return;
+    var first=parse(all[0].date), last=parse(all[all.length-1].date);
+    var cur=new Date(first.getFullYear(),first.getMonth(),1);
+    var end=new Date(last.getFullYear(),last.getMonth(),1);
+    while(cur<=end){ host.appendChild(monthEl(cur.getFullYear(),cur.getMonth())); cur=new Date(cur.getFullYear(),cur.getMonth()+1,1); }
+  }
+
+  function monthEl(year,month){
+    var wrap=document.createElement("div"); wrap.className="pl-month";
+    var h=document.createElement("h5"); h.textContent=MON[month]+" "+year; wrap.appendChild(h);
+    var dow=document.createElement("div"); dow.className="pl-dow";
+    DOW.forEach(function(d){var s=document.createElement("span");s.textContent=d;s.setAttribute("aria-hidden","true");dow.appendChild(s);});
+    wrap.appendChild(dow);
+    var grid=document.createElement("div"); grid.className="pl-days";
+    var firstDay=new Date(year,month,1).getDay();
+    var days=new Date(year,month+1,0).getDate();
+    for(var p=0;p<firstDay;p++){var pad=document.createElement("div");pad.className="pl-day is-pad";grid.appendChild(pad);}
+    for(var d=1;d<=days;d++){
+      var key=year+"-"+String(month+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+      grid.appendChild(dayEl(key,d));
+    }
+    wrap.appendChild(grid); return wrap;
+  }
+
+  function dayEl(key,dayNum){
+    var slot=byDate(key);
+    var b=document.createElement("button");
+    b.type="button";
+    b.className="pl-day"+(slot?" is-has":"")+(slot&&slot.bridged?" is-bridged":"")+(slot&&slot===selected?" is-sel":"");
+    b.textContent=dayNum;
+    if(slot){
+      var n=document.createElement("span"); n.className="pl-n"; n.textContent=numberOf(slot); b.appendChild(n);
+      b.setAttribute("aria-label","Event "+numberOf(slot)+", "+pretty(key)+(slot.bridged?", played and locked":""));
+    } else {
+      b.setAttribute("aria-label","Place an event on "+pretty(key));
+    }
+    b.addEventListener("click",function(){onDay(key);});
+    return b;
+  }
+
+  function onDay(key){
+    var existing=byDate(key);
+    if(existing){
+      if(pendingNew && selected && selected!==existing){
+        setHint("That date already has an event. Every event needs its own date.",true);
+        return;
+      }
+      selected=(selected===existing)?null:existing;
+      pendingNew=false;
+      setHint(selected?("Event "+numberOf(selected)+" selected. Tap an empty day to move it."):"Green events are played and locked — their dates cannot move.",false);
+      render(); return;
+    }
+    if(selected){
+      if(selected.bridged){ setHint("Event "+numberOf(selected)+" has been played, so its date is locked.",true); return; }
+      selected.date=key;
+      setHint((pendingNew?"Placed":"Moved")+" on "+pretty(key)+".",false);
+      selected=null; pendingNew=false; render(); return;
+    }
+    slots.push({date:key,bridged:false,signups:"notopen",holes:TEMPLATES[tpl].holes});
+    setHint("Added an event on "+pretty(key)+". Signups start closed.",false);
+    render();
+  }
+
+  function renderRail(){
+    var list=document.getElementById("plSlots"); list.innerHTML="";
+    var all=sorted();
+    all.forEach(function(s,i){
+      var li=document.createElement("li");
+      var b=document.createElement("button"); b.type="button"; b.className="pl-slotrow";
+      b.setAttribute("aria-current", s===selected?"true":"false");
+      var n=document.createElement("span"); n.className="pl-i"; n.textContent=String(i+1).padStart(2,"0");
+      var d=document.createElement("span"); d.className="pl-d"; d.textContent=pretty(s.date);
+      var st=stateOf(s);
+      var tag=document.createElement("span"); tag.className="pl-state "+st.cls; tag.textContent=st.txt;
+      b.appendChild(n); b.appendChild(d); b.appendChild(tag);
+      b.addEventListener("click",function(){
+        selected=(selected===s)?null:s; pendingNew=false;
+        setHint(selected?("Event "+numberOf(selected)+" selected. Tap an empty day to move it."):"Green events are played and locked — their dates cannot move.",false);
+        render();
+      });
+      li.appendChild(b); list.appendChild(li);
+    });
+
+    document.getElementById("plCount").textContent = all.length;
+    var meta=document.getElementById("plSeasonMeta");
+    meta.textContent = all.length
+      ? all.length+" events · "+pretty(all[0].date)+" – "+pretty(all[all.length-1].date)
+      : "No events yet — tap a day to place one.";
+
+    var last = all.length ? all[all.length-1] : null;
+    document.getElementById("plMinus").disabled = !last || last.bridged;
+    renderSheet();
+  }
+
+  function renderSheet(){
+    var sheet=document.getElementById("plSheet"); sheet.innerHTML="";
+    if(!selected){
+      var p=document.createElement("p"); p.className="pl-hint"; p.style.margin="0";
+      p.textContent="Select an event to set its date and signup window.";
+      sheet.appendChild(p); return;
+    }
+    var s=selected;
+    [["Event","#"+numberOf(s)],["Date",pretty(s.date)],["Holes",String(s.holes)],["Signups",stateOf(s).txt]]
+      .forEach(function(r){
+        var kv=document.createElement("div"); kv.className="pl-kv";
+        var a=document.createElement("span"); a.textContent=r[0];
+        var b=document.createElement("span"); b.textContent=r[1];
+        kv.appendChild(a); kv.appendChild(b); sheet.appendChild(kv);
+      });
+
+    var acts=document.createElement("div"); acts.className="pl-acts";
+    var open=document.createElement("button"); open.type="button"; open.className="pl-btn is-primary";
+    open.textContent="Open signups"; open.disabled=s.bridged||s.signups==="open";
+    open.addEventListener("click",function(){s.signups="open";setHint("Signups opened for event "+numberOf(s)+".",false);render();});
+
+    var close=document.createElement("button"); close.type="button"; close.className="pl-btn";
+    close.textContent="Close signups"; close.disabled=s.bridged||s.signups!=="open";
+    close.addEventListener("click",function(){s.signups="closed";setHint("Signups closed for event "+numberOf(s)+".",false);render();});
+
+    var del=document.createElement("button"); del.type="button"; del.className="pl-btn is-danger";
+    del.textContent="Remove"; del.disabled=s.bridged;
+    del.addEventListener("click",function(){
+      var n=numberOf(s); slots.splice(slots.indexOf(s),1); selected=null; pendingNew=false;
+      setHint("Removed event "+n+".",false); render();
+    });
+
+    acts.appendChild(open); acts.appendChild(close); acts.appendChild(del);
+    sheet.appendChild(acts);
+
+    if(s.bridged){
+      var w=document.createElement("p"); w.className="pl-hint is-warn";
+      w.textContent="This event has been played and bridged to a spine event. Its date, course, tee and holes are immutable, and it cannot be deleted.";
+      sheet.appendChild(w);
+    }
+  }
+
+  function render(){ renderMonths(); renderRail(); }
+
+  document.getElementById("plPlus").addEventListener("click",function(){
+    var all=sorted();
+    var next = all.length
+      ? addDays(all[all.length-1].date, TEMPLATES[tpl].interval)
+      : "2026-05-05";
+    while(byDate(next)) next = addDays(next,1);
+    var s={date:next,bridged:false,signups:"notopen",holes:TEMPLATES[tpl].holes};
+    slots.push(s); selected=s; pendingNew=true;
+    setHint("Event "+numberOf(s)+" added at "+pretty(next)+" — the default. Tap the day you actually want it.",false);
+    render();
+  });
+
+  document.getElementById("plMinus").addEventListener("click",function(){
+    var all=sorted(); if(!all.length) return;
+    var last=all[all.length-1];
+    if(last.bridged){ setHint("The last event has been played, so it cannot be removed.",true); return; }
+    slots.splice(slots.indexOf(last),1);
+    if(selected===last){selected=null;pendingNew=false;}
+    setHint("Removed the last event.",false);
+    render();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".pl-chip[data-tpl]"),function(btn){
+    btn.addEventListener("click",function(){
+      tpl=btn.dataset.tpl;
+      Array.prototype.forEach.call(document.querySelectorAll(".pl-chip[data-tpl]"),function(o){
+        o.setAttribute("aria-pressed",String(o===btn));
+      });
+      seed(tpl);
+      document.getElementById("plSeasonName").textContent=TEMPLATES[tpl].name;
+      setHint(TEMPLATES[tpl].note+". Tap a day to place an event; tap an event, then a day, to move it.",false);
+      render();
+    });
+  });
+
+  seed(tpl);
+  render();
+})();
+</script>
