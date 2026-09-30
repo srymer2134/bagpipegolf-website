@@ -8,7 +8,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import LeagueNav from '../../components/LeagueNav.astro';
 import { createSupabaseClient } from '../../lib/supabase';
 import {
-  getPublicLeague, isMatchPlay, teamName, rosterAt, teeTimeAt, dateLabel, fmtPts,
+  readLeague, isMatchPlay, teamName, rosterAt, teeTimeAt, dateLabel, fmtPts,
   currentWeek, matchupsFor, computedAgo, type PublicLeague,
 } from '../../lib/leaguePublic';
 
@@ -17,12 +17,25 @@ if (!id) return Astro.redirect('/leagues', 302);
 
 let league: PublicLeague | null = null;
 let failed = false;
+let gated = false;
 try {
   const supabase = createSupabaseClient({ request: Astro.request, cookies: Astro.cookies, locals: Astro.locals as App.Locals });
-  league = await getPublicLeague(supabase, id);
+  const read = await readLeague(supabase, id);
+  if (read.kind === 'ok') league = read.league;
+  else if (read.kind === 'gated') gated = true;
 } catch (err) {
   console.error('[league page] lookup failed', err);
   failed = true;
+}
+
+// Members-only, and whoever this is cannot see it yet. If they are not
+// signed in, that is very likely a member on a laptop — send them to
+// sign in rather than telling them the page is private. (We shipped the
+// opposite on the invite page this morning: a signed-out invitee got a
+// dead end because the sign-in CTA lived inside the success branch.)
+const signedIn = Boolean((Astro.locals as App.Locals).user);
+if (gated && !signedIn) {
+  return Astro.redirect(`/login?next=${encodeURIComponent(`/l/${id}`)}`, 302);
 }
 
 const week = league ? currentWeek(league) : null;
@@ -37,11 +50,13 @@ const interval = week?.tee_interval_minutes ?? 9;
     {!league ? (
       <section class="card" style="max-width:560px">
         <p class="pagewrap__eyebrow">League</p>
-        <h1 class="pagewrap__title">{failed ? 'Could not load this league' : 'This league page is private'}</h1>
+        <h1 class="pagewrap__title">{failed ? 'Could not load this league' : gated ? 'This page is for league members' : 'This league page is private'}</h1>
         <p class="pagewrap__sub">
           {failed
             ? 'Please try again in a moment.'
-            : 'The commissioner has not turned on the public page, or the link is wrong. Members can see everything in the Bagpipe Golf app.'}
+            : gated
+              ? 'You are signed in, but not a member of this league. Ask the commissioner for the join code and it will open right up.'
+              : 'The commissioner has not turned on the public page, or the link is wrong. Members can see everything in the Bagpipe Golf app.'}
         </p>
         <a class="btn btn--primary" href="/leagues">About leagues</a>
       </section>
