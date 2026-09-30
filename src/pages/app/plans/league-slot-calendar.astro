@@ -371,6 +371,14 @@ if (!isAdminEmail(user?.email)) {
   .pl-multrow .pl-lbl{margin-right:.15rem}
   .pl-mchip{font:inherit;font-size:.75rem;padding:.2rem .5rem;border-radius:999px;border:1px solid var(--pl-line-2);background:var(--pl-surface);color:var(--pl-ink-2);cursor:pointer}
   .pl-mchip[aria-pressed="true"]{background:var(--pl-amber);border-color:var(--pl-amber);color:#241503;font-weight:600}
+  .pl-or{font-size:.72rem;color:var(--pl-ink-3);padding:0 .1rem}
+  .pl-custw{display:inline-flex;align-items:center;gap:.1rem;border:1px solid var(--pl-line-2);border-radius:999px;padding:.05rem .4rem .05rem .5rem;background:var(--pl-surface)}
+  .pl-custw.is-on{border-color:var(--pl-amber);background:var(--pl-amber-w)}
+  .pl-custw__x{font-family:var(--pl-mono);font-size:.75rem;color:var(--pl-ink-3)}
+  .pl-custw.is-on .pl-custw__x{color:var(--pl-amber);font-weight:700}
+  .planpage .pl-custw input[type="number"]{width:3.4rem;border:0;background:transparent;padding:.15rem .1rem;font-size:.78rem}
+  .planpage .pl-custw input[type="number"]:focus-visible{outline:none}
+  .pl-custw:focus-within{box-shadow:0 0 0 2px var(--pl-green)}
   .pl-acts{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.75rem}
   .pl-btn{font:inherit;font-size:.79rem;font-weight:500;padding:.35rem .65rem;border-radius:5px;border:1px solid var(--pl-line-2);background:var(--pl-surface);color:var(--pl-ink);cursor:pointer}
   .pl-btn:hover:not(:disabled){border-color:var(--pl-green);color:var(--pl-green)}
@@ -557,12 +565,40 @@ if (!isAdminEmail(user?.email)) {
 
     var mr=document.createElement("div");mr.className="pl-multrow";
     var ml=document.createElement("span");ml.className="pl-lbl";ml.textContent="Weight";mr.appendChild(ml);
-    [1,2,5].forEach(function(v){
+    var PRESET_W=[1,2,5];
+    PRESET_W.forEach(function(v){
       var c=document.createElement("button");c.type="button";c.className="pl-mchip";
       c.setAttribute("aria-pressed",String(s.mult===v));c.textContent="×"+v;
       c.addEventListener("click",function(){s.mult=v;setHint(v===1?"Standard weighting.":("Weighted ×"+v+" — a major."),false);render();});
       mr.appendChild(c);
     });
+    // Custom weight. The chips are shortcuts, not the range — anything
+    // numeric is allowed, fractions included: a half-points event is 0.5.
+    var or=document.createElement("span");or.className="pl-or";or.textContent="or";
+    mr.appendChild(or);
+    var wrap=document.createElement("span");
+    wrap.className="pl-custw"+(PRESET_W.indexOf(s.mult)===-1?" is-on":"");
+    var xg=document.createElement("span");xg.className="pl-custw__x";xg.textContent="×";
+    var inp=document.createElement("input");inp.type="number";inp.min="0";inp.step="0.5";
+    inp.value=String(s.mult);inp.setAttribute("inputmode","decimal");
+    inp.setAttribute("aria-label","Custom points weight for this event");
+    inp.addEventListener("input",function(){
+      var v=parseFloat(inp.value);
+      if(isNaN(v)||v<0)return;
+      s.mult=v;
+      setHint(v===1?"Standard weighting."
+        :("Weighted ×"+v+(v<1?" — worth less than a normal event.":" — a major.")),false);
+      // Repaint the calendar and the rail rows only. A full render()
+      // rebuilds this sheet and would blur the field on every keystroke.
+      renderMonths();
+      renderRailRowsOnly();
+      wrap.classList.toggle("is-on",PRESET_W.indexOf(s.mult)===-1);
+      Array.prototype.forEach.call(mr.querySelectorAll(".pl-mchip"),function(c,i){
+        c.setAttribute("aria-pressed",String(s.mult===PRESET_W[i]));
+      });
+    });
+    wrap.appendChild(xg);wrap.appendChild(inp);
+    mr.appendChild(wrap);
     sh.appendChild(mr);
 
     var acts=document.createElement("div");acts.className="pl-acts";
@@ -594,6 +630,19 @@ if (!isAdminEmail(user?.email)) {
       sh.appendChild(w);
     }
   }
+  // Repaint just the slot-list rows. Used while the custom-weight field
+  // has focus, where a full renderRail() would rebuild the sheet and
+  // blur the input on every keystroke.
+  function renderRailRowsOnly(){
+    var list=document.getElementById("plSlots");
+    var all=sorted();
+    Array.prototype.forEach.call(list.children,function(li,i){
+      var sl=all[i];if(!sl)return;
+      var d=li.querySelector(".pl-d");
+      if(d)d.textContent=pretty(sl.date)+(sl.mult!==1?("  ×"+sl.mult):"");
+    });
+  }
+
   function render(){renderMonths();renderRail();}
 
   document.getElementById("plPlus").addEventListener("click",function(){
