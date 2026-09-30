@@ -1,49 +1,55 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { createSupabaseClient } from '../../lib/supabase';
+import { callRailwayPublic } from '../../lib/railway';
 
 // Join landing page — `https://bagpipegolf.com/join/<id>`.
 //
 // Three shapes land here, disambiguated by the id:
 //
-//   1. UUID (36 chars)  → an email-to-join INVITE TOKEN. Preview the
-//      invite (anon RPC `get_invite_by_token`), then:
+//   1. UUID (36 chars)  → an email-to-join INVITE TOKEN, for a
+//      TOURNAMENT or a LEAGUE. Preview via Railway
+//      `GET /api/invites/:token`, which dispatches on kind, then:
 //        * signed in  → "Accept" (POST /api/invites/[token]/accept)
 //        * signed out → sign in / create account with ?next= back here
 //      Plus "Open in the app" (`fairwayiq://join/<token>` — the app's
 //      deep-link parser routes a UUID to its invite-accept screen).
 //
-//   2. 6-char code → a SHARED TOURNAMENT or SIDE GAME code. Resolve
-//      via the anon RPC `get_shared_tournament_by_code`:
-//        * tournament found → preview + "Join this tournament"
-//          (POST /api/tournaments/[id]/join) for signed-in visitors,
-//          sign-in links otherwise, "Open in the app" for both.
-//        * not a tournament → the game-agnostic fallback (the app
-//          dispatches side-game codes itself once opened).
+//   2. 6-char code → a SHARED TOURNAMENT, a LEAGUE, or a side game.
+//      Preview via Railway `GET /api/invites/code/:code`:
+//        * tournament → preview + "Join this tournament"
+//        * league     → preview + "Join this league"
+//        * neither    → the game-agnostic fallback (the app dispatches
+//          side-game codes itself once opened).
 //
 //   3. anything else → malformed.
+//
+// WHY RAILWAY AND NOT AN ANON RPC. Both previews used to be anon
+// Supabase RPC calls made straight from this page. Two things broke
+// that: `20260917_close_anon_allowlist.sql` revoked `anon` from
+// `get_invite_by_token` and `get_league_by_code` (so the signed-out
+// tournament preview dead-ended, and a league code could never have
+// resolved), and the league shapes were never handled here at all.
+// Railway holds the service role and already dispatches both kinds,
+// so routing the lookups through it fixes both without reopening an
+// anon grant. See fairwayiq-api `routes/invites.ts`.
 //
 // When the app IS installed and the universal link verified, iOS /
 // Android intercept this URL before the page renders — so everything
 // here is the not-installed / laptop / unverified-Android path, and the
 // place a web-only user can complete the join without the app.
 
-type InviteRow = {
-  tournament_id: string | null;
-  tournament_name: string | null;
-  inviter_name: string | null;
-  email: string | null;
+type Preview = {
+  kind: 'tournament' | 'league';
+  id: string;
+  event_name: string;
+  host_name: string | null;
   status: string | null;
-};
-
-type TournamentPreview = {
-  tournament_row_id: string | null;
-  tournament_name: string | null;
-  course_name: string | null;
-  scorekeeper_name: string | null;
-  player_count: number | null;
-  round_count: number | null;
-  status: string | null;
+  tournament_name?: string;
+  league_name?: string;
+  course_name?: string | null;
+  player_count?: number | null;
+  round_count?: number | null;
+  registration_open?: boolean;
 };
 
 const raw = (Astro.params.code ?? '').trim();
@@ -65,60 +71,67 @@ const here = `/join/${kind === 'invite' ? token : code}`;
 const loginHref = `/login?next=${encodeURIComponent(here)}`;
 const signupHref = `/signup?next=${encodeURIComponent(here)}`;
 
-let invite: InviteRow | null = null;
-let tournament: TournamentPreview | null = null;
+let preview: Preview | null = null;
+let inviteStatus: string | null = null;
 let lookupFailed = false;
 
 if (kind !== 'invalid') {
   try {
-    const supabase = createSupabaseClient({
-      request: Astro.request,
-      cookies: Astro.cookies,
-      locals: Astro.locals as App.Locals,
-    });
     if (kind === 'invite') {
-      const { data, error } = await supabase.rpc('get_invite_by_token', { p_token: token });
-      if (error) throw error;
-      const row = (Array.isArray(data) ? data[0] : data) as InviteRow | undefined;
-      invite = row && row.status && row.status !== 'not_found' ? row : null;
+      // Kind-dispatched invite summary. 404 = no such token, which is
+      // a "not valid" render rather than an error render.
+      const row = await callRailwayPublic<{
+        kind?: 'tournament' | 'league';
+        event_name?: string;
+        tournament_name?: string;
+        league_name?: string;
+        inviter_name?: string | null;
+        status?: string;
+      }>(Astro, { method: 'GET', path: `/api/invites/${encodeURIComponent(token)}` });
+
+      if (row?.kind) {
+        inviteStatus = row.status ?? null;
+        preview = {
+          kind: row.kind,
+          id: '',
+          event_name: row.event_name ?? row.tournament_name ?? row.league_name ?? 'an event',
+          host_name: row.inviter_name ?? null,
+          status: row.status ?? null,
+          tournament_name: row.tournament_name,
+          league_name: row.league_name,
+        };
+      }
     } else {
-      const { data, error } = await supabase.rpc('get_shared_tournament_by_code', { p_code: code });
-      if (error) throw error;
-      const row = (Array.isArray(data) ? data[0] : data) as TournamentPreview | undefined;
-      tournament = row && row.tournament_row_id && row.status !== 'not_found' ? row : null;
+      preview = await callRailwayPublic<Preview>(Astro, {
+        method: 'GET',
+        path: `/api/invites/code/${encodeURIComponent(code)}`,
+      });
     }
   } catch (err) {
-    console.error('[join] lookup failed', err);
-    lookupFailed = true;
+    // A 404 is a legitimate "nothing here" answer, not a failure — the
+    // page renders its own not-found / side-game-fallback state. Only
+    // a real fault (5xx, network, unbound env) becomes lookupFailed,
+    // because that is the one case where "try again" is the right
+    // advice.
+    const status = (err as { status?: number })?.status;
+    if (status !== 404) {
+      console.error('[join] lookup failed', err);
+      lookupFailed = true;
+    }
   }
 }
 
-// Registration toggle (tournaments.registration_open, 20261012). The
-// code RPC doesn't carry it, so read it directly (public-read policy)
-// and tolerate the column not existing yet → open.
-let registrationClosed = false;
-if (tournament?.tournament_row_id) {
-  try {
-    const supabase = createSupabaseClient({
-      request: Astro.request,
-      cookies: Astro.cookies,
-      locals: Astro.locals as App.Locals,
-    });
-    const { data } = await supabase
-      .from('tournaments')
-      .select('registration_open')
-      .eq('id', tournament.tournament_row_id)
-      .maybeSingle();
-    registrationClosed = (data as { registration_open?: boolean | null } | null)?.registration_open === false;
-  } catch (_) {
-    registrationClosed = false;
-  }
-}
+const isLeague = preview?.kind === 'league';
+const isTournament = preview?.kind === 'tournament';
+const tournament = isTournament ? preview : null;
+const league = isLeague ? preview : null;
 
-const inviteStatus = invite?.status ?? null;
 const inviteActionable = inviteStatus === 'pending';
-const tournamentFinished = tournament !== null && tournament.status === 'completed';
-const tournamentJoinable = tournament !== null && !tournamentFinished && !registrationClosed;
+const eventFinished = preview !== null && preview.status === 'completed';
+const registrationClosed = preview?.registration_open === false;
+const tournamentFinished = isTournament && eventFinished;
+const tournamentJoinable = isTournament && !eventFinished && !registrationClosed;
+const leagueJoinable = isLeague && !eventFinished;
 
 const appScheme =
   kind === 'invite' ? `fairwayiq://join/${token}` : kind === 'code' ? `fairwayiq://join/${code}` : null;
@@ -136,8 +149,8 @@ const title =
   <main class="pagewrap pagewrap--narrow">
     {kind === 'invite' && (
       <>
-        <p class="pagewrap__eyebrow">Tournament invite</p>
-        {invite === null ? (
+        <p class="pagewrap__eyebrow">{isLeague ? 'League invite' : 'Tournament invite'}</p>
+        {preview === null ? (
           <>
             <h1 class="pagewrap__title">{lookupFailed ? "We couldn't load this invite." : "This invite isn't valid."}</h1>
             <p class="pagewrap__sub">
@@ -145,22 +158,30 @@ const title =
                 ? 'Something went wrong looking it up. Try again in a moment.'
                 : 'It may have been withdrawn, or the link was copied incompletely. Ask the host to send a fresh one.'}
             </p>
+            {!signedIn && !lookupFailed && (
+              <p class="pagewrap__sub">
+                If you already have an account, <a href={loginHref}>sign in</a> — an invite sent to
+                your address will be waiting inside the app.
+              </p>
+            )}
             <a class="btn btn--primary" href="/">Back to home</a>
           </>
         ) : (
           <>
             <h1 class="pagewrap__title">You're invited.</h1>
             <p class="pagewrap__sub">
-              <strong>{invite.inviter_name ?? 'The host'}</strong> invited you to play in{' '}
-              <strong>{invite.tournament_name ?? 'a tournament'}</strong>.
+              <strong>{preview.host_name ?? 'The host'}</strong> invited you to{' '}
+              {isLeague ? 'play in' : 'play in'}{' '}
+              <strong>{preview.event_name}</strong>
+              {isLeague ? <> — a season, not a one-off.</> : <>.</>}
             </p>
 
             {inviteStatus === 'accepted' && (
               <div class="notice notice--ok">
-                You've already accepted this invite.
-                {invite.tournament_id && (
-                  <> <a href={`/app/tournaments/${invite.tournament_id}`}>Open the tournament</a>.</>
-                )}
+                You've already accepted this invite.{' '}
+                <a href={isLeague ? '/app/leagues' : '/app/tournaments'}>
+                  Open your {isLeague ? 'leagues' : 'tournaments'}
+                </a>.
               </div>
             )}
             {(inviteStatus === 'revoked' || inviteStatus === 'expired') && (
@@ -170,11 +191,15 @@ const title =
             )}
 
             {inviteActionable && (
-              <section class="joincard" id="joinCard" data-kind="invite" data-token={token}>
+              <section class="joincard" id="joinCard" data-kind="invite" data-token={token} data-event-kind={preview.kind}>
                 <div id="joinError" class="errorbar" hidden></div>
                 {signedIn ? (
                   <>
-                    <p class="joincard__hint">Accepting adds you to the roster with the name and handicap on your profile.</p>
+                    <p class="joincard__hint">
+                      {isLeague
+                        ? 'Accepting adds you to the league roster with the name and handicap on your profile. You RSVP to each event separately.'
+                        : 'Accepting adds you to the roster with the name and handicap on your profile.'}
+                    </p>
                     <button type="button" id="acceptBtn" class="btn btn--primary btn--block">Accept invite</button>
                   </>
                 ) : (
@@ -190,7 +215,10 @@ const title =
             )}
 
             <div id="joinDone" class="notice notice--ok" hidden>
-              You're in. <a id="joinDoneLink" href={invite.tournament_id ? `/app/tournaments/${invite.tournament_id}` : '/app/tournaments'}>Open the tournament</a>, or open it in the app below.
+              You're in.{' '}
+              <a id="joinDoneLink" href={isLeague ? '/app/leagues' : '/app/tournaments'}>
+                Open the {isLeague ? 'league' : 'tournament'}
+              </a>, or open it in the app below.
             </div>
 
             <div class="cta-row">
@@ -202,13 +230,65 @@ const title =
       </>
     )}
 
+    {kind === 'code' && league !== null && (
+      <>
+        <p class="pagewrap__eyebrow">League registration</p>
+        <h1 class="pagewrap__title">{league.event_name}</h1>
+        <p class="pagewrap__sub">
+          Run by <strong>{league.host_name ?? 'the commissioner'}</strong>
+          {eventFinished ? <> · this season has finished</> : null}
+        </p>
+
+        {leagueJoinable ? (
+          <section class="joincard" id="joinCard" data-kind="code" data-event-kind="league" data-code={code}>
+            <div id="joinError" class="errorbar" hidden></div>
+            {signedIn ? (
+              <>
+                <p class="joincard__hint">
+                  Joining adds you to the league roster with the name and handicap on your profile.
+                  You RSVP to each event separately once you're in.
+                </p>
+                <button type="button" id="acceptBtn" class="btn btn--primary btn--block">Join this league</button>
+              </>
+            ) : (
+              <>
+                <p class="joincard__hint">Sign in to join, or create an account — you'll land right back here.</p>
+                <div class="cta-row">
+                  <a class="btn btn--primary" href={loginHref}>Sign in to join</a>
+                  <a class="btn btn--ghost" href={signupHref}>Create an account</a>
+                </div>
+              </>
+            )}
+          </section>
+        ) : (
+          <div class="notice notice--warn">This season has finished. You can still view the standings.</div>
+        )}
+
+        <div id="joinDone" class="notice notice--ok" hidden>
+          You're in. <a id="joinDoneLink" href="/app/leagues">Open the league</a>, or open it in the app below.
+        </div>
+
+        <section class="codecard">
+          <span class="codecard__label">League code</span>
+          <code class="codecard__value" data-code={code}>{code}</code>
+          <button id="copyBtn" class="codecard__copy" type="button" aria-label="Copy code">Copy</button>
+        </section>
+
+        <div class="cta-row">
+          {appScheme && <a class="btn btn--ghost" href={appScheme}>Open in the app</a>}
+          <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
+          <a class="btn btn--ghost" href={`/l/${league.id}/standings`}>Standings</a>
+        </div>
+      </>
+    )}
+
     {kind === 'code' && tournament !== null && (
       <>
         <p class="pagewrap__eyebrow">Tournament registration</p>
-        <h1 class="pagewrap__title">{tournament.tournament_name ?? 'Tournament'}</h1>
+        <h1 class="pagewrap__title">{tournament.event_name}</h1>
         <p class="pagewrap__sub">
           {tournament.course_name ? <>{tournament.course_name} · </> : null}
-          Hosted by <strong>{tournament.scorekeeper_name ?? 'the host'}</strong>
+          Hosted by <strong>{tournament.host_name ?? 'the host'}</strong>
           {typeof tournament.player_count === 'number' ? <> · {tournament.player_count} in the field</> : null}
           {typeof tournament.round_count === 'number' && tournament.round_count > 0
             ? <> · {tournament.round_count} {tournament.round_count === 1 ? 'round' : 'rounds'}</>
@@ -216,7 +296,7 @@ const title =
         </p>
 
         {tournamentJoinable ? (
-          <section class="joincard" id="joinCard" data-kind="tournament" data-tournament-id={tournament.tournament_row_id}>
+          <section class="joincard" id="joinCard" data-kind="code" data-event-kind="tournament" data-code={code} data-tournament-id={tournament.id}>
             <div id="joinError" class="errorbar" hidden></div>
             {signedIn ? (
               <>
@@ -240,7 +320,7 @@ const title =
         )}
 
         <div id="joinDone" class="notice notice--ok" hidden>
-          You're in. <a id="joinDoneLink" href={`/app/tournaments/${tournament.tournament_row_id}`}>Open the tournament</a>, or open it in the app below.
+          You're in. <a id="joinDoneLink" href={`/app/tournaments/${tournament.id}`}>Open the tournament</a>, or open it in the app below.
         </div>
 
         <section class="codecard">
@@ -252,12 +332,12 @@ const title =
         <div class="cta-row">
           {appScheme && <a class="btn btn--ghost" href={appScheme}>Open in the app</a>}
           <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
-          <a class="btn btn--ghost" href={`/app/tournaments/${tournament.tournament_row_id}/leaderboard`}>Leaderboard</a>
+          <a class="btn btn--ghost" href={`/app/tournaments/${tournament.id}/leaderboard`}>Leaderboard</a>
         </div>
       </>
     )}
 
-    {kind === 'code' && tournament === null && (
+    {kind === 'code' && preview === null && (
       <>
         <p class="pagewrap__eyebrow">Join a live game</p>
         <h1 class="pagewrap__title">You're invited.</h1>
@@ -329,10 +409,16 @@ const title =
       const done = document.getElementById('joinDone');
       const doneLink = document.getElementById('joinDoneLink');
       const kind = card.dataset.kind;
+      const eventKind = card.dataset.eventKind;
+      // A tournament code keeps its existing route: that proxy also
+      // reports `handicap_defaulted`, so the visitor is told when 18.0
+      // was substituted. Leagues go through the code-accept endpoint.
       const url =
         kind === 'invite'
           ? `/api/invites/${encodeURIComponent(card.dataset.token || '')}/accept`
-          : `/api/tournaments/${encodeURIComponent(card.dataset.tournamentId || '')}/join`;
+          : eventKind === 'league'
+            ? `/api/invites/code/${encodeURIComponent(card.dataset.code || '')}/accept`
+            : `/api/tournaments/${encodeURIComponent(card.dataset.tournamentId || '')}/join`;
 
       accept.addEventListener('click', async () => {
         accept.disabled = true;
@@ -349,8 +435,12 @@ const title =
             accept.textContent = label;
             return;
           }
-          if (body && body.tournament_id && doneLink) {
-            doneLink.setAttribute('href', `/app/tournaments/${body.tournament_id}`);
+          if (doneLink) {
+            if (body && body.league_id) {
+              doneLink.setAttribute('href', '/app/leagues');
+            } else if (body && body.tournament_id) {
+              doneLink.setAttribute('href', `/app/tournaments/${body.tournament_id}`);
+            }
           }
           if (done) {
             if (body && body.handicap_defaulted) {

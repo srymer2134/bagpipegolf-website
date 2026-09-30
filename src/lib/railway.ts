@@ -51,6 +51,51 @@ export async function callRailway<T = unknown>(
   ctx: APIContext,
   init: RailwayCallInit,
 ): Promise<T> {
+  const session = (ctx.locals as App.Locals).session;
+  const accessToken = session?.access_token;
+  if (!accessToken) {
+    throw new RailwayApiError(
+      401,
+      'Not authenticated — no Supabase access token available.',
+      null,
+    );
+  }
+  return request<T>(ctx, init, accessToken);
+}
+
+/**
+ * Fetch a Railway endpoint that is public upstream, with **no**
+ * Authorization header and no session requirement.
+ *
+ * This exists for the pre-login half of the join flow. A visitor who
+ * taps an invite link on a laptop, or before installing the app, has
+ * no session — but still has to be told what they were invited to
+ * before they are asked to sign in. Those previews used to be anon
+ * Supabase RPC calls straight from the page; `20260917_close_anon_-
+ * allowlist.sql` revoked `anon` from the lookups they depended on, so
+ * they now run through Railway's service role instead. Nothing here
+ * may be used for an endpoint that returns anything user-scoped.
+ */
+export async function callRailwayPublic<T = unknown>(
+  ctx: HasLocals,
+  init: RailwayCallInit,
+): Promise<T> {
+  return request<T>(ctx, init, null);
+}
+
+/**
+ * The only thing the transport needs. Declared structurally so both an
+ * `APIContext` (an /api/* route) and the `Astro` global (a page's
+ * frontmatter) satisfy it — the pre-login previews are fetched from
+ * page frontmatter, which is not an APIContext.
+ */
+type HasLocals = { locals: APIContext['locals'] };
+
+async function request<T>(
+  ctx: HasLocals,
+  init: RailwayCallInit,
+  accessToken: string | null,
+): Promise<T> {
   const env = (ctx.locals as App.Locals).runtime?.env;
   const baseUrl = env?.RAILWAY_API_URL;
   if (!baseUrl || typeof baseUrl !== 'string') {
@@ -63,16 +108,6 @@ export async function callRailway<T = unknown>(
     );
   }
 
-  const session = (ctx.locals as App.Locals).session;
-  const accessToken = session?.access_token;
-  if (!accessToken) {
-    throw new RailwayApiError(
-      401,
-      'Not authenticated — no Supabase access token available.',
-      null,
-    );
-  }
-
   const url = new URL(init.path, baseUrl);
   if (init.query) {
     for (const [k, v] of Object.entries(init.query)) {
@@ -81,9 +116,8 @@ export async function callRailway<T = unknown>(
     }
   }
 
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${accessToken}`,
-  };
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   const requestInit: RequestInit = { method: init.method, headers };
   if (init.body !== undefined) {
     headers['content-type'] = 'application/json';
