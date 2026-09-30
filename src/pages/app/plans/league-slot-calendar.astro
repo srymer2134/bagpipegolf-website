@@ -2,17 +2,18 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { isAdminEmail } from '../../../lib/admins';
 
-// Internal plan page — the League Slot Calendar (T3).
+// Internal plan page — the league season design.
 //
-// Lives under /app so the middleware auth gate applies, and then
-// narrows to the admin allowlist: any signed-in golfer would otherwise
-// be able to read internal schema and migration detail by guessing the
-// URL. A non-admin gets a 404 rather than a 403, so the page's
-// existence isn't confirmed.
+// Route kept at /app/plans/league-slot-calendar because the link has
+// been shared; the page's scope has since grown to cover three merged
+// plans (slot calendar, club + competitions, the points engine).
 //
-// Plan of record is the repo doc — docs/plans/LEAGUE_SLOT_CALENDAR_PLAN.md
-// in fairwayiq-flutter. This page exists to be *shared* with Casey and
-// Patrick, and to let them try the calendar rather than read about it.
+// Under /app so the middleware auth gate applies, then narrowed to the
+// admin allowlist — any signed-in golfer would otherwise read internal
+// schema by guessing the URL. Non-admins get 404, not 403, so the
+// page's existence isn't confirmed.
+//
+// Plans of record live in fairwayiq-flutter/docs/plans/.
 const user = (Astro.locals as App.Locals).user;
 if (!isAdminEmail(user?.email)) {
   return new Response('Not found', { status: 404 });
@@ -20,67 +21,84 @@ if (!isAdminEmail(user?.email)) {
 ---
 
 <BaseLayout
-  title="League Slot Calendar · Bagpipe Golf"
-  description="Internal plan — per-slot editable dates, the director's calendar, and per-event signup windows."
+  title="The Club, the Season, the Points · Bagpipe Golf"
+  description="Internal design — clubs and competitions, the director's calendar, and the configurable season-points engine."
 >
   <main class="planpage">
     <header class="pl-mast">
-      <p class="pl-eyebrow">Internal · League module · T3 plan</p>
-      <h1 class="pl-h1">League Slot Calendar</h1>
+      <p class="pl-eyebrow">Internal · League module · three merged T3 plans</p>
+      <h1 class="pl-h1">The club, the season, the points</h1>
       <p class="pl-stand">
-        Half of our leagues are not weekly. Today a season is an arithmetic
-        series — a start date plus a fixed interval — so a Member-Guest and a
-        Standard League cannot express the dates they actually play. This
-        replaces the series with dates a director sets, and gives each event a
-        signup window the director opens.
+        A league today is a container and a contest fused into one row. These
+        three plans pull them apart: the club holds a roster and a calendar,
+        competitions hold the contests, and a director sets both the dates and
+        what each finish is worth.
       </p>
       <div class="pl-meta">
         <span>Verified <b>2026-09-30</b> on dev</span>
         <span>Migration <b>20261022</b></span>
-        <span>Patrick <b>§42</b></span>
-        <span>PR <b>flutter #1327</b></span>
+        <span>Patrick <b>§42 · §43 · §44</b></span>
+      </div>
+      <div class="pl-index">
+        <span class="pl-lbl">Plans of record</span>
+        <code>docs/plans/LEAGUE_SLOT_CALENDAR_PLAN.md</code>
+        <code>docs/plans/LEAGUE_AS_CLUB_PLAN.md</code>
+        <code>docs/plans/LEAGUE_PROD_MIGRATION_PLAN.md</code>
       </div>
     </header>
 
     <section>
-      <h2 class="pl-h2">Four templates, one of which breaks</h2>
+      <h2 class="pl-h2">The club and its competitions</h2>
       <p class="pl-lede">
-        The cadence field (<code>intervalDays</code>) already supports
-        non-weekly spacing. What it cannot do is <em>irregular</em> spacing,
-        because every date is derived as
-        <code>startDate + k × intervalDays</code>.
+        "Join City Park Men's Club, see the tournaments scheduled for the
+        season, and join the season-long match-play series." Three things, one
+        of which is new.
       </p>
-      <div class="pl-grid">
-        <div class="pl-card">
-          <span class="pl-tag">7-day interval · 16 events</span>
-          <h4>Weekly League</h4>
-          <p>A fixed weekly cadence. The arithmetic series describes it exactly.</p>
-        </div>
-        <div class="pl-card">
-          <span class="pl-tag">7-day interval · 16 events</span>
-          <h4>Member-Member</h4>
-          <p>Two-player teams, head to head. Also weekly, so also fine.</p>
-        </div>
-        <div class="pl-card">
-          <span class="pl-tag">1-day interval · 2 events</span>
-          <h4>Member-Guest</h4>
-          <p>Two consecutive days. A clean series — interval of one.</p>
-        </div>
-        <div class="pl-card pl-card--fails">
-          <span class="pl-tag">30-day placeholder · 6 events · breaks</span>
-          <h4>Standard League</h4>
-          <p>Events on dates the director picks. No interval describes them, so today they land on evenly spaced placeholders that are all wrong.</p>
-        </div>
+
+      <div class="pl-tree">
+<pre>leagues ─────────────── <b>THE CLUB</b>   join_code · roster · calendar · timezone
+  ├── league_members ─── joined once, the one front door
+  ├── league_weeks ───── the season calendar
+  │     └── competition_id → league_competitions
+  └── league_competitions ── N per club            <em>new</em>
+        └── league_competition_entrants            <em>new</em></pre>
       </div>
+
+      <div class="pl-scroll">
+        <table class="pl-table">
+          <thead><tr><th>What a member does</th><th>What it is</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Join City Park Men's Club</td><td><code>league_members</code> row via the join code</td><td><b class="ok">exists</b></td></tr>
+            <tr><td>See the season's tournaments</td><td>the club's slots, some bound to tournaments</td><td><b class="ok">exists</b></td></tr>
+            <tr><td>Join the season-long match-play series</td><td>an entrant row on an opt-in competition</td><td><b class="new">new</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pl-note">
+        <p>
+          <strong>Two rules stop this getting heavier than what we have.</strong>
+          Entrant rows are written <em>only</em> for opt-in competitions — the
+          default is "every member is in", which writes none. And a club with
+          one competition looks <em>identical to today</em>: no picker, no extra
+          nav, until a second one exists.
+        </p>
+      </div>
+
+      <p>
+        There was no container to reuse. <code>organizations</code> /
+        <code>org_members</code> exist but hold <b>0 rows</b>, no league or
+        tournament is tagged with one, and they're shaped for schools
+        (<code>graduation_year</code>, <code>team_name</code>) from the Bagpipe
+        HS arc. The league already <em>is</em> the club.
+      </p>
     </section>
 
     <section>
-      <h2 class="pl-h2">The calendar a director would use</h2>
+      <h2 class="pl-h2">The season calendar</h2>
       <p class="pl-lede">
-        Working prototype. Seed a season from a template, then move dates where
-        they belong. Tap a day to place an event; tap an event, then a day, to
-        move it. Add and remove events with the counter — adding asks
-        <em>where</em>, which is the thing that is missing today.
+        Working prototype. Place dates, move them, and add a second day to an
+        event. Select an event to set its points weight and open its signups.
       </p>
 
       <div class="pl-tool">
@@ -88,8 +106,7 @@ if (!isAdminEmail(user?.email)) {
           <span class="pl-lbl">Template</span>
           <button class="pl-chip" type="button" data-tpl="standard" aria-pressed="true">Standard League</button>
           <button class="pl-chip" type="button" data-tpl="weekly" aria-pressed="false">Weekly League</button>
-          <button class="pl-chip" type="button" data-tpl="mm" aria-pressed="false">Member-Member</button>
-          <button class="pl-chip" type="button" data-tpl="mg" aria-pressed="false">Member-Guest</button>
+          <button class="pl-chip" type="button" data-tpl="match" aria-pressed="false">Match Play League</button>
         </div>
 
         <div class="pl-body">
@@ -116,605 +133,565 @@ if (!isAdminEmail(user?.email)) {
           </aside>
         </div>
       </div>
+
+      <p class="pl-cap">
+        A day of golf is a slot. A 2-day club championship is two dated slots in
+        one competition — not one slot hiding a second round, because
+        <code>tournaments.rounds[]</code> is a condemned store and because day
+        two can genuinely be a different course.
+      </p>
     </section>
 
     <section>
-      <h2 class="pl-h2">What changes in the data</h2>
-      <div class="pl-note">
-        <p>
-          <strong>The carve-out already exists.</strong> The
-          <code>league_weeks</code> table comment reads: <em>"Authority for slot
-          → date <strong>in a match_play league</strong>;
-          LeagueSchedule.startDate/intervalDays/eventCount are seed-only
-          there."</em> This generalizes that sentence to every league shape, so
-          slot → date stops living in two stores. The change <em>removes</em> a
-          home rather than adding one.
-        </p>
-      </div>
-
-      <div class="pl-scroll">
-        <table class="pl-table">
-          <thead><tr><th>Change</th><th>Store</th><th>Why</th></tr></thead>
-          <tbody>
-            <tr>
-              <td><b>Slot → date authority</b></td>
-              <td><code>league_weeks.week_of</code></td>
-              <td>Already authoritative for match-play leagues. Generalized to all. <code>LeagueSchedule</code> becomes seed-only and leaves every read path.</td>
-            </tr>
-            <tr>
-              <td><b>Slots materialize</b></td>
-              <td><code>league_weeks</code></td>
-              <td>Rows stop being lazy, so there is never a mixed read path where some dates come from a row and some from arithmetic.</td>
-            </tr>
-            <tr>
-              <td><b>Signups open</b></td>
-              <td><code>signups_open_at</code></td>
-              <td>New, nullable. Null means open — today's behaviour, preserved by construction. "Open signups" writes <code>now()</code>.</td>
-            </tr>
-            <tr>
-              <td><b>Signups close</b></td>
-              <td><code>signups_close_at</code></td>
-              <td>New, nullable. Null means closes when the week locks. <code>locked_at</code> is not reused — that is the matchup lock, a different fact.</td>
-            </tr>
-            <tr>
-              <td><b>Window enforced</b></td>
-              <td>trigger on <code>league_signups</code></td>
-              <td>In the database, not the UI. A UI-only window is defeated by any direct API call.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section>
-      <h2 class="pl-h2">Event count: already editable, but the date isn't</h2>
+      <h2 class="pl-h2">Season points — the director sets the values</h2>
       <p class="pl-lede">
-        Half of this ships today. A director sets the count in the wizard and
-        changes it mid-season in the Edit-schedule dialog. What they cannot do
-        is say <em>when</em> an added event falls.
+        Today finish points are hardcoded to field size: a 40-player major pays
+        40, an 8-player Tuesday pays 8. Editable below — start from a preset,
+        change any number, and watch the preview.
       </p>
-      <div class="pl-scroll">
-        <table class="pl-table">
-          <thead><tr><th>Action</th><th>Today</th><th>After</th></tr></thead>
-          <tbody>
-            <tr>
-              <td><b>Add an event</b></td>
-              <td>count + 1 → an arithmetic date nobody chose</td>
-              <td>count + 1 → <b>prompt for the date</b>, defaulting to last + interval</td>
-            </tr>
-            <tr>
-              <td><b>Remove an event</b></td>
-              <td>count − 1 → trailing slot vanishes; slot-indexed bindings silently orphaned</td>
-              <td>count − 1 → the trailing <b>unbridged</b> slot is deleted; a played one is refused, with the reason</td>
-            </tr>
-            <tr>
-              <td><b>Move an event</b></td>
-              <td>impossible</td>
-              <td>tap the slot, tap the day</td>
-            </tr>
-          </tbody>
-        </table>
+
+      <div class="pl-tool">
+        <div class="pl-toolbar">
+          <span class="pl-lbl">Start from</span>
+          <button class="pl-chip" type="button" data-pre="field" aria-pressed="true">Field size</button>
+          <button class="pl-chip" type="button" data-pre="steep" aria-pressed="false">Steep</button>
+          <button class="pl-chip" type="button" data-pre="flat" aria-pressed="false">Flat</button>
+          <span class="pl-chip pl-chip--static" id="plCustomTag" hidden>Custom</span>
+        </div>
+
+        <div class="pl-pointsbody">
+          <div class="pl-ptcol">
+            <div class="pl-ptrows" id="plPtRows"></div>
+            <div class="pl-acts">
+              <button class="pl-btn" type="button" id="plPtLess">Fewer places</button>
+              <button class="pl-btn" type="button" id="plPtMore">More places</button>
+            </div>
+          </div>
+
+          <div class="pl-ptcol">
+            <label class="pl-field">
+              <span>Participation — for completing the event</span>
+              <input type="number" id="plPart" value="10" min="0" step="1" inputmode="numeric" />
+            </label>
+            <label class="pl-field">
+              <span>Members in the club</span>
+              <input type="number" id="plRoster" value="14" min="1" step="1" inputmode="numeric" />
+            </label>
+            <div class="pl-preview" id="plPreview"></div>
+            <p class="pl-hint">
+              Below the last place a player earns participation only. That rule
+              is visible here rather than discovered in the standings.
+            </p>
+          </div>
+        </div>
       </div>
-      <p>
-        Removal is the sharper edge. Today shrinking the count is lossless
-        because nothing persists per slot; afterwards it deletes a
-        <code>league_weeks</code> row, and the bridge guard refuses to delete a
-        played one.
+
+      <p class="pl-cap">
+        An <b>empty</b> points table falls back to today's field-size rule, so
+        this ships without touching a single existing league. Participation
+        reuses <code>attendance_points</code>, which already means "per player
+        per week played" — no second column.
       </p>
     </section>
 
     <section>
-      <h2 class="pl-h2">Two constraints the calendar must respect</h2>
+      <h2 class="pl-h2">Templates, after the split</h2>
+      <p class="pl-lede">
+        Member-Guest is a tournament, not a season — and by the same logic so is
+        Member-Member, which is why it moves off the league wizard.
+      </p>
+      <div class="pl-scroll">
+        <table class="pl-table">
+          <thead><tr><th>Surface</th><th>Templates</th></tr></thead>
+          <tbody>
+            <tr><td><b>Club</b></td><td>none — a club is a name, a roster and a calendar</td></tr>
+            <tr><td><b>Competition</b></td><td>Weekly League · <b>Match Play League</b> · Standard League</td></tr>
+            <tr><td><b>Tournament</b></td><td>Member-Guest · Member-Member · Club Championship</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="pl-h2">Constraints the design has to respect</h2>
       <div class="pl-grid pl-grid--2">
         <div class="pl-card">
           <span class="pl-tag">Enforced by trigger</span>
           <h4>A played date cannot move</h4>
-          <p>Once a slot is bridged to a spine event, <code>league_weeks_immutable_once_bridged()</code> refuses changes to its date, course, tee and holes, and refuses to delete it. The calendar renders those slots locked with the reason shown, rather than letting a tap fail.</p>
+          <p>Once a slot is bridged to a spine event, <code>league_weeks_immutable_once_bridged()</code> refuses changes to its date, course, tee and holes, and refuses deletion. The calendar renders those locked rather than letting a tap fail.</p>
         </div>
         <div class="pl-card">
           <span class="pl-tag">Enforced by unique index</span>
           <h4>Two events cannot share a date</h4>
-          <p><code>unique (league_id, week_of)</code> means a 36-hole day or a split field needs two dates. Kept for v1 — it catches a real duplicate-slot bug — so the calendar validates before writing and explains the collision in plain words.</p>
+          <p><code>unique (league_id, week_of)</code>. A 36-hole day or a split field needs two dates — which is also why day two of a championship is its own slot.</p>
+        </div>
+        <div class="pl-card pl-card--fails">
+          <span class="pl-tag">Condemned store</span>
+          <h4>No per-round dates</h4>
+          <p>Adding <code>date</code> to <code>TournamentRound</code> would extend <code>tournaments.rounds[]</code>, which carries a Rule-9 ratchet. It fails the backend gate on sight. A day is a slot instead.</p>
+        </div>
+        <div class="pl-card">
+          <span class="pl-tag">Measured on dev</span>
+          <h4>The window is open now</h4>
+          <p><code>league_weeks</code> <b>0</b> rows · bridged <b>0</b> · <code>league_signups</code> <b>0</b> · schedules <b>0</b> of 3. No backfill. The first real season closes it.</p>
         </div>
       </div>
     </section>
 
     <section>
-      <h2 class="pl-h2">Why this is cheap to do now</h2>
-      <p>
-        Every table the migration touches is empty on dev, and production has
-        none of the league work at all. No backfill, no compatibility burden.
-        The first real season closes this window.
-      </p>
+      <h2 class="pl-h2">What's still open</h2>
       <div class="pl-scroll">
         <table class="pl-table">
-          <thead><tr><th>Measured on dev, 2026-09-30</th><th>Rows</th></tr></thead>
+          <thead><tr><th>Question</th><th>Whose</th><th>Recommendation</th></tr></thead>
           <tbody>
-            <tr><td><code>league_weeks</code></td><td><b>0</b></td></tr>
-            <tr><td><code>league_weeks</code> bridged to an event</td><td><b>0</b></td></tr>
-            <tr><td><code>league_signups</code></td><td><b>0</b></td></tr>
-            <tr><td><code>leagues</code> with a stored schedule</td><td><b>0</b> of 3</td></tr>
+            <tr>
+              <td>Does the signups trigger exempt <code>service_role</code>?</td>
+              <td>Patrick §42</td>
+              <td>Yes — otherwise the server-side "assign a sub" breaks against a closed week</td>
+            </tr>
+            <tr>
+              <td>Ship §43 as written, or revise the two migrations first?</td>
+              <td>Patrick §43/§44</td>
+              <td><b>Ship as written.</b> Prod has no league data so moving columns later stays free, and §43 unblocks a 52-file lane unrelated to leagues</td>
+            </tr>
+            <tr>
+              <td>Is Member-Guest two independent scoring days, or one aggregated championship?</td>
+              <td>Sam</td>
+              <td>The template currently says independent — confirm or flip</td>
+            </tr>
+            <tr>
+              <td>Ties on a points table</td>
+              <td>Sam</td>
+              <td><b>Split and share</b> — both-take-2nd inflates a season quietly</td>
+            </tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <section>
-      <h2 class="pl-h2">The one call for Patrick</h2>
-      <p>
-        The <code>league_signups</code> trigger must exempt the service role, or
-        the commissioner's server-side "assign a sub" path breaks against a
-        closed week. Filed as <b>§42</b>: confirm that exemption is the right
-        shape rather than a separate bypass RPC.
-      </p>
-    </section>
-
     <footer class="pl-foot">
-      Plan of record: <code>docs/plans/LEAGUE_SLOT_CALENDAR_PLAN.md</code> ·
-      Backlog: <code>docs/PATRICK_BACKLOG.md §42</code> · Prototype dates are
-      illustrative.
+      Plans of record in <code>fairwayiq-flutter/docs/plans/</code> · Backlog
+      <code>docs/PATRICK_BACKLOG.md §42–§44</code> · Prototype dates and figures
+      are illustrative.
     </footer>
   </main>
 </BaseLayout>
 
 <style is:global>
   .planpage {
-    --pl-surface:   #FFFFFF;
-    --pl-surface-2: #ECF1ED;
-    --pl-ink:       #14211B;
-    --pl-ink-2:     #4C5A53;
-    --pl-ink-3:     #7C8A82;
-    --pl-line:      #D8E1DA;
-    --pl-line-2:    #B9C7BE;
-    --pl-green:     #1A5C38;
-    --pl-wash:      #E8F5EE;
-    --pl-amber:     #D97706;
-    --pl-amber-w:   #FDF0DC;
-    --pl-red:       #B3261E;
-    --pl-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --pl-surface:#FFF; --pl-surface-2:#ECF1ED; --pl-ink:#14211B; --pl-ink-2:#4C5A53;
+    --pl-ink-3:#7C8A82; --pl-line:#D8E1DA; --pl-line-2:#B9C7BE; --pl-green:#1A5C38;
+    --pl-wash:#E8F5EE; --pl-amber:#D97706; --pl-amber-w:#FDF0DC; --pl-red:#B3261E;
+    --pl-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    max-width:78rem; margin:0 auto; padding:0 1.5rem 5rem; color:var(--pl-ink); line-height:1.6;
+  }
+  .planpage *{box-sizing:border-box}
+  .planpage section{margin-top:3rem}
+  .planpage p{margin:0 0 1rem}
+  .planpage code{font-family:var(--pl-mono);font-size:.88em;background:var(--pl-surface-2);padding:.1em .35em;border-radius:3px}
+  .planpage b.ok{color:var(--pl-green)} .planpage b.new{color:var(--pl-amber)}
 
-    max-width: 78rem;
-    margin: 0 auto;
-    padding: 0 1.5rem 5rem;
-    color: var(--pl-ink);
-    line-height: 1.6;
-  }
+  .pl-mast{border-bottom:1px solid var(--pl-line);padding:2rem 0}
+  .pl-eyebrow{font-family:var(--pl-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--pl-ink-3);margin:0 0 .75rem}
+  .pl-h1{font-size:clamp(2rem,4.5vw,2.9rem);font-weight:700;letter-spacing:-.028em;line-height:1.06;margin:0 0 .85rem;text-wrap:balance}
+  .pl-stand{font-size:1.1rem;color:var(--pl-ink-2);max-width:42rem}
+  .pl-meta{display:flex;flex-wrap:wrap;gap:.4rem 1.4rem;margin-top:1.25rem;font-family:var(--pl-mono);font-size:.78rem;color:var(--pl-ink-3)}
+  .pl-meta b{color:var(--pl-ink-2);font-weight:500}
+  .pl-index{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:1rem;font-size:.75rem}
+  .pl-index code{font-size:.72rem}
 
-  .planpage * { box-sizing: border-box; }
-  .planpage section { margin-top: 3rem; }
-  .planpage p { margin: 0 0 1rem; }
-  .planpage code {
-    font-family: var(--pl-mono);
-    font-size: .88em;
-    background: var(--pl-surface-2);
-    padding: .1em .35em;
-    border-radius: 3px;
-  }
+  .pl-h2{font-size:1.45rem;font-weight:600;letter-spacing:-.018em;margin:0 0 .7rem;text-wrap:balance}
+  .pl-lede{font-size:1.03rem;color:var(--pl-ink-2);max-width:44rem}
+  .pl-cap{font-size:.9rem;color:var(--pl-ink-2);max-width:44rem;margin-top:1rem}
 
-  .pl-mast { border-bottom: 1px solid var(--pl-line); padding: 2rem 0; }
-  .pl-eyebrow {
-    font-family: var(--pl-mono);
-    font-size: .72rem;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    color: var(--pl-ink-3);
-    margin: 0 0 .75rem;
-  }
-  .pl-h1 {
-    font-size: clamp(2rem, 4.5vw, 2.9rem);
-    font-weight: 700;
-    letter-spacing: -.028em;
-    line-height: 1.06;
-    margin: 0 0 .85rem;
-    text-wrap: balance;
-  }
-  .pl-stand { font-size: 1.1rem; color: var(--pl-ink-2); max-width: 40rem; }
-  .pl-meta {
-    display: flex; flex-wrap: wrap; gap: .4rem 1.4rem;
-    margin-top: 1.25rem;
-    font-family: var(--pl-mono); font-size: .78rem; color: var(--pl-ink-3);
-  }
-  .pl-meta b { color: var(--pl-ink-2); font-weight: 500; }
+  .pl-tree{overflow-x:auto;margin:1.25rem 0;background:var(--pl-surface-2);border:1px solid var(--pl-line);border-radius:8px;padding:1rem 1.1rem}
+  .pl-tree pre{margin:0;font-family:var(--pl-mono);font-size:.8rem;line-height:1.65;color:var(--pl-ink-2)}
+  .pl-tree b{color:var(--pl-ink)} .pl-tree em{color:var(--pl-amber);font-style:normal}
 
-  .pl-h2 {
-    font-size: 1.45rem; font-weight: 600; letter-spacing: -.018em;
-    margin: 0 0 .7rem; text-wrap: balance;
-  }
-  .pl-lede { font-size: 1.03rem; color: var(--pl-ink-2); max-width: 42rem; }
+  .pl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1px;background:var(--pl-line);border:1px solid var(--pl-line);border-radius:8px;overflow:hidden;margin-top:1.25rem}
+  .pl-grid--2{grid-template-columns:repeat(auto-fit,minmax(19rem,1fr))}
+  .pl-card{background:var(--pl-surface);padding:1.1rem 1.2rem}
+  .pl-card h4{margin:0 0 .3rem;font-size:.95rem;font-weight:600}
+  .pl-card p{margin:0;font-size:.87rem;color:var(--pl-ink-2);line-height:1.5}
+  .pl-tag{display:block;margin-bottom:.5rem;font-family:var(--pl-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--pl-ink-3)}
+  .pl-card--fails{background:var(--pl-amber-w)} .pl-card--fails .pl-tag{color:var(--pl-amber)}
 
-  .pl-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-    gap: 1px; background: var(--pl-line);
-    border: 1px solid var(--pl-line); border-radius: 8px;
-    overflow: hidden; margin-top: 1.25rem;
-  }
-  .pl-grid--2 { grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
-  .pl-card { background: var(--pl-surface); padding: 1.1rem 1.2rem; }
-  .pl-card h4 { margin: 0 0 .3rem; font-size: .95rem; font-weight: 600; }
-  .pl-card p { margin: 0; font-size: .87rem; color: var(--pl-ink-2); line-height: 1.5; }
-  .pl-tag {
-    display: block; margin-bottom: .5rem;
-    font-family: var(--pl-mono); font-size: .68rem;
-    letter-spacing: .06em; text-transform: uppercase; color: var(--pl-ink-3);
-  }
-  .pl-card--fails { background: var(--pl-amber-w); }
-  .pl-card--fails .pl-tag { color: var(--pl-amber); }
+  .pl-tool{margin-top:1.25rem;background:var(--pl-surface);border:1px solid var(--pl-line);border-radius:10px;overflow:hidden}
+  .pl-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.85rem 1rem;border-bottom:1px solid var(--pl-line);background:var(--pl-surface-2)}
+  .pl-lbl{font-family:var(--pl-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--pl-ink-3)}
+  .pl-chip{font:inherit;font-size:.84rem;font-weight:500;padding:.35rem .75rem;border-radius:999px;border:1px solid var(--pl-line-2);background:var(--pl-surface);color:var(--pl-ink-2);cursor:pointer}
+  .pl-chip:hover{border-color:var(--pl-green);color:var(--pl-green)}
+  .pl-chip[aria-pressed="true"]{background:var(--pl-green);border-color:var(--pl-green);color:#fff}
+  .pl-chip--static{cursor:default;background:var(--pl-amber-w);border-color:var(--pl-amber);color:var(--pl-amber)}
+  .pl-chip--static:hover{border-color:var(--pl-amber);color:var(--pl-amber)}
 
-  .pl-tool {
-    margin-top: 1.25rem; background: var(--pl-surface);
-    border: 1px solid var(--pl-line); border-radius: 10px; overflow: hidden;
-  }
-  .pl-toolbar {
-    display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
-    padding: .85rem 1rem; border-bottom: 1px solid var(--pl-line);
-    background: var(--pl-surface-2);
-  }
-  .pl-lbl {
-    font-family: var(--pl-mono); font-size: .68rem; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--pl-ink-3);
-  }
-  .pl-chip {
-    font: inherit; font-size: .84rem; font-weight: 500;
-    padding: .35rem .75rem; border-radius: 999px;
-    border: 1px solid var(--pl-line-2); background: var(--pl-surface);
-    color: var(--pl-ink-2); cursor: pointer;
-  }
-  .pl-chip:hover { border-color: var(--pl-green); color: var(--pl-green); }
-  .pl-chip[aria-pressed="true"] {
-    background: var(--pl-green); border-color: var(--pl-green); color: #fff;
-  }
+  .pl-body{display:grid;grid-template-columns:minmax(0,1fr) 21rem}
+  @media(max-width:62rem){.pl-body{grid-template-columns:minmax(0,1fr)}}
+  .pl-cal{padding:1.2rem;min-width:0}
+  .pl-months{display:flex;flex-wrap:wrap;gap:1.4rem}
+  .pl-month{flex:1 1 16rem;min-width:15rem}
+  .pl-month h5{margin:0 0 .55rem;font-family:var(--pl-mono);font-size:.74rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--pl-ink-2)}
+  .pl-dow,.pl-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .pl-dow span{text-align:center;font-family:var(--pl-mono);font-size:.62rem;color:var(--pl-ink-3);padding-bottom:.25rem}
+  .pl-day{position:relative;aspect-ratio:1;border:1px solid transparent;border-radius:5px;background:var(--pl-surface-2);font-family:var(--pl-mono);font-size:.76rem;color:var(--pl-ink-3);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .pl-day.is-pad{background:transparent;cursor:default}
+  .pl-day:not(.is-pad):hover{border-color:var(--pl-green);color:var(--pl-ink)}
+  .pl-day.is-has{background:var(--pl-amber);color:#241503;font-weight:600;border-color:var(--pl-amber)}
+  .pl-day.is-bridged{background:var(--pl-green);color:#fff;border-color:var(--pl-green)}
+  .pl-day.is-sel{outline:2px solid var(--pl-ink);outline-offset:2px}
+  .pl-day .pl-n{position:absolute;top:2px;left:3px;font-size:.5rem;opacity:.8;font-weight:600}
+  .pl-day .pl-x{position:absolute;bottom:1px;right:3px;font-size:.5rem;font-weight:700}
+  .pl-day:focus-visible{outline:2px solid var(--pl-green);outline-offset:2px}
 
-  .pl-body { display: grid; grid-template-columns: minmax(0,1fr) 20rem; }
-  @media (max-width: 62rem) { .pl-body { grid-template-columns: minmax(0,1fr); } }
+  .pl-rail{border-left:1px solid var(--pl-line);padding:1.2rem;min-width:0}
+  @media(max-width:62rem){.pl-rail{border-left:0;border-top:1px solid var(--pl-line)}}
+  .pl-rail h4{margin:0 0 .2rem;font-size:.95rem;font-weight:600}
+  .pl-sub{font-family:var(--pl-mono);font-size:.73rem;color:var(--pl-ink-3);margin:0 0 1rem}
+  .pl-counter{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.6rem .7rem;margin-bottom:1rem;border:1px solid var(--pl-line);border-radius:7px;background:var(--pl-surface-2)}
+  .pl-counter__lbl{font-size:.82rem;color:var(--pl-ink-2)}
+  .pl-counter__ctl{display:flex;align-items:center;gap:.4rem}
+  .pl-counter__n{font-family:var(--pl-mono);font-weight:600;font-size:.95rem;min-width:1.5rem;text-align:center;font-variant-numeric:tabular-nums}
+  .pl-slots{list-style:none;margin:0 0 1.1rem;padding:0;display:flex;flex-direction:column;gap:2px}
+  .pl-slotrow{display:grid;grid-template-columns:2.6rem 1fr auto;align-items:center;gap:.5rem;padding:.42rem .5rem;border-radius:5px;border:1px solid transparent;cursor:pointer;background:none;font:inherit;text-align:left;color:var(--pl-ink);width:100%}
+  .pl-slotrow:hover{background:var(--pl-surface-2)}
+  .pl-slotrow[aria-current="true"]{border-color:var(--pl-ink);background:var(--pl-surface-2)}
+  .pl-slotrow .pl-i{font-family:var(--pl-mono);font-size:.66rem;color:var(--pl-ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pl-slotrow .pl-d{font-family:var(--pl-mono);font-size:.78rem;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl-state{font-family:var(--pl-mono);font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;padding:.1rem .38rem;border-radius:3px;white-space:nowrap}
+  .pl-state.is-notopen{background:var(--pl-surface-2);color:var(--pl-ink-3);border:1px solid var(--pl-line)}
+  .pl-state.is-open{background:var(--pl-wash);color:var(--pl-green)}
+  .pl-state.is-closed{background:var(--pl-amber-w);color:var(--pl-amber)}
+  .pl-state.is-played{background:var(--pl-green);color:#fff}
+  .pl-sheet{border:1px solid var(--pl-line);border-radius:8px;padding:.85rem;background:var(--pl-surface-2)}
+  .pl-kv{display:flex;justify-content:space-between;gap:1rem;font-size:.83rem;padding:.26rem 0;border-bottom:1px dashed var(--pl-line)}
+  .pl-kv:last-of-type{border-bottom:0}
+  .pl-kv span:first-child{color:var(--pl-ink-3)}
+  .pl-kv span:last-child{font-family:var(--pl-mono);font-variant-numeric:tabular-nums}
+  .pl-multrow{display:flex;align-items:center;gap:.35rem;margin-top:.6rem;flex-wrap:wrap}
+  .pl-multrow .pl-lbl{margin-right:.15rem}
+  .pl-mchip{font:inherit;font-size:.75rem;padding:.2rem .5rem;border-radius:999px;border:1px solid var(--pl-line-2);background:var(--pl-surface);color:var(--pl-ink-2);cursor:pointer}
+  .pl-mchip[aria-pressed="true"]{background:var(--pl-amber);border-color:var(--pl-amber);color:#241503;font-weight:600}
+  .pl-acts{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.75rem}
+  .pl-btn{font:inherit;font-size:.79rem;font-weight:500;padding:.35rem .65rem;border-radius:5px;border:1px solid var(--pl-line-2);background:var(--pl-surface);color:var(--pl-ink);cursor:pointer}
+  .pl-btn:hover:not(:disabled){border-color:var(--pl-green);color:var(--pl-green)}
+  .pl-btn.is-primary{background:var(--pl-green);border-color:var(--pl-green);color:#fff}
+  .pl-btn.is-danger:hover:not(:disabled){border-color:var(--pl-red);color:var(--pl-red)}
+  .pl-btn:disabled{opacity:.42;cursor:not-allowed}
+  .pl-hint{font-size:.79rem;color:var(--pl-ink-3);margin:.7rem 0 0;line-height:1.45}
+  .pl-hint.is-warn{color:var(--pl-amber)}
 
-  .pl-cal { padding: 1.2rem; min-width: 0; }
-  .pl-months { display: flex; flex-wrap: wrap; gap: 1.4rem; }
-  .pl-month { flex: 1 1 16rem; min-width: 15rem; }
-  .pl-month h5 {
-    margin: 0 0 .55rem; font-family: var(--pl-mono); font-size: .74rem;
-    font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
-    color: var(--pl-ink-2);
-  }
-  .pl-dow, .pl-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
-  .pl-dow span {
-    text-align: center; font-family: var(--pl-mono); font-size: .62rem;
-    color: var(--pl-ink-3); padding-bottom: .25rem;
-  }
-  .pl-day {
-    position: relative; aspect-ratio: 1; border: 1px solid transparent;
-    border-radius: 5px; background: var(--pl-surface-2);
-    font-family: var(--pl-mono); font-size: .76rem; color: var(--pl-ink-3);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; padding: 0;
-  }
-  .pl-day.is-pad { background: transparent; cursor: default; }
-  .pl-day:not(.is-pad):hover { border-color: var(--pl-green); color: var(--pl-ink); }
-  .pl-day.is-has {
-    background: var(--pl-amber); color: #241503; font-weight: 600;
-    border-color: var(--pl-amber);
-  }
-  .pl-day.is-bridged { background: var(--pl-green); color: #fff; border-color: var(--pl-green); }
-  .pl-day.is-sel { outline: 2px solid var(--pl-ink); outline-offset: 2px; }
-  .pl-day .pl-n {
-    position: absolute; top: 2px; left: 4px; font-size: .52rem;
-    opacity: .8; font-weight: 600;
-  }
-  .pl-day:focus-visible { outline: 2px solid var(--pl-green); outline-offset: 2px; }
+  .pl-pointsbody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:1.5rem;padding:1.2rem}
+  @media(max-width:62rem){.pl-pointsbody{grid-template-columns:minmax(0,1fr)}}
+  .pl-ptcol{min-width:0}
+  .pl-ptrows{display:flex;flex-direction:column;gap:4px}
+  .pl-ptrow{display:grid;grid-template-columns:4.5rem 1fr;align-items:center;gap:.6rem}
+  .pl-ptrow span{font-family:var(--pl-mono);font-size:.78rem;color:var(--pl-ink-3);font-variant-numeric:tabular-nums}
+  .planpage input[type="number"]{font:inherit;font-family:var(--pl-mono);font-size:.85rem;padding:.3rem .5rem;border:1px solid var(--pl-line-2);border-radius:5px;background:var(--pl-surface);color:var(--pl-ink);width:100%;font-variant-numeric:tabular-nums}
+  .planpage input[type="number"]:focus-visible{outline:2px solid var(--pl-green);outline-offset:1px}
+  .pl-field{display:flex;flex-direction:column;gap:.3rem;margin-bottom:.9rem}
+  .pl-field span{font-size:.82rem;color:var(--pl-ink-2)}
+  .pl-preview{border:1px solid var(--pl-line);border-left:3px solid var(--pl-green);background:var(--pl-wash);border-radius:0 6px 6px 0;padding:.75rem .9rem;font-size:.85rem;line-height:1.55}
+  .pl-preview b{font-family:var(--pl-mono);font-variant-numeric:tabular-nums}
 
-  .pl-rail { border-left: 1px solid var(--pl-line); padding: 1.2rem; min-width: 0; }
-  @media (max-width: 62rem) { .pl-rail { border-left: 0; border-top: 1px solid var(--pl-line); } }
-  .pl-rail h4 { margin: 0 0 .2rem; font-size: .95rem; font-weight: 600; }
-  .pl-sub { font-family: var(--pl-mono); font-size: .73rem; color: var(--pl-ink-3); margin: 0 0 1rem; }
-
-  .pl-counter {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: .75rem; padding: .6rem .7rem; margin-bottom: 1rem;
-    border: 1px solid var(--pl-line); border-radius: 7px;
-    background: var(--pl-surface-2);
-  }
-  .pl-counter__lbl { font-size: .82rem; color: var(--pl-ink-2); }
-  .pl-counter__ctl { display: flex; align-items: center; gap: .4rem; }
-  .pl-counter__n {
-    font-family: var(--pl-mono); font-weight: 600; font-size: .95rem;
-    min-width: 1.5rem; text-align: center; font-variant-numeric: tabular-nums;
-  }
-
-  .pl-slots { list-style: none; margin: 0 0 1.1rem; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-  .pl-slotrow {
-    display: grid; grid-template-columns: 1.6rem 1fr auto;
-    align-items: center; gap: .5rem; padding: .42rem .5rem;
-    border-radius: 5px; border: 1px solid transparent; cursor: pointer;
-    background: none; font: inherit; text-align: left; color: var(--pl-ink); width: 100%;
-  }
-  .pl-slotrow:hover { background: var(--pl-surface-2); }
-  .pl-slotrow[aria-current="true"] { border-color: var(--pl-ink); background: var(--pl-surface-2); }
-  .pl-slotrow .pl-i { font-family: var(--pl-mono); font-size: .68rem; color: var(--pl-ink-3); font-variant-numeric: tabular-nums; }
-  .pl-slotrow .pl-d { font-family: var(--pl-mono); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  .pl-state {
-    font-family: var(--pl-mono); font-size: .6rem; letter-spacing: .06em;
-    text-transform: uppercase; padding: .1rem .38rem; border-radius: 3px; white-space: nowrap;
-  }
-  .pl-state.is-notopen { background: var(--pl-surface-2); color: var(--pl-ink-3); border: 1px solid var(--pl-line); }
-  .pl-state.is-open    { background: var(--pl-wash); color: var(--pl-green); }
-  .pl-state.is-closed  { background: var(--pl-amber-w); color: var(--pl-amber); }
-  .pl-state.is-played  { background: var(--pl-green); color: #fff; }
-
-  .pl-sheet { border: 1px solid var(--pl-line); border-radius: 8px; padding: .85rem; background: var(--pl-surface-2); }
-  .pl-kv {
-    display: flex; justify-content: space-between; gap: 1rem;
-    font-size: .83rem; padding: .26rem 0; border-bottom: 1px dashed var(--pl-line);
-  }
-  .pl-kv:last-of-type { border-bottom: 0; }
-  .pl-kv span:first-child { color: var(--pl-ink-3); }
-  .pl-kv span:last-child { font-family: var(--pl-mono); font-variant-numeric: tabular-nums; }
-  .pl-acts { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .75rem; }
-
-  .pl-btn {
-    font: inherit; font-size: .79rem; font-weight: 500;
-    padding: .35rem .65rem; border-radius: 5px;
-    border: 1px solid var(--pl-line-2); background: var(--pl-surface);
-    color: var(--pl-ink); cursor: pointer;
-  }
-  .pl-btn:hover:not(:disabled) { border-color: var(--pl-green); color: var(--pl-green); }
-  .pl-btn.is-primary { background: var(--pl-green); border-color: var(--pl-green); color: #fff; }
-  .pl-btn.is-danger:hover:not(:disabled) { border-color: var(--pl-red); color: var(--pl-red); }
-  .pl-btn:disabled { opacity: .42; cursor: not-allowed; }
-
-  .pl-hint { font-size: .79rem; color: var(--pl-ink-3); margin: .7rem 0 0; line-height: 1.45; }
-  .pl-hint.is-warn { color: var(--pl-amber); }
-
-  .pl-scroll { overflow-x: auto; margin: 1rem 0; }
-  .pl-table { border-collapse: collapse; width: 100%; font-size: .89rem; }
-  .pl-table th, .pl-table td {
-    text-align: left; padding: .58rem .78rem;
-    border-bottom: 1px solid var(--pl-line); vertical-align: top;
-  }
-  .pl-table th {
-    font-family: var(--pl-mono); font-size: .66rem; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--pl-ink-3); font-weight: 500; white-space: nowrap;
-  }
-
-  .pl-note {
-    border-left: 3px solid var(--pl-green); background: var(--pl-wash);
-    padding: .85rem 1.05rem; border-radius: 0 6px 6px 0; margin: 1.25rem 0;
-  }
-  .pl-note p { margin: 0; font-size: .91rem; }
-
-  .pl-foot {
-    margin-top: 3.5rem; padding-top: 1.25rem; border-top: 1px solid var(--pl-line);
-    font-family: var(--pl-mono); font-size: .74rem; color: var(--pl-ink-3);
-  }
-
-  @media (prefers-reduced-motion: reduce) { .planpage * { transition: none !important; } }
+  .pl-scroll{overflow-x:auto;margin:1rem 0}
+  .pl-table{border-collapse:collapse;width:100%;font-size:.89rem}
+  .pl-table th,.pl-table td{text-align:left;padding:.58rem .78rem;border-bottom:1px solid var(--pl-line);vertical-align:top}
+  .pl-table th{font-family:var(--pl-mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--pl-ink-3);font-weight:500;white-space:nowrap}
+  .pl-note{border-left:3px solid var(--pl-green);background:var(--pl-wash);padding:.85rem 1.05rem;border-radius:0 6px 6px 0;margin:1.25rem 0}
+  .pl-note p{margin:0;font-size:.91rem}
+  .pl-foot{margin-top:3.5rem;padding-top:1.25rem;border-top:1px solid var(--pl-line);font-family:var(--pl-mono);font-size:.74rem;color:var(--pl-ink-3)}
+  @media(prefers-reduced-motion:reduce){.planpage *{transition:none!important}}
 </style>
 
 <script is:inline>
 (function () {
   "use strict";
-  var DOW = ["S","M","T","W","T","F","S"];
-  var MON = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-
+  var DOW=["S","M","T","W","T","F","S"];
+  var MON=["January","February","March","April","May","June","July","August","September","October","November","December"];
   function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
   function parse(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2]);}
   function pretty(s){var d=parse(s);return MON[d.getMonth()].slice(0,3)+" "+d.getDate()+", "+d.getFullYear();}
   function addDays(s,n){var d=parse(s);return iso(new Date(d.getFullYear(),d.getMonth(),d.getDate()+n));}
-  function series(start,n,step){var out=[],d=start;for(var i=0;i<n;i++){out.push(d);d=addDays(d,step);}return out;}
+  function series(st,n,step){var o=[],d=st;for(var i=0;i<n;i++){o.push(d);d=addDays(d,step);}return o;}
 
-  var TEMPLATES = {
-    standard: { name:"Standard League", note:"6 events · dates the director picks",
-      dates:["2026-04-18","2026-05-23","2026-06-13","2026-07-11","2026-08-22","2026-09-19"],
-      played:2, interval:30, holes:18 },
-    weekly:   { name:"Weekly League", note:"16 events · every 7 days",
-      dates:series("2026-05-05",16,7), played:3, interval:7, holes:9 },
-    mm:       { name:"Member-Member", note:"16 events · every 7 days · two-player teams",
-      dates:series("2026-05-07",16,7), played:1, interval:7, holes:9 },
-    mg:       { name:"Member-Guest", note:"2 events · consecutive days",
-      dates:["2026-08-14","2026-08-15"], played:0, interval:1, holes:18 }
+  // ── calendar ──────────────────────────────────────────────
+  var TEMPLATES={
+    standard:{name:"Standard League",note:"6 events · dates the director picks",
+      dates:["2026-04-18","2026-05-23","2026-06-13","2026-07-11","2026-08-22","2026-09-19"],played:2,interval:30},
+    weekly:{name:"Weekly League",note:"16 events · every 7 days",
+      dates:series("2026-05-05",16,7),played:3,interval:7},
+    match:{name:"Match Play League",note:"16 events · every 7 days · two-player teams",
+      dates:series("2026-05-07",16,7),played:1,interval:7}
   };
+  var slots=[],selected=null,tpl="standard",gid=0;
 
-  var slots=[], selected=null, tpl="standard", pendingNew=false;
-
-  function seed(key){
-    var t=TEMPLATES[key];
+  function seed(k){
+    var t=TEMPLATES[k];
     slots=t.dates.map(function(d,i){
-      return { date:d, bridged:i<t.played,
-        signups: i<t.played ? "closed" : (i===t.played ? "open" : "notopen"),
-        holes:t.holes };
+      return {date:d,bridged:i<t.played,signups:i<t.played?"closed":(i===t.played?"open":"notopen"),mult:1,group:null};
     });
-    selected=null; pendingNew=false;
+    selected=null;gid=0;
   }
   function sorted(){return slots.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});}
-  function numberOf(s){return sorted().indexOf(s)+1;}
-  function byDate(d){for(var i=0;i<slots.length;i++) if(slots[i].date===d) return slots[i]; return null;}
-  function stateOf(s){
-    if(s.bridged) return {cls:"is-played",txt:"Played"};
-    if(s.signups==="open") return {cls:"is-open",txt:"Signups open"};
-    if(s.signups==="closed") return {cls:"is-closed",txt:"Signups closed"};
-    return {cls:"is-notopen",txt:"Not open"};
-  }
+  function byDate(d){for(var i=0;i<slots.length;i++)if(slots[i].date===d)return slots[i];return null;}
 
+  // Event numbering: a group counts once; days within it number 1..n.
+  function labels(){
+    var m=new Map(),ev=0,seen={};
+    sorted().forEach(function(s){
+      var key=s.group==null?("s"+slots.indexOf(s)):("g"+s.group);
+      if(!(key in seen)){ev+=1;seen[key]={ev:ev,day:0};}
+      seen[key].day+=1;
+      m.set(s,{ev:seen[key].ev,day:seen[key].day,multi:false});
+    });
+    // mark multi-day
+    var counts={};
+    sorted().forEach(function(s){var l=m.get(s);counts[l.ev]=(counts[l.ev]||0)+1;});
+    sorted().forEach(function(s){var l=m.get(s);l.multi=counts[l.ev]>1;});
+    return m;
+  }
+  function stateOf(s){
+    if(s.bridged)return{cls:"is-played",txt:"Played"};
+    if(s.signups==="open")return{cls:"is-open",txt:"Signups open"};
+    if(s.signups==="closed")return{cls:"is-closed",txt:"Signups closed"};
+    return{cls:"is-notopen",txt:"Not open"};
+  }
   var hintEl=document.getElementById("plHint");
-  function setHint(m,warn){ hintEl.textContent=m; hintEl.className=warn?"pl-hint is-warn":"pl-hint"; }
+  function setHint(m,w){hintEl.textContent=m;hintEl.className=w?"pl-hint is-warn":"pl-hint";}
 
   function renderMonths(){
-    var host=document.getElementById("plMonths");
-    host.innerHTML="";
-    var all=sorted(); if(!all.length) return;
-    var first=parse(all[0].date), last=parse(all[all.length-1].date);
-    var cur=new Date(first.getFullYear(),first.getMonth(),1);
-    var end=new Date(last.getFullYear(),last.getMonth(),1);
-    while(cur<=end){ host.appendChild(monthEl(cur.getFullYear(),cur.getMonth())); cur=new Date(cur.getFullYear(),cur.getMonth()+1,1); }
+    var host=document.getElementById("plMonths");host.innerHTML="";
+    var all=sorted();if(!all.length)return;
+    var f=parse(all[0].date),l=parse(all[all.length-1].date);
+    var cur=new Date(f.getFullYear(),f.getMonth(),1),end=new Date(l.getFullYear(),l.getMonth(),1);
+    var L=labels();
+    while(cur<=end){host.appendChild(monthEl(cur.getFullYear(),cur.getMonth(),L));cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);}
   }
-
-  function monthEl(year,month){
-    var wrap=document.createElement("div"); wrap.className="pl-month";
-    var h=document.createElement("h5"); h.textContent=MON[month]+" "+year; wrap.appendChild(h);
-    var dow=document.createElement("div"); dow.className="pl-dow";
-    DOW.forEach(function(d){var s=document.createElement("span");s.textContent=d;s.setAttribute("aria-hidden","true");dow.appendChild(s);});
-    wrap.appendChild(dow);
-    var grid=document.createElement("div"); grid.className="pl-days";
-    var firstDay=new Date(year,month,1).getDay();
-    var days=new Date(year,month+1,0).getDate();
-    for(var p=0;p<firstDay;p++){var pad=document.createElement("div");pad.className="pl-day is-pad";grid.appendChild(pad);}
-    for(var d=1;d<=days;d++){
-      var key=year+"-"+String(month+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
-      grid.appendChild(dayEl(key,d));
+  function monthEl(y,mo,L){
+    var w=document.createElement("div");w.className="pl-month";
+    var h=document.createElement("h5");h.textContent=MON[mo]+" "+y;w.appendChild(h);
+    var dw=document.createElement("div");dw.className="pl-dow";
+    DOW.forEach(function(d){var s=document.createElement("span");s.textContent=d;s.setAttribute("aria-hidden","true");dw.appendChild(s);});
+    w.appendChild(dw);
+    var g=document.createElement("div");g.className="pl-days";
+    var fd=new Date(y,mo,1).getDay(),nd=new Date(y,mo+1,0).getDate();
+    for(var p=0;p<fd;p++){var pad=document.createElement("div");pad.className="pl-day is-pad";g.appendChild(pad);}
+    for(var d=1;d<=nd;d++){
+      var key=y+"-"+String(mo+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+      g.appendChild(dayEl(key,d,L));
     }
-    wrap.appendChild(grid); return wrap;
+    w.appendChild(g);return w;
   }
-
-  function dayEl(key,dayNum){
-    var slot=byDate(key);
-    var b=document.createElement("button");
-    b.type="button";
-    b.className="pl-day"+(slot?" is-has":"")+(slot&&slot.bridged?" is-bridged":"")+(slot&&slot===selected?" is-sel":"");
-    b.textContent=dayNum;
-    if(slot){
-      var n=document.createElement("span"); n.className="pl-n"; n.textContent=numberOf(slot); b.appendChild(n);
-      b.setAttribute("aria-label","Event "+numberOf(slot)+", "+pretty(key)+(slot.bridged?", played and locked":""));
-    } else {
-      b.setAttribute("aria-label","Place an event on "+pretty(key));
-    }
+  function dayEl(key,n,L){
+    var s=byDate(key);
+    var b=document.createElement("button");b.type="button";
+    b.className="pl-day"+(s?" is-has":"")+(s&&s.bridged?" is-bridged":"")+(s&&s===selected?" is-sel":"");
+    b.textContent=n;
+    if(s){
+      var l=L.get(s);
+      var tag=document.createElement("span");tag.className="pl-n";
+      tag.textContent=l.multi?(l.ev+"·D"+l.day):String(l.ev);
+      b.appendChild(tag);
+      if(s.mult!==1){var x=document.createElement("span");x.className="pl-x";x.textContent="×"+s.mult;b.appendChild(x);}
+      b.setAttribute("aria-label","Event "+l.ev+(l.multi?", day "+l.day:"")+", "+pretty(key)+(s.bridged?", played and locked":""));
+    } else b.setAttribute("aria-label","Place an event on "+pretty(key));
     b.addEventListener("click",function(){onDay(key);});
     return b;
   }
-
   function onDay(key){
-    var existing=byDate(key);
-    if(existing){
-      if(pendingNew && selected && selected!==existing){
-        setHint("That date already has an event. Every event needs its own date.",true);
-        return;
-      }
-      selected=(selected===existing)?null:existing;
-      pendingNew=false;
-      setHint(selected?("Event "+numberOf(selected)+" selected. Tap an empty day to move it."):"Green events are played and locked — their dates cannot move.",false);
-      render(); return;
-    }
+    var ex=byDate(key);
+    if(ex){selected=(selected===ex)?null:ex;
+      setHint(selected?"Event selected. Tap an empty day to move it, or add a second day from the panel.":"Green events are played and locked — their dates cannot move.",false);
+      render();return;}
     if(selected){
-      if(selected.bridged){ setHint("Event "+numberOf(selected)+" has been played, so its date is locked.",true); return; }
-      selected.date=key;
-      setHint((pendingNew?"Placed":"Moved")+" on "+pretty(key)+".",false);
-      selected=null; pendingNew=false; render(); return;
+      if(selected.bridged){setHint("That event has been played, so its date is locked.",true);return;}
+      selected.date=key;setHint("Moved to "+pretty(key)+".",false);selected=null;render();return;
     }
-    slots.push({date:key,bridged:false,signups:"notopen",holes:TEMPLATES[tpl].holes});
-    setHint("Added an event on "+pretty(key)+". Signups start closed.",false);
-    render();
+    slots.push({date:key,bridged:false,signups:"notopen",mult:1,group:null});
+    setHint("Added an event on "+pretty(key)+". Signups start closed.",false);render();
   }
 
   function renderRail(){
-    var list=document.getElementById("plSlots"); list.innerHTML="";
-    var all=sorted();
-    all.forEach(function(s,i){
+    var list=document.getElementById("plSlots");list.innerHTML="";
+    var all=sorted(),L=labels();
+    all.forEach(function(s){
+      var l=L.get(s);
       var li=document.createElement("li");
-      var b=document.createElement("button"); b.type="button"; b.className="pl-slotrow";
-      b.setAttribute("aria-current", s===selected?"true":"false");
-      var n=document.createElement("span"); n.className="pl-i"; n.textContent=String(i+1).padStart(2,"0");
-      var d=document.createElement("span"); d.className="pl-d"; d.textContent=pretty(s.date);
+      var b=document.createElement("button");b.type="button";b.className="pl-slotrow";
+      b.setAttribute("aria-current",s===selected?"true":"false");
+      var i=document.createElement("span");i.className="pl-i";
+      i.textContent=l.multi?(String(l.ev).padStart(2,"0")+"·D"+l.day):String(l.ev).padStart(2,"0");
+      var d=document.createElement("span");d.className="pl-d";
+      d.textContent=pretty(s.date)+(s.mult!==1?("  ×"+s.mult):"");
       var st=stateOf(s);
-      var tag=document.createElement("span"); tag.className="pl-state "+st.cls; tag.textContent=st.txt;
-      b.appendChild(n); b.appendChild(d); b.appendChild(tag);
-      b.addEventListener("click",function(){
-        selected=(selected===s)?null:s; pendingNew=false;
-        setHint(selected?("Event "+numberOf(selected)+" selected. Tap an empty day to move it."):"Green events are played and locked — their dates cannot move.",false);
-        render();
-      });
-      li.appendChild(b); list.appendChild(li);
+      var t=document.createElement("span");t.className="pl-state "+st.cls;t.textContent=st.txt;
+      b.appendChild(i);b.appendChild(d);b.appendChild(t);
+      b.addEventListener("click",function(){selected=(selected===s)?null:s;render();});
+      li.appendChild(b);list.appendChild(li);
     });
-
-    document.getElementById("plCount").textContent = all.length;
+    // distinct events, not slots
+    var evs={};all.forEach(function(s){evs[L.get(s).ev]=1;});
+    document.getElementById("plCount").textContent=Object.keys(evs).length;
     var meta=document.getElementById("plSeasonMeta");
-    meta.textContent = all.length
-      ? all.length+" events · "+pretty(all[0].date)+" – "+pretty(all[all.length-1].date)
-      : "No events yet — tap a day to place one.";
-
-    var last = all.length ? all[all.length-1] : null;
-    document.getElementById("plMinus").disabled = !last || last.bridged;
-    renderSheet();
+    meta.textContent=all.length?(Object.keys(evs).length+" events · "+all.length+" days · "+pretty(all[0].date)+" – "+pretty(all[all.length-1].date)):"No events yet — tap a day to place one.";
+    var last=all.length?all[all.length-1]:null;
+    document.getElementById("plMinus").disabled=!last||last.bridged;
+    renderSheet(L);
   }
 
-  function renderSheet(){
-    var sheet=document.getElementById("plSheet"); sheet.innerHTML="";
+  function renderSheet(L){
+    var sh=document.getElementById("plSheet");sh.innerHTML="";
     if(!selected){
-      var p=document.createElement("p"); p.className="pl-hint"; p.style.margin="0";
-      p.textContent="Select an event to set its date and signup window.";
-      sheet.appendChild(p); return;
+      var p=document.createElement("p");p.className="pl-hint";p.style.margin="0";
+      p.textContent="Select an event to set its points weight, open its signups, or add a second day.";
+      sh.appendChild(p);return;
     }
-    var s=selected;
-    [["Event","#"+numberOf(s)],["Date",pretty(s.date)],["Holes",String(s.holes)],["Signups",stateOf(s).txt]]
-      .forEach(function(r){
-        var kv=document.createElement("div"); kv.className="pl-kv";
-        var a=document.createElement("span"); a.textContent=r[0];
-        var b=document.createElement("span"); b.textContent=r[1];
-        kv.appendChild(a); kv.appendChild(b); sheet.appendChild(kv);
-      });
-
-    var acts=document.createElement("div"); acts.className="pl-acts";
-    var open=document.createElement("button"); open.type="button"; open.className="pl-btn is-primary";
-    open.textContent="Open signups"; open.disabled=s.bridged||s.signups==="open";
-    open.addEventListener("click",function(){s.signups="open";setHint("Signups opened for event "+numberOf(s)+".",false);render();});
-
-    var close=document.createElement("button"); close.type="button"; close.className="pl-btn";
-    close.textContent="Close signups"; close.disabled=s.bridged||s.signups!=="open";
-    close.addEventListener("click",function(){s.signups="closed";setHint("Signups closed for event "+numberOf(s)+".",false);render();});
-
-    var del=document.createElement("button"); del.type="button"; del.className="pl-btn is-danger";
-    del.textContent="Remove"; del.disabled=s.bridged;
-    del.addEventListener("click",function(){
-      var n=numberOf(s); slots.splice(slots.indexOf(s),1); selected=null; pendingNew=false;
-      setHint("Removed event "+n+".",false); render();
+    var s=selected,l=L.get(s);
+    [["Event","#"+l.ev+(l.multi?" · Day "+l.day:"")],["Date",pretty(s.date)],
+     ["Points weight","×"+s.mult],["Signups",stateOf(s).txt]].forEach(function(r){
+      var kv=document.createElement("div");kv.className="pl-kv";
+      var a=document.createElement("span");a.textContent=r[0];
+      var b=document.createElement("span");b.textContent=r[1];
+      kv.appendChild(a);kv.appendChild(b);sh.appendChild(kv);
     });
 
-    acts.appendChild(open); acts.appendChild(close); acts.appendChild(del);
-    sheet.appendChild(acts);
+    var mr=document.createElement("div");mr.className="pl-multrow";
+    var ml=document.createElement("span");ml.className="pl-lbl";ml.textContent="Weight";mr.appendChild(ml);
+    [1,2,5].forEach(function(v){
+      var c=document.createElement("button");c.type="button";c.className="pl-mchip";
+      c.setAttribute("aria-pressed",String(s.mult===v));c.textContent="×"+v;
+      c.addEventListener("click",function(){s.mult=v;setHint(v===1?"Standard weighting.":("Weighted ×"+v+" — a major."),false);render();});
+      mr.appendChild(c);
+    });
+    sh.appendChild(mr);
+
+    var acts=document.createElement("div");acts.className="pl-acts";
+    var addDay=document.createElement("button");addDay.type="button";addDay.className="pl-btn is-primary";
+    addDay.textContent="Add a day to this event";addDay.disabled=false;
+    addDay.addEventListener("click",function(){
+      if(s.group==null){gid+=1;s.group=gid;}
+      var d=addDays(s.date,1);while(byDate(d))d=addDays(d,1);
+      var sib={date:d,bridged:false,signups:s.signups,mult:s.mult,group:s.group};
+      slots.push(sib);selected=sib;
+      setHint("Day added on "+pretty(d)+". Tap another day to move it — day two can be a different course.",false);
+      render();
+    });
+    var op=document.createElement("button");op.type="button";op.className="pl-btn";
+    op.textContent="Open signups";op.disabled=s.bridged||s.signups==="open";
+    op.addEventListener("click",function(){s.signups="open";render();});
+    var cl=document.createElement("button");cl.type="button";cl.className="pl-btn";
+    cl.textContent="Close";cl.disabled=s.bridged||s.signups!=="open";
+    cl.addEventListener("click",function(){s.signups="closed";render();});
+    var del=document.createElement("button");del.type="button";del.className="pl-btn is-danger";
+    del.textContent="Remove";del.disabled=s.bridged;
+    del.addEventListener("click",function(){slots.splice(slots.indexOf(s),1);selected=null;render();});
+    acts.appendChild(addDay);acts.appendChild(op);acts.appendChild(cl);acts.appendChild(del);
+    sh.appendChild(acts);
 
     if(s.bridged){
-      var w=document.createElement("p"); w.className="pl-hint is-warn";
-      w.textContent="This event has been played and bridged to a spine event. Its date, course, tee and holes are immutable, and it cannot be deleted.";
-      sheet.appendChild(w);
+      var w=document.createElement("p");w.className="pl-hint is-warn";
+      w.textContent="Played and bridged to a spine event: date, course, tee and holes are immutable, and it cannot be deleted.";
+      sh.appendChild(w);
     }
   }
-
-  function render(){ renderMonths(); renderRail(); }
+  function render(){renderMonths();renderRail();}
 
   document.getElementById("plPlus").addEventListener("click",function(){
     var all=sorted();
-    var next = all.length
-      ? addDays(all[all.length-1].date, TEMPLATES[tpl].interval)
-      : "2026-05-05";
-    while(byDate(next)) next = addDays(next,1);
-    var s={date:next,bridged:false,signups:"notopen",holes:TEMPLATES[tpl].holes};
-    slots.push(s); selected=s; pendingNew=true;
-    setHint("Event "+numberOf(s)+" added at "+pretty(next)+" — the default. Tap the day you actually want it.",false);
+    var next=all.length?addDays(all[all.length-1].date,TEMPLATES[tpl].interval):"2026-05-05";
+    while(byDate(next))next=addDays(next,1);
+    var s={date:next,bridged:false,signups:"notopen",mult:1,group:null};
+    slots.push(s);selected=s;
+    setHint("Event added at "+pretty(next)+" — the default. Tap the day you actually want it.",false);
     render();
   });
-
   document.getElementById("plMinus").addEventListener("click",function(){
-    var all=sorted(); if(!all.length) return;
+    var all=sorted();if(!all.length)return;
     var last=all[all.length-1];
-    if(last.bridged){ setHint("The last event has been played, so it cannot be removed.",true); return; }
-    slots.splice(slots.indexOf(last),1);
-    if(selected===last){selected=null;pendingNew=false;}
-    setHint("Removed the last event.",false);
-    render();
+    if(last.bridged){setHint("The last event has been played, so it cannot be removed.",true);return;}
+    slots.splice(slots.indexOf(last),1);if(selected===last)selected=null;
+    setHint("Removed the last event.",false);render();
   });
-
-  Array.prototype.forEach.call(document.querySelectorAll(".pl-chip[data-tpl]"),function(btn){
-    btn.addEventListener("click",function(){
-      tpl=btn.dataset.tpl;
-      Array.prototype.forEach.call(document.querySelectorAll(".pl-chip[data-tpl]"),function(o){
-        o.setAttribute("aria-pressed",String(o===btn));
-      });
+  Array.prototype.forEach.call(document.querySelectorAll(".pl-chip[data-tpl]"),function(b){
+    b.addEventListener("click",function(){
+      tpl=b.dataset.tpl;
+      Array.prototype.forEach.call(document.querySelectorAll(".pl-chip[data-tpl]"),function(o){o.setAttribute("aria-pressed",String(o===b));});
       seed(tpl);
       document.getElementById("plSeasonName").textContent=TEMPLATES[tpl].name;
-      setHint(TEMPLATES[tpl].note+". Tap a day to place an event; tap an event, then a day, to move it.",false);
+      setHint(TEMPLATES[tpl].note+". Tap a day to place an event; select one to add a second day.",false);
       render();
     });
   });
+  seed(tpl);render();
 
-  seed(tpl);
-  render();
+  // ── points editor ─────────────────────────────────────────
+  var PRESETS={
+    steep:[100,80,65,55,50,45,40,36],
+    flat:[10,9,8,7,6,5,4,3]
+  };
+  var places=8,pts=null,preset="field";
+
+  function fieldScale(n,roster){var o=[];for(var i=0;i<n;i++)o.push(Math.max(roster-i,1));return o;}
+  function currentRoster(){return Math.max(1,parseInt(document.getElementById("plRoster").value,10)||1);}
+  function ensure(){
+    if(preset==="field")pts=fieldScale(places,currentRoster());
+    else if(PRESETS[preset])pts=PRESETS[preset].slice(0,places);
+    while(pts.length<places)pts.push(Math.max((pts[pts.length-1]||2)-1,1));
+    pts=pts.slice(0,places);
+  }
+  function markCustom(){preset="custom";
+    Array.prototype.forEach.call(document.querySelectorAll(".pl-chip[data-pre]"),function(o){o.setAttribute("aria-pressed","false");});
+    document.getElementById("plCustomTag").hidden=false;
+  }
+  function renderPts(){
+    var host=document.getElementById("plPtRows");host.innerHTML="";
+    pts.forEach(function(v,i){
+      var row=document.createElement("div");row.className="pl-ptrow";
+      var lab=document.createElement("span");
+      lab.textContent=(i+1)+(["st","nd","rd"][i]||"th");
+      var inp=document.createElement("input");inp.type="number";inp.min="0";inp.step="1";
+      inp.value=String(v);inp.setAttribute("inputmode","numeric");
+      inp.setAttribute("aria-label","Points for place "+(i+1));
+      inp.addEventListener("input",function(){
+        pts[i]=Math.max(0,parseInt(inp.value,10)||0);markCustom();renderPreview();
+      });
+      row.appendChild(lab);row.appendChild(inp);host.appendChild(row);
+    });
+    renderPreview();
+  }
+  function renderPreview(){
+    var roster=currentRoster();
+    var part=Math.max(0,parseInt(document.getElementById("plPart").value,10)||0);
+    var shown=Math.min(places,roster);
+    var bits=[];
+    for(var i=0;i<Math.min(shown,3);i++)bits.push((i+1)+(["st","nd","rd"][i]||"th")+" <b>"+pts[i]+"</b>");
+    if(shown>4)bits.push("…");
+    if(shown>3)bits.push(shown+(["st","nd","rd"][shown-1]||"th")+" <b>"+pts[shown-1]+"</b>");
+    var tail = roster>places
+      ? " · "+(places+1)+"th–"+roster+"th <b>participation only ("+part+")</b>"
+      : "";
+    document.getElementById("plPreview").innerHTML =
+      "With your <b>"+roster+"</b> members — "+bits.join(" · ")+tail+
+      "<br><span style='color:var(--pl-ink-3)'>Everyone who completes also earns <b>"+part+"</b> participation.</span>";
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".pl-chip[data-pre]"),function(b){
+    b.addEventListener("click",function(){
+      preset=b.dataset.pre;
+      Array.prototype.forEach.call(document.querySelectorAll(".pl-chip[data-pre]"),function(o){o.setAttribute("aria-pressed",String(o===b));});
+      document.getElementById("plCustomTag").hidden=true;
+      ensure();renderPts();
+    });
+  });
+  document.getElementById("plPtMore").addEventListener("click",function(){
+    if(places>=20)return;places+=1;ensure();renderPts();
+  });
+  document.getElementById("plPtLess").addEventListener("click",function(){
+    if(places<=1)return;places-=1;pts=pts.slice(0,places);renderPts();
+  });
+  document.getElementById("plPart").addEventListener("input",renderPreview);
+  document.getElementById("plRoster").addEventListener("input",function(){
+    if(preset==="field"){ensure();renderPts();}else renderPreview();
+  });
+  ensure();renderPts();
 })();
 </script>
