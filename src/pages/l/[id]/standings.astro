@@ -5,14 +5,19 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import LeagueNav from '../../../components/LeagueNav.astro';
 import { createSupabaseClient } from '../../../lib/supabase';
-import { getPublicLeague, isMatchPlay, teamName, fmtPts, computedAgo, type PublicLeague, type TeamRow } from '../../../lib/leaguePublic';
+import { readLeague, getPublicLeague, isMatchPlay, teamName, fmtPts, computedAgo, type PublicLeague, type TeamRow } from '../../../lib/leaguePublic';
 
 const { id } = Astro.params;
 if (!id) return Astro.redirect('/leagues', 302);
 let league: PublicLeague | null = null;
 try {
   const supabase = createSupabaseClient({ request: Astro.request, cookies: Astro.cookies, locals: Astro.locals as App.Locals });
-  league = await getPublicLeague(supabase, id);
+  const read = await readLeague(supabase, id);
+  if (read.kind === 'ok') league = read.league;
+  else if (read.kind === 'gated' && !(Astro.locals as App.Locals).user) {
+    // Members-only and signed out — offer the sign-in, don't dead-end.
+    return Astro.redirect(`/login?next=${encodeURIComponent(`/l/${id}/standings`)}`, 302);
+  }
 } catch (err) {
   console.error('[league standings] lookup failed', err);
 }

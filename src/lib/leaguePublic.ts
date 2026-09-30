@@ -51,11 +51,37 @@ export type StandingsSnapshot = {
   unrated_course: boolean;
 };
 
-export async function getPublicLeague(supabase: SupabaseClient, id: string): Promise<PublicLeague | null> {
+/**
+ * What `get_public_league` can answer with (20261020, amended 2026-09-30).
+ *
+ *   'ok'      — the payload; the league is public, or members-only and
+ *               the caller is an active member.
+ *   'gated'   — members-only and the caller is not one. The function
+ *               returns a `{gated:'members'}` STUB rather than null,
+ *               precisely so this case can be told apart from private:
+ *               a real member on a laptop must be offered a sign-in,
+ *               not told the page does not exist.
+ *   'private' — page_visibility is 'private', or the league is missing.
+ *               Deliberately the same answer for both: a private league
+ *               should not be confirmed to exist.
+ */
+export type LeagueRead =
+  | { kind: 'ok'; league: PublicLeague }
+  | { kind: 'gated' }
+  | { kind: 'private' };
+
+export async function readLeague(supabase: SupabaseClient, id: string): Promise<LeagueRead> {
   const { data, error } = await supabase.rpc('get_public_league', { p_league_id: id });
   if (error) throw error;
-  if (!data || typeof data !== 'object') return null;
-  return data as PublicLeague;
+  if (!data || typeof data !== 'object') return { kind: 'private' };
+  if ((data as { gated?: string }).gated === 'members') return { kind: 'gated' };
+  return { kind: 'ok', league: data as PublicLeague };
+}
+
+/** Back-compat shim for callers that only care about the payload. */
+export async function getPublicLeague(supabase: SupabaseClient, id: string): Promise<PublicLeague | null> {
+  const r = await readLeague(supabase, id);
+  return r.kind === 'ok' ? r.league : null;
 }
 
 export function isMatchPlay(l: PublicLeague): boolean {
