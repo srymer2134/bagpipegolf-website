@@ -1,0 +1,101 @@
+---
+// Public league page — the full standings: team table (season, and the
+// halves when the season is split), then the individual table. From the
+// projection the app publishes; nothing is computed here.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import LeagueNav from '../../../components/LeagueNav.astro';
+import { createSupabaseClient } from '../../../lib/supabase';
+import { getPublicLeague, isMatchPlay, teamName, fmtPts, computedAgo, type PublicLeague, type TeamRow } from '../../../lib/leaguePublic';
+
+const { id } = Astro.params;
+if (!id) return Astro.redirect('/leagues', 302);
+let league: PublicLeague | null = null;
+try {
+  const supabase = createSupabaseClient({ request: Astro.request, cookies: Astro.cookies, locals: Astro.locals as App.Locals });
+  league = await getPublicLeague(supabase, id);
+} catch (err) {
+  console.error('[league standings] lookup failed', err);
+}
+if (!league) return Astro.redirect(`/l/${id}`, 302);
+
+const snap = league.standings?.standings ?? null;
+const season = snap?.season ?? null;
+const tables: Array<{ title: string; rows: TeamRow[] }> = season
+  ? [
+      { title: league.league.standings_name?.trim() || 'Season', rows: season.rows },
+      ...(season.first_half.length ? [{ title: '1st half', rows: season.first_half }] : []),
+      ...(season.second_half.length ? [{ title: '2nd half', rows: season.second_half }] : []),
+    ]
+  : [];
+const players = [...(snap?.players ?? [])].sort((a, b) => b.total - a.total || a.display_name.localeCompare(b.display_name));
+---
+<BaseLayout title={`Standings · ${league.league.name} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">League</p>
+    <h1 class="pagewrap__title">{league.league.name}</h1>
+    <p class="pagewrap__sub">Standings{league.standings ? ` · as of ${computedAgo(league.standings.computed_at)}` : ''}</p>
+    <LeagueNav id={league.league.id} active="standings" />
+
+    {!isMatchPlay(league) ? (
+      <section class="card"><p class="muted">This league scores by position points; season standings live in the app.</p></section>
+    ) : !season ? (
+      <section class="card"><p class="muted">Standings appear once a member opens the league in the app after the first week is scored.</p></section>
+    ) : (
+      <>
+        {tables.map((t) => (
+          <section class="card" style="margin-bottom:16px">
+            <h3>{t.title}</h3>
+            <div class="scroll">
+              <table class="tbl">
+                <thead><tr><th>#</th><th>Team</th><th class="num">Pts</th><th class="num">Of</th><th class="num">W</th><th class="num">L</th><th class="num">T</th><th class="num">Holes ±</th><th class="num">Behind</th><th class="num">This wk</th><th class="num">Byes</th></tr></thead>
+                <tbody>
+                  {t.rows.map((r, i) => (
+                    <tr>
+                      <td>{i + 1}</td>
+                      <td>{r.name}{r.withdrawn_from_slot != null ? ' (withdrawn)' : ''}</td>
+                      <td class="num"><strong>{fmtPts(r.points)}</strong></td>
+                      <td class="num muted">{fmtPts(r.available)}</td>
+                      <td class="num">{r.wins}</td><td class="num">{r.losses}</td><td class="num">{r.ties}</td>
+                      <td class="num">{r.holes_up > 0 ? `+${r.holes_up}` : r.holes_up}</td>
+                      <td class="num">{r.behind > 0 ? fmtPts(r.behind) : '—'}</td>
+                      <td class="num">{fmtPts(r.this_week)}</td>
+                      <td class="num">{r.byes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ))}
+        <section class="card">
+          <h3>Individual</h3>
+          <div class="scroll">
+            <table class="tbl">
+              <thead><tr><th>#</th><th>Player</th><th>Team</th><th class="num">Pts</th><th class="num">Attend.</th><th class="num">Total</th><th class="num">Played</th><th class="num">Absent</th><th class="num">As sub</th></tr></thead>
+              <tbody>
+                {players.map((p, i) => (
+                  <tr>
+                    <td>{i + 1}</td><td>{p.display_name}</td><td class="muted">{teamName(league!, p.team_id)}</td>
+                    <td class="num">{fmtPts(p.points)}</td><td class="num">{fmtPts(p.attendance)}</td>
+                    <td class="num"><strong>{fmtPts(p.total)}</strong></td>
+                    <td class="num">{p.weeks_played}</td><td class="num">{p.weeks_absent}</td><td class="num">{p.weeks_as_sub}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p class="muted small"><a href={`/l/${league.league.id}/standings.csv`}>Download CSV</a> · Standings are computed in the app and published here; ties resolve by points, then head-to-head, then holes up.</p>
+        </section>
+      </>
+    )}
+  </main>
+</BaseLayout>
+<style>
+  .scroll { overflow-x: auto; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tbl th, .tbl td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  .tbl th { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-muted); }
+  .tbl .num { text-align: right; }
+  .muted { color: var(--ink-muted); }
+  .small { font-size: 12.5px; margin-top: 10px; }
+</style>

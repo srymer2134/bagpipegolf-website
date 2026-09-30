@@ -1,74 +1,162 @@
 ---
+// Public league page — overview. No sign-in. One anon read
+// (`get_public_league`) returns display fields only; the standings are
+// the projection the app publishes (league_standings_snapshot). Private
+// or unknown league → a plain "private" card, never an error page.
+// Sub-pages: /l/:id/standings, /l/:id/schedule, /l/:id/standings.csv.
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import LeagueNav from '../../components/LeagueNav.astro';
+import { createSupabaseClient } from '../../lib/supabase';
+import {
+  getPublicLeague, isMatchPlay, teamName, rosterAt, teeTimeAt, dateLabel, fmtPts,
+  currentWeek, matchupsFor, computedAgo, type PublicLeague,
+} from '../../lib/leaguePublic';
 
 const { id } = Astro.params;
+if (!id) return Astro.redirect('/leagues', 302);
+
+let league: PublicLeague | null = null;
+let failed = false;
+try {
+  const supabase = createSupabaseClient({ request: Astro.request, cookies: Astro.cookies, locals: Astro.locals as App.Locals });
+  league = await getPublicLeague(supabase, id);
+} catch (err) {
+  console.error('[league page] lookup failed', err);
+  failed = true;
+}
+
+const week = league ? currentWeek(league) : null;
+const rows = league?.standings?.standings.season.rows ?? [];
+const top = rows.slice(0, 6);
+const matchups = league && week ? matchupsFor(league, week.slot_index) : [];
+const title = league ? `${league.league.name} · Bagpipe Golf` : 'League · Bagpipe Golf';
+const interval = week?.tee_interval_minutes ?? 9;
 ---
-
-<BaseLayout title="League · Bagpipe Golf">
+<BaseLayout title={title} description={league ? `${league.league.name} — standings, schedule and roster on Bagpipe Golf.` : undefined}>
   <main class="pagewrap">
-    <p class="pagewrap__eyebrow">Public league page</p>
-    <h1 class="pagewrap__title">League</h1>
-    <p class="pagewrap__sub">
-      Standings, schedule, and roster — shareable with members and family. No sign-in required.
-    </p>
+    {!league ? (
+      <section class="card" style="max-width:560px">
+        <p class="pagewrap__eyebrow">League</p>
+        <h1 class="pagewrap__title">{failed ? 'Could not load this league' : 'This league page is private'}</h1>
+        <p class="pagewrap__sub">
+          {failed
+            ? 'Please try again in a moment.'
+            : 'The commissioner has not turned on the public page, or the link is wrong. Members can see everything in the Bagpipe Golf app.'}
+        </p>
+        <a class="btn btn--primary" href="/leagues">About leagues</a>
+      </section>
+    ) : (
+      <>
+        <p class="pagewrap__eyebrow">{league.league.status === 'completed' ? 'League · season complete' : 'League'}</p>
+        <h1 class="pagewrap__title">{league.league.name}</h1>
+        <p class="pagewrap__sub">
+          Run by {league.league.commissioner} on Bagpipe Golf
+          {league.league.holes_per_week ? ` · ${league.league.holes_per_week} holes a week` : ''}
+          {league.league.default_tee ? ` · ${league.league.default_tee} tees` : ''}
+        </p>
+        <LeagueNav id={league.league.id} active="overview" />
 
-    <nav class="subnav">
-      <a class="subnav__link is-active" href={`/l/${id}`}>Overview</a>
-      <a class="subnav__link" href={`/l/${id}/standings`}>Standings</a>
-      <a class="subnav__link" href={`/l/${id}/schedule`}>Schedule</a>
-    </nav>
+        <section class="grid grid--2">
+          <article class="card">
+            <h3>{league.league.standings_name?.trim() || 'Standings'}</h3>
+            {isMatchPlay(league) && top.length > 0 ? (
+              <>
+                <table class="tbl">
+                  <thead><tr><th>#</th><th>Team</th><th class="num">Pts</th><th class="num">W-L-T</th><th class="num">Behind</th></tr></thead>
+                  <tbody>
+                    {top.map((r, i) => (
+                      <tr>
+                        <td>{i + 1}</td>
+                        <td>{r.name}{r.withdrawn_from_slot != null ? ' (withdrawn)' : ''}</td>
+                        <td class="num"><strong>{fmtPts(r.points)}</strong> <span class="muted">of {fmtPts(r.available)}</span></td>
+                        <td class="num">{r.wins}-{r.losses}-{r.ties}</td>
+                        <td class="num">{r.behind > 0 ? fmtPts(r.behind) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p class="muted small">
+                  As of {computedAgo(league.standings!.computed_at)} · <a href={`/l/${league.league.id}/standings`}>Full table</a> · <a href={`/l/${league.league.id}/standings.csv`}>CSV</a>
+                </p>
+              </>
+            ) : isMatchPlay(league) ? (
+              <p class="muted">Standings appear once a member opens the league in the app after the first week is scored.</p>
+            ) : (
+              <p class="muted">This league scores by position points; season standings live in the app.</p>
+            )}
+          </article>
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Season standings</h3>
-        <p>Cumulative points, flight ranks, qualifier status.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Schedule</h3>
-        <p>Weekly tournaments, dates, formats, courses.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Roster</h3>
-        <p>Members + season handicaps.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Playoffs</h3>
-        <p>Bracket, seeding, results.</p>
-      </article>
-    </section>
+          <article class="card">
+            <h3>{week ? `Week ${week.slot_index + 1} · ${dateLabel(week.week_of)}` : 'Schedule'}</h3>
+            {!week ? (
+              <p class="muted">No weeks scheduled yet.</p>
+            ) : week.status === 'cancelled' ? (
+              <p class="muted">Rained out.</p>
+            ) : matchups.length === 0 ? (
+              <p class="muted">Matchups not set yet.{week.first_tee_at ? ` First tee ${teeTimeAt(week.first_tee_at, 0)}.` : ''}</p>
+            ) : (
+              <ul class="list">
+                {matchups.map((m) => (
+                  <li>
+                    <span class="tee">{m.away_team_id ? teeTimeAt(week.first_tee_at, m.match_index * interval) : ''}</span>
+                    <span class="names">
+                      {teamName(league!, m.home_team_id)}
+                      {m.away_team_id ? ` v ${teamName(league!, m.away_team_id)}` : ' — bye'}
+                      {m.outcome === 'cancelled' ? ' (cancelled)' : m.outcome?.startsWith('forfeit') ? ' (forfeit)' : m.has_round ? ' · in play' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p class="muted small"><a href={`/l/${league.league.id}/schedule`}>Full schedule</a>{week?.tee ? ` · ${week.tee} tees` : ''}</p>
+          </article>
+
+          <article class="card">
+            <h3>Teams</h3>
+            {league.teams.length === 0 ? (
+              <p class="muted">No teams yet.</p>
+            ) : (
+              <ul class="list list--plain">
+                {league.teams.map((t) => (
+                  <li><strong>{t.name}</strong>{week ? <span class="muted"> · {rosterAt(league!, t.id, week.slot_index).join(' & ') || '—'}</span> : null}</li>
+                ))}
+              </ul>
+            )}
+          </article>
+
+          <article class="card">
+            <h3>Roster</h3>
+            {league.members.length === 0 ? (
+              <p class="muted">No members yet.</p>
+            ) : (
+              <ul class="list list--plain list--cols">
+                {league.members.map((m) => (
+                  <li>{m.display_name}{m.handicap != null ? <span class="muted"> · {m.handicap}</span> : null}</li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </section>
+
+        <p class="muted small" style="margin-top:20px">
+          Members keep score, RSVP and find subs in the <a href="https://apps.apple.com/app/id6775045734">Bagpipe Golf app</a>.
+        </p>
+      </>
+    )}
   </main>
 </BaseLayout>
-
 <style>
-  .subnav {
-    display: flex;
-    gap: 4px;
-    border-bottom: 1px solid var(--line);
-    margin-bottom: 28px;
-    overflow-x: auto;
-  }
-  .subnav__link {
-    padding: 10px 14px;
-    color: var(--ink-muted);
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 14px;
-    border-bottom: 2px solid transparent;
-    white-space: nowrap;
-  }
-  .subnav__link:hover { color: var(--brand-green-dark); }
-  .subnav__link.is-active {
-    color: var(--brand-green-dark);
-    border-bottom-color: var(--brand-green);
-  }
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
-  }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 15px; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tbl th, .tbl td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+  .tbl th { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-muted); }
+  .tbl .num { text-align: right; white-space: nowrap; }
+  .muted { color: var(--ink-muted); }
+  .small { font-size: 12.5px; margin-top: 10px; }
+  .list { list-style: none; padding: 0; margin: 0; }
+  .list li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .list li:last-child { border-bottom: 0; }
+  .list .tee { min-width: 68px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .list--plain li { display: block; }
+  .list--cols { columns: 2; column-gap: 24px; }
+  .list--cols li { break-inside: avoid; border: 0; padding: 3px 0; }
 </style>
