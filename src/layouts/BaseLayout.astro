@@ -36,10 +36,11 @@ const shareTitle = ogTitle ?? title;
 // home page. Scrapers de-duplicate on it, which is why distinct pages
 // could preview as the same thing.
 const pageUrl = new URL(Astro.url.pathname, SITE).toString();
-// `/og.png` was referenced here but does not exist — it 404s in
-// production, so previews had no image at all. The logo is the only real
-// brand asset on disk.
-const shareImage = new URL('/bagpipe-golf-logo.jpg', SITE).toString();
+// Purpose-built 1200x630 share card (public/og.jpg), rendered from the
+// brand tokens with the logo on a pale tile. Replaces both the original
+// `/og.png` (which 404'd, so previews had no image at all) and the square
+// logo stopgap, which a large card would have centre-cropped.
+const shareImage = new URL('/og.jpg', SITE).toString();
 ---
 
 <!doctype html>
@@ -61,14 +62,10 @@ const shareImage = new URL('/bagpipe-golf-logo.jpg', SITE).toString();
     <meta property="og:type" content="website" />
     <meta property="og:url" content={pageUrl} />
     <meta property="og:image" content={shareImage} />
-    <meta property="og:image:width" content="1024" />
-    <meta property="og:image:height" content="1024" />
-    <meta property="og:image:alt" content="Bagpipe Golf" />
-    <!-- `summary`, not `summary_large_image`: the only brand asset we have
-         is square (1024x1024), and a large card centre-crops to ~1.91:1,
-         which would slice the top and bottom off the logo. A purpose-made
-         1200x630 image would earn the large card back. -->
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Bagpipe Golf — play games, settle scores." />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={shareTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={shareImage} />
