@@ -1,0 +1,337 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+// Sign-up walkthrough for league directors — the "how do I actually start
+// one of these" page. Sourced from the Flutter repo's
+// docs/marketing/league-director-guide.md and the in-app League Guide, so
+// the steps match the real wizard rather than an idealised one.
+//
+// 🚨 Honesty rules for this page, kept deliberately:
+//   - No live GHIN sync. Handicaps are entered by you or the player.
+//   - League-wide EMAIL invites are not wired (the flag is not delivered
+//     in any shipped build). Tournament email invites are; leagues are
+//     not. Players join by code or are added manually.
+//   - The points model LOCKS at creation. Say so before someone picks.
+// A league is a sixteen-week commitment. Finding a gap out in week three
+// is how a director stops trusting the product.
+
+interface Step {
+  n: string;
+  title: string;
+  body: string;
+  bullets?: string[];
+  note?: string;
+}
+
+const steps: Step[] = [
+  {
+    n: '1',
+    title: 'Create your account',
+    body:
+      'Free, and it takes about a minute. The account you create is the director account — it owns the league, and only it can edit the schedule, roster and results.',
+    bullets: [
+      'Sign up on the web or in the app; it is the same account either way.',
+      'Use the email you actually check — week-of notifications go there.',
+    ],
+  },
+  {
+    n: '2',
+    title: 'Open the Leagues tab and tap New League',
+    body:
+      'The wizard walks the whole season setup in five screens. Nothing is final until you finish, and almost everything stays editable afterwards.',
+  },
+  {
+    n: '3',
+    title: 'Pick a template',
+    body:
+      'Four presets. A template pre-fills every screen that follows and you can override any of it — a "Template · Change" chip stays at the top so you can switch, with a confirmation before it resets your edits.',
+    note:
+      'Custom skips the pre-fill entirely. Pick it if your league does not look like any of the three.',
+  },
+  {
+    n: '4',
+    title: 'Name the league and set the first week',
+    body:
+      'The name shows on every player’s tab, so make it the thing they would call it out loud. A description is optional and useful for the rules everyone forgets — "2-person teams, best ball of partners", "season runs Apr–Sep".',
+    bullets: [
+      'Start date is your first week.',
+      'An end or playoff date is optional; setting it gives the dashboard a season progress bar.',
+      'Default weekly format — stroke play, best ball, scramble or Stableford. You can override any individual week later.',
+    ],
+  },
+  {
+    n: '5',
+    title: 'Add your roster',
+    body:
+      'Each player needs a display name and a handicap index. That is the whole requirement — you do not need them to have accounts before the season starts.',
+    bullets: [
+      'Add friend — for players who already have a Bagpipe Golf account. Links their account, so they get notifications and cross-device sync.',
+      'Add manually — a name and a handicap. They can claim the account later with a join code.',
+      'Mark someone an alternate and they stay eligible as a sub without appearing in the default weekly roster.',
+    ],
+    note:
+      'The roster stays editable all season. Roster changes apply from the next week forward — past weeks are never re-scored behind you.',
+  },
+  {
+    n: '6',
+    title: 'Choose how the season is scored',
+    body:
+      'This is the one decision worth slowing down for. Everything else on this page can be changed later; this cannot.',
+  },
+  {
+    n: '7',
+    title: 'Flights and playoffs, if you want them',
+    body:
+      'Both optional. Flights give you sub-leaderboards inside one league, so sixteen players who tee off together every week still compete for separate trophies inside their handicap band. Players are auto-assigned by current handicap and you can re-flight anyone by hand.',
+    note:
+      'Flight assignment is per season, not per week. Playoffs can be a seeded bracket or a final event.',
+  },
+  {
+    n: '8',
+    title: 'Get your players in',
+    body:
+      'Share the league join code. Players enter it in the app and land straight on your league; anyone you added manually can claim their spot with the same code.',
+    note:
+      'League-wide email invites are not wired yet — see below. Tournament invites by email do work today; leagues need the same plumbing extended, and it has not shipped.',
+  },
+  {
+    n: '9',
+    title: 'Run week one',
+    body:
+      'Each week is an ordinary Bagpipe Golf event — same setup, same scoring, same live scorecard. Post the week, players RSVP, scores come in, and the standings move on their own. You never type a standing.',
+  },
+];
+
+const templates = [
+  ['Tuesday Night Men’s League', 'Weekly, 16 events', 'Stableford', 'Position points', '4-seed bracket'],
+  ['Annual Member-Guest', '2 days, back to back', 'Best ball', 'Position points', 'No playoff'],
+  ['Travel-team captain', 'Monthly-ish, 6 events', 'Stroke play', 'Stroke aggregate', 'No playoff'],
+  ['Team league', '16 weeks of nine holes', 'Two singles per team', 'Weekly match play', 'No playoff'],
+];
+
+const models = [
+  {
+    name: 'Position points',
+    body:
+      'Each week’s finishers convert to season points by finish position; ties split. Highest season total wins. Rewards consistency and handles a field that changes size week to week.',
+    best: 'Open weekly leagues',
+  },
+  {
+    name: 'Stroke aggregate',
+    body:
+      'Each week adds the player’s net score to a running total; lowest total at season end wins. Simple and obvious — less forgiving, since one blow-up week follows you all season.',
+    best: 'Member-guests and short multi-event totals',
+  },
+  {
+    name: 'Weekly match play',
+    body:
+      'The league is played by teams of two. Each week your team is paired against another and plays two singles matches. Points come from holes won, winning your match, and a team point for the week. Standings are computed from the weeks, never typed in.',
+    best: 'Fixed rosters with weekly rivalry',
+  },
+];
+
+const title = 'How to start a golf league — a director’s setup guide · Bagpipe Golf';
+const description =
+  'Step by step: create your account, build the season, add a roster, pick how it scores, and get your players in. Written for the person running the league.';
+---
+
+<BaseLayout title={title} description={description}>
+  <main class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/leagues">Leagues</a>
+      <span aria-hidden="true">/</span>
+      <span aria-current="page">Getting started</span>
+    </nav>
+
+    <header class="head">
+      <h1>Starting a league, step by step</h1>
+      <p class="lede">
+        A league is a season-long container for weekly events — a persistent
+        roster, standings that keep themselves, and sub rules that handle the
+        week someone cannot make it. Setup takes about ten minutes. This is
+        every screen you will see, in order.
+      </p>
+      <div class="cta__row">
+        <a class="btn btn--primary" href="/signup">Create your account</a>
+        <a class="btn btn--ghost" href="/leagues">What a league is</a>
+      </div>
+    </header>
+
+    <section class="block">
+      <h2>Before you start</h2>
+      <p>Four things make the setup painless. None of them need to be final.</p>
+      <ul class="plain">
+        <li><strong>A name</strong> for the league.</li>
+        <li><strong>Your players</strong>, with a handicap index each. They do not need accounts yet.</li>
+        <li><strong>A start date</strong> — your first week.</li>
+        <li><strong>How many weeks</strong> you intend to play.</li>
+      </ul>
+    </section>
+
+    {steps.map((s) => (
+      <section class="step">
+        <div class="step__n">{s.n}</div>
+        <div class="step__body">
+          <h2>{s.title}</h2>
+          <p>{s.body}</p>
+          {s.bullets && (
+            <ul class="plain">
+              {s.bullets.map((b) => <li>{b}</li>)}
+            </ul>
+          )}
+          {s.n === '3' && (
+            <div class="tablewrap">
+              <table>
+                <thead>
+                  <tr><th>Template</th><th>Cadence</th><th>Weekly format</th><th>Standings</th><th>Playoff</th></tr>
+                </thead>
+                <tbody>
+                  {templates.map((t) => (
+                    <tr>{t.map((cell, i) => (i === 0 ? <th scope="row">{cell}</th> : <td>{cell}</td>))}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {s.n === '6' && (
+            <>
+              <div class="models">
+                {models.map((m) => (
+                  <article class="model">
+                    <h3>{m.name}</h3>
+                    <p class="model__best">Best for: {m.best}</p>
+                    <p>{m.body}</p>
+                  </article>
+                ))}
+              </div>
+              <p class="warn">
+                <strong>The points model locks when the league is created.</strong>
+                Changing it mid-season would silently re-score every week already
+                played, so we do not allow it. If you need a different model, close
+                the season and start a new league.
+              </p>
+            </>
+          )}
+          {s.note && <p class="note">{s.note}</p>}
+        </div>
+      </section>
+    ))}
+
+    <section class="block">
+      <h2>What happens without you</h2>
+      <ul class="plain">
+        <li><strong>Standings.</strong> Computed from the weeks every time they are read. There is no "update standings" button because there is nothing to update.</li>
+        <li><strong>Substitutes.</strong> Set a sub rule once and absences are handled to it for the rest of the season.</li>
+        <li><strong>Flights.</strong> Players are assigned by current handicap and sub-leaderboards keep themselves.</li>
+        <li><strong>History.</strong> Roster changes apply forward. A trade in week nine does not reach back and alter week eight.</li>
+      </ul>
+    </section>
+
+    <section class="block">
+      <h2>What is not there yet</h2>
+      <p>
+        A league is a sixteen-week commitment, so these are stated here rather
+        than discovered in week three.
+      </p>
+      <ul class="plain">
+        <li>
+          <strong>No live GHIN sync.</strong> Handicaps are entered by you or by
+          the player. A live sync needs an enterprise agreement with the USGA
+          that we are working through, and we will not imply otherwise. In
+          practice you update a handicap once on the roster and it carries into
+          every future week — but if your league needs week-to-week GHIN
+          revisions, that is the honest reason to wait for us.
+        </li>
+        <li>
+          <strong>No league-wide email invites.</strong> Inviting someone to a
+          tournament by email works today; inviting a whole league roster does
+          not. Until it ships, add players with Add friend or add them manually
+          and share the join code.
+        </li>
+      </ul>
+    </section>
+
+    <section class="cta">
+      <h2>Ready when you are.</h2>
+      <p>Free for a limited time. Setup takes about ten minutes.</p>
+      <div class="cta__row">
+        <a class="btn btn--primary" href="/signup">Create your account</a>
+        <a class="btn btn--ghost" href="/support">Ask us something first</a>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .wrap { max-width: 820px; margin: 0 auto; padding: 28px 20px 64px; }
+
+  .crumbs {
+    display: flex; gap: 8px; align-items: center;
+    font-size: 13px; color: var(--ink-muted); margin-bottom: 18px;
+  }
+  .crumbs a { color: var(--brand-green-dark); text-decoration: none; font-weight: 600; }
+  .crumbs a:hover { text-decoration: underline; }
+
+  .head { margin-bottom: 40px; }
+  .head h1 {
+    font-size: 40px; line-height: 1.12; font-weight: 800;
+    color: var(--brand-green-dark); margin: 0 0 14px; text-wrap: balance;
+  }
+  .lede { font-size: 18px; line-height: 1.6; color: var(--ink); margin: 0 0 22px; }
+
+  .block { margin-bottom: 36px; }
+  .block h2, .step__body h2 {
+    font-size: 21px; font-weight: 800; color: var(--brand-green-dark); margin: 0 0 10px;
+  }
+  .block p, .step__body p { margin: 0 0 12px; font-size: 16px; line-height: 1.65; color: var(--ink); }
+
+  .plain { margin: 0 0 12px; padding-left: 20px; }
+  .plain li { font-size: 16px; line-height: 1.65; color: var(--ink); margin-bottom: 8px; }
+
+  /* ── numbered steps ─────────────────────────────────────── */
+  .step {
+    display: grid; grid-template-columns: 52px 1fr; gap: 20px;
+    padding: 24px 0; border-top: 1px solid var(--line);
+  }
+  @media (max-width: 620px) {
+    .step { grid-template-columns: 1fr; gap: 10px; }
+  }
+  .step__n {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--brand-green-dark); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 800;
+  }
+
+  .note {
+    background: var(--brand-green-pale); border-radius: 10px;
+    padding: 12px 14px; font-size: 15px; margin-top: 4px;
+  }
+  .warn {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
+    padding: 14px 16px; font-size: 15px; line-height: 1.6; color: #78350f;
+  }
+
+  .tablewrap { overflow-x: auto; margin: 6px 0 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 560px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  thead th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); }
+  tbody th { font-weight: 700; color: var(--brand-green-dark); }
+
+  .models { display: grid; gap: 12px; margin: 6px 0 14px; }
+  .model { background: var(--brand-green-pale); border-radius: 12px; padding: 16px 18px; }
+  .model h3 { margin: 0 0 4px; font-size: 16px; font-weight: 800; color: var(--brand-green-dark); }
+  .model__best {
+    margin: 0 0 8px !important; font-size: 13px; font-weight: 700;
+    color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .model p { margin: 0; font-size: 15px; }
+
+  .cta {
+    margin-top: 44px; text-align: center;
+    background: var(--brand-green-pale); border-radius: 16px; padding: 32px 22px;
+  }
+  .cta h2 { font-size: 25px; font-weight: 800; color: var(--brand-green-dark); margin: 0 0 6px; }
+  .cta p { margin: 0 0 16px; color: var(--ink); font-size: 15px; }
+  .cta__row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+</style>

@@ -262,8 +262,11 @@ const advanced: Advanced[] = [
       <p>Set up a league, invite the roster, schedule the weeks. Bagpipe runs the standings.</p>
       <div class="cta__row">
         <a class="btn btn--primary" href="/signup">Create account</a>
-        <a class="btn btn--ghost" href="/tournaments">See tournament formats</a>
+        <a class="btn btn--ghost" href="/leagues/get-started">How to set one up &rarr;</a>
       </div>
+      <p class="cta__alt">
+        Or <a href="/tournaments">see tournament formats</a>.
+      </p>
     </section>
   </main>
 </BaseLayout>
@@ -472,4 +475,7 @@ const advanced: Advanced[] = [
     flex-wrap: wrap;
     justify-content: center;
   }
+
+  .cta__alt { margin-top: 14px; font-size: 14px; color: var(--ink-muted); }
+  .cta__alt a { color: var(--brand-green-dark); font-weight: 600; }
 </style>
