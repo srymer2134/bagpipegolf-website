@@ -35,6 +35,10 @@ const running = leagues.filter((l) => l.role === 'commissioner');
     <h1 class="pagewrap__title">Your leagues.</h1>
     <p class="pagewrap__sub">Seasons you're playing in or directing.</p>
 
+    <div class="cta-row topcta">
+      <a class="btn btn--primary" href="/app/leagues/new">Start a league</a>
+    </div>
+
     {failed && (
       <div class="notice notice--warn">Couldn't load your leagues. Try again in a moment.</div>
     )}
@@ -45,8 +49,8 @@ const running = leagues.filter((l) => l.role === 'commissioner');
           <span class="chip">In season</span>
           <h3 class="muted">No leagues yet</h3>
           <p>
-            Join one with a 6-character code in the app — Leagues → Join — or
-            open an invite link a commissioner sent you.
+            Start one above, join with a 6-character code in the app
+            (Leagues → Join), or open an invite link a commissioner sent you.
           </p>
         </article>
       </section>
@@ -128,6 +132,7 @@ const running = leagues.filter((l) => l.role === 'commissioner');
   .muted { color: var(--ink-muted, #4b5b54); }
   .cta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .runnote { margin-top: 24px; }
+  .topcta { margin: 4px 0 20px; }
   .notice { padding: 14px 16px; border-radius: 12px; margin: 16px 0; line-height: 1.5; }
   .notice--warn { background: #fff6e6; border: 1px solid #d9a441; color: #6b4a06; }
 </style>
