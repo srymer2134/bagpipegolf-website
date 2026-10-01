@@ -5,6 +5,19 @@ import Footer from '../components/Footer.astro';
 interface Props {
   title: string;
   description?: string;
+  /** Title used for SHARE PREVIEWS (og:title / twitter:title) when it
+   *  should differ from the browser-tab `<title>`.
+   *
+   *  Sam, 2026-10-01: sharing a link showed "Bagpipe Golf — Play games.
+   *  Settle scores." because og:title was wired straight to `title`, and
+   *  the tagline rode along. The brand should lead in a preview. The
+   *  `<title>` keeps the tagline — it is a real search signal and a
+   *  preview is not the place it earns anything.
+   *
+   *  Defaults to `title`, so every other page keeps its own specific
+   *  preview headline (a side-game page sharing as "Wolf golf game:
+   *  rules…" is far more useful than sharing as "Bagpipe Golf"). */
+  ogTitle?: string;
   // Pages that ship their own full-bleed chrome (the landing hero today)
   // can opt out of the standard nav + footer. Default false = standard chrome.
   bare?: boolean;
@@ -12,9 +25,21 @@ interface Props {
 
 const {
   title,
+  ogTitle,
   description = "Bagpipe Golf — the on-course caddie, scorecard, and side-game engine for golfers and tournament directors.",
   bare = false,
 } = Astro.props;
+
+const SITE = Astro.site ?? new URL('https://bagpipegolf.com');
+const shareTitle = ogTitle ?? title;
+// og:url was `Astro.site` on EVERY page, so each one claimed to be the
+// home page. Scrapers de-duplicate on it, which is why distinct pages
+// could preview as the same thing.
+const pageUrl = new URL(Astro.url.pathname, SITE).toString();
+// `/og.png` was referenced here but does not exist — it 404s in
+// production, so previews had no image at all. The logo is the only real
+// brand asset on disk.
+const shareImage = new URL('/bagpipe-golf-logo.jpg', SITE).toString();
 ---
 
 <!doctype html>
@@ -30,12 +55,23 @@ const {
     <link rel="apple-touch-icon" href="/bagpipe-golf-logo.jpg" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <meta property="og:title" content={title} />
+    <meta property="og:site_name" content="Bagpipe Golf" />
+    <meta property="og:title" content={shareTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content={Astro.site} />
-    <meta property="og:image" content="/og.png" />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta property="og:url" content={pageUrl} />
+    <meta property="og:image" content={shareImage} />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
+    <meta property="og:image:alt" content="Bagpipe Golf" />
+    <!-- `summary`, not `summary_large_image`: the only brand asset we have
+         is square (1024x1024), and a large card centre-crops to ~1.91:1,
+         which would slice the top and bottom off the logo. A purpose-made
+         1200x630 image would earn the large card back. -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={shareTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={shareImage} />
   </head>
   <body>
     {!bare && <SiteNav />}
