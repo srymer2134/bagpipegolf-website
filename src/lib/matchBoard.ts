@@ -31,7 +31,10 @@ import {
   type TournamentRound,
   type TournamentRoundTeam,
   type TournamentRow,
+  holeCountForRound,
 } from './tournamentQueries';
+import { allowanceAdjustedHandicap } from './handicapAllowance';
+import { directCourseHandicapFor } from './directHandicap';
 import {
   courseHandicap,
   strokesOnHole,
@@ -65,11 +68,6 @@ export function isHeadToHeadFormat(
   return format === 'best_ball'
     || format === 'best_three_of_four'
     || format === 'singles';
-}
-
-function allowanceAdjustedHandicap(ch: number, allowance: number): number {
-  if (ch === 0) return 0;
-  return Math.floor(ch * allowance + 0.5);
 }
 
 function allowanceFor(round: TournamentRound): number {
@@ -141,12 +139,17 @@ function courseHcFor(
   tournament: TournamentRow,
   round: TournamentRound,
   player: TournamentPlayer,
+  holeCount: number,
 ): number | null {
+  // Per-course WHS opt-out (Ballyneal) comes first, exactly as in
+  // Dart's `courseHandicapForPlayer`.
+  const direct = directCourseHandicapFor(tournament, round, player);
+  if (direct != null) return direct;
   const idx = resolvedIndex(round, player);
   if (idx == null) return null;
   const tee = teeForPlayer(tournament, round, player);
   if (!tee) return null;
-  return courseHandicap(idx, tee.slope, tee.rating, tee.par);
+  return courseHandicap(idx, tee.slope, tee.rating, tee.par, holeCount);
 }
 
 /// Build MatchStatus rows for a single round. Adjacent teams pair
@@ -162,7 +165,12 @@ export function buildRoundMatchBoard(
 
   const pars = parsForRound(tournament, round);
   const sis = strokeIndexesFor(tournament, round);
-  const totalHoles = pars.length > 0 ? pars.length : tournament.total_holes;
+  // One resolver for the round's hole count: the match-play closeout
+  // math and the course-handicap halving must agree about whether this
+  // is a nine or an eighteen, or a nine-hole match reads as dormie
+  // against strokes computed for eighteen.
+  const holeCount = holeCountForRound(tournament, round);
+  const totalHoles = holeCount;
   const allowance = allowanceFor(round);
 
   const playerById = new Map<string, TournamentPlayer>();
@@ -188,7 +196,7 @@ export function buildRoundMatchBoard(
     for (const pid of pids) {
       const p = playerById.get(pid);
       if (!p) continue;
-      const ch = courseHcFor(tournament, round, p);
+      const ch = courseHcFor(tournament, round, p, holeCount);
       members.push({
         player: p,
         adjustedHc: ch == null ? null : allowanceAdjustedHandicap(ch, allowance),

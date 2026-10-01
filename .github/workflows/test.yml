@@ -1,0 +1,36 @@
+# The website's first CI. Until 2026-10-01 this repo had no test
+# runner and no workflow, which is how ~1,800 lines of TypeScript
+# re-implementing the app's money math came to disagree with it
+# unnoticed (see src/lib/parity.test.ts).
+#
+# Two gates, both cheap:
+#   * npm test  — the parity ratchet against fixtures generated from
+#                 the Dart engines
+#   * npm run build — Astro's typecheck, which is what Cloudflare runs
+#                 on merge anyway. Better to learn here than in a
+#                 failed deploy.
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Parity ratchet + unit tests
+        run: npm test
+
+      - name: Build (Astro typecheck)
+        run: npm run build

@@ -31,7 +31,10 @@ import {
   type TournamentPlayer,
   type TournamentRound,
   type TournamentRow,
+  holeCountForRound,
 } from './tournamentQueries';
+import { allowanceAdjustedHandicap } from './handicapAllowance';
+import { directCourseHandicapFor } from './directHandicap';
 import {
   courseHandicap,
   strokesOnHole,
@@ -94,11 +97,6 @@ function flightsOrAllField(t: TournamentRow): TournamentFlight[] {
       playerIds: t.players.map((p) => p.id),
     },
   ];
-}
-
-function allowanceAdjustedHandicap(ch: number, allowance: number): number {
-  if (ch === 0) return 0;
-  return Math.floor(ch * allowance + 0.5);
 }
 
 /// Skins allowance is 1.0 (full HC) unless the round explicitly
@@ -167,12 +165,17 @@ function courseHcFor(
   tournament: TournamentRow,
   round: TournamentRound,
   player: TournamentPlayer,
+  holeCount: number,
 ): number | null {
+  // Per-course WHS opt-out (Ballyneal) comes first, exactly as in
+  // Dart's `courseHandicapForPlayer`.
+  const direct = directCourseHandicapFor(tournament, round, player);
+  if (direct != null) return direct;
   const idx = resolvedIndex(round, player);
   if (idx == null) return null;
   const tee = teeForPlayer(tournament, round, player);
   if (!tee) return null;
-  return courseHandicap(idx, tee.slope, tee.rating, tee.par);
+  return courseHandicap(idx, tee.slope, tee.rating, tee.par, holeCount);
 }
 
 /// Core skins engine. Given a set of player ids competing in a
@@ -206,6 +209,7 @@ function computeSkinsForPool(
     if (pars.length === 0) continue;
     const sis = strokeIndexesFor(tournament, round);
     const allowance = allowanceFor(round);
+    const holeCount = holeCountForRound(tournament, round);
 
     // Score map keyed by playerId for O(1) hole lookups.
     const scoreByPlayer = new Map<string, (number | null)[]>();
@@ -222,7 +226,7 @@ function computeSkinsForPool(
       for (const pid of scoreByPlayer.keys()) {
         const p = playerById.get(pid);
         if (!p) continue;
-        const ch = courseHcFor(tournament, round, p);
+        const ch = courseHcFor(tournament, round, p, holeCount);
         adjHcByPlayer.set(pid, ch == null ? 0 : allowanceAdjustedHandicap(ch, allowance));
       }
     }
