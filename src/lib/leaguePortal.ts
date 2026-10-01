@@ -24,7 +24,21 @@ import type { StandingsSnapshot, TeamRow, PlayerRow } from './leaguePublic';
 // league_weeks, league_signups, league_teams, league_team_members,
 // league_standings_snapshot.
 
+/**
+ * The portal's notion of a role: are you the director here, or not.
+ *
+ * This is DERIVED, never the raw column. `league_members.role` holds
+ * `'player'` in practice (all 7 rows on dev, 2026-09-30) — not
+ * `'member'` — so casting the column into this type would put a value
+ * in it that no comparison matches. Every check here is
+ * `=== 'commissioner'`, which happens to behave correctly against
+ * `'player'`, but the first person to write `=== 'member'` would get
+ * false for every member in the database.
+ */
 export type LeagueRole = 'commissioner' | 'member';
+
+/** Raw `league_members.role` values that mean "runs this league". */
+const DIRECTOR_ROLES = new Set(['commissioner', 'director', 'owner']);
 
 export type MyLeague = {
   id: string;
@@ -72,10 +86,11 @@ export async function myLeagues(
     .eq('user_id', userId);
   if (mErr) throw mErr;
 
-  const memberOf = new Map<string, string>();
+  // Raw column values, kept raw. Mapped to a LeagueRole at the end.
+  const memberOf = new Map<string, string | null>();
   for (const r of (mine ?? []) as Array<{ league_id: string; role: string | null; status: string | null }>) {
     if (r.status && r.status !== 'active') continue;
-    memberOf.set(r.league_id, r.role ?? 'member');
+    memberOf.set(r.league_id, r.role);
   }
 
   // Owner rows are the other way in: a commissioner may run a league
@@ -88,6 +103,7 @@ export async function myLeagues(
   for (const r of (owned ?? []) as Array<{ id: string }>) {
     if (!memberOf.has(r.id)) memberOf.set(r.id, 'commissioner');
   }
+  const ownedIds = new Set(((owned ?? []) as Array<{ id: string }>).map((r) => r.id));
 
   const ids = [...memberOf.keys()];
   if (ids.length === 0) return [];
@@ -117,7 +133,14 @@ export async function myLeagues(
     week_format: (r.week_format as string | null) ?? null,
     completed_at: (r.completed_at as string | null) ?? null,
     page_visibility: (r.page_visibility as string | null) ?? 'public',
-    role: r.user_id === userId ? 'commissioner' : ((memberOf.get(String(r.id)) as LeagueRole) ?? 'member'),
+    // Director if you own the row, or your membership says so (a
+    // co-director). Everyone else is a member — including rows whose
+    // raw role is 'player'.
+    role: (r.user_id === userId ||
+           ownedIds.has(String(r.id)) ||
+           DIRECTOR_ROLES.has((memberOf.get(String(r.id)) ?? '').toLowerCase()))
+      ? 'commissioner'
+      : 'member',
     member_count: tally.get(String(r.id)) ?? 0,
   }));
 }
