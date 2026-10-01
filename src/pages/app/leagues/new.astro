@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import { WEB_LEAGUE_TEMPLATES } from '../../../lib/leagueCreate';
+import { WEB_LEAGUE_TEMPLATES, templateByKey } from '../../../lib/leagueCreate';
 
 // `/app/leagues/new` — create a league from the web.
 //
@@ -11,6 +11,73 @@ import { WEB_LEAGUE_TEMPLATES } from '../../../lib/leagueCreate';
 // signed-in user — the same path the app uses. See lib/leagueCreate.ts.
 
 const today = new Date().toISOString().slice(0, 10);
+
+// The Match Play League card, and its preset rendered for a human.
+//
+// W2 of the parity plan. This card used to be absent and the page
+// steered directors to the app, because restating the preset here
+// would have been a second definition of it with nothing to keep the
+// two in step. It now comes from `__generated__/league-config.json`,
+// generated from the app's own `kLeagueTemplates` and migration
+// 20261013 — so the preset has one home instead of two. See
+// `leagueCreate.ts` for exactly what the guards do and do not cover
+// (freshness across the two repos is still a manual copy step).
+const matchTemplate = templateByKey('matchplay');
+const mc = matchTemplate.matchColumns;
+
+// Labels are website copy. Every VALUE below comes from the generated
+// preset — nothing here restates a number.
+const WEEK_FORMAT_LABELS: Record<string, string> = {
+  two_singles_team: 'Two singles matches, plus a team point',
+  match_play_singles: 'Singles match play',
+  best_ball: 'Best ball',
+};
+const ABSENT_LABELS: Record<string, string> = {
+  ghost: 'A ghost score stands in',
+  against_par: 'They play against par',
+  forfeit_hole: 'The hole is forfeited',
+};
+const SUB_LABELS: Record<string, string> = {
+  min_own_regular: "the lower of their own or the regular's index",
+  own: 'their own index',
+  regular: "the regular's index",
+  league_max: 'the league maximum',
+};
+const BYE_LABELS: Record<string, string> = {
+  half_available: 'Half the points on the table',
+  season_average: 'The team season average',
+  zero: 'Nothing',
+};
+const HC_BASIS_LABELS: Record<string, string> = {
+  off_low_in_match: 'Strokes off the low player in each match',
+  full: 'Full handicap',
+};
+const label = (m: Record<string, string>, v: unknown): string =>
+  m[String(v)] ?? String(v);
+
+const PRESET_ROWS = mc
+  ? [
+      { label: 'Team size', value: `${mc.team_size} players` },
+      { label: 'Holes each week', value: String(mc.holes_per_week) },
+      { label: 'Weekly format', value: label(WEEK_FORMAT_LABELS, mc.week_format) },
+      { label: 'A hole won', value: `${mc.points_per_hole} point` },
+      { label: 'A hole tied', value: `${mc.tie_hole_points} point` },
+      { label: 'Winning the match', value: `${mc.points_per_match} points` },
+      { label: 'The team point', value: `${mc.team_points} points` },
+      { label: 'Handicaps', value: label(HC_BASIS_LABELS, mc.handicap_basis) },
+      {
+        label: 'When a player is out',
+        value: `${label(ABSENT_LABELS, mc.absent_rule)}, at net par`
+          + ` +${mc.absent_ghost_strokes_over_net_par}`,
+      },
+      {
+        label: 'A substitute plays off',
+        value: label(SUB_LABELS, mc.sub_handicap_rule),
+      },
+      { label: 'A bye is worth', value: label(BYE_LABELS, mc.bye_rule) },
+      { label: 'Tee times', value: `${mc.tee_interval_minutes} minutes apart` },
+    ]
+  : [];
 ---
 
 <BaseLayout title="New league · Bagpipe Golf">
@@ -40,14 +107,27 @@ const today = new Date().toISOString().slice(0, 10);
             </label>
           ))}
         </div>
-        <p class="hint">
-          Running a <strong>two-man match-play league</strong>? Create it in
-          the Bagpipe Golf app. That format is configured by a large block of
-          settings this form does not collect — team size, weekly format,
-          points per hole and per match, handicap basis and allowance,
-          substitute and absence rules, byes and forfeits — so a league
-          started here would come out as a plain league on defaults.
-        </p>
+        {mc && (
+          <details class="preset">
+            <summary>
+              What <strong>{matchTemplate.title}</strong> sets up for you
+            </summary>
+            <p class="hint">
+              A match-play league carries a format preset. These are the exact
+              values the Bagpipe Golf app uses — read from the same source, so
+              a league you start here is configured identically to one started
+              in the app. All of it is editable afterwards.
+            </p>
+            <dl class="preset__list">
+              {PRESET_ROWS.map((r) => (
+                <div class="preset__row">
+                  <dt>{r.label}</dt>
+                  <dd>{r.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+        )}
       </fieldset>
 
       <fieldset class="fs">
@@ -202,6 +282,44 @@ const today = new Date().toISOString().slice(0, 10);
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .check { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; }
   .hint { font-size: 12.5px; color: var(--ink-muted, #4b5b54); margin: 6px 0 0; line-height: 1.5; }
+
+  /* The Match Play preset disclosure. Collapsed by default: a director
+     picking Standard should not have to scroll past twelve settings
+     that do not apply to them. */
+  .preset { margin: 10px 0 0; }
+  .preset > summary {
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--ink-muted, #4b5b54);
+    padding: 4px 0;
+  }
+  .preset > summary:hover { color: var(--ink, #16231d); }
+  .preset__list {
+    margin: 8px 0 0;
+    display: grid;
+    gap: 1px;
+    background: var(--rule, #dfe6e2);
+    border: 1px solid var(--rule, #dfe6e2);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .preset__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    justify-content: space-between;
+    align-items: baseline;
+    background: var(--surface, #fff);
+    padding: 7px 10px;
+  }
+  .preset__row dt { font-size: 12.5px; color: var(--ink-muted, #4b5b54); margin: 0; }
+  .preset__row dd {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink, #16231d);
+    margin: 0;
+    text-align: right;
+  }
   .notice { padding: 12px 14px; border-radius: 10px; margin: 0 0 16px; font-size: 14px; }
   .notice--warn { background: #fdecea; border: 1px solid #c4453a; color: #7d241c; }
   .btn--block { width: 100%; }

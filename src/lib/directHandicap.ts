@@ -20,11 +20,14 @@
 // leaderboard was giving the wrong net on the one tournament it
 // existed to show.
 //
-// 🚨 This list is NOT hand-maintained. It is generated from the Dart
-// catalog into `__fixtures__/web-parity.json`, and `parity.test.ts`
-// fails if the two disagree — so adding a fourth opt-out course in
-// Flutter breaks this repo's CI until the list is carried across.
-// Do not edit it without regenerating the fixture.
+// 🚨 This list is checked against the Dart catalog, not trusted. The
+// generated `__fixtures__/web-parity.json` carries the list read out
+// of `kCuratedCourses`, and `parity.test.ts` fails if this array and
+// that list disagree. Note the limit of that: the check fires once the
+// fixture has been RE-COPIED from the Flutter repo, which is a manual
+// step — neither repo's CI can see the other. The Flutter guard fails
+// first, which is what prompts the copy. Do not edit this array
+// without regenerating the fixture.
 
 /// Curated course names whose Course Handicap is `ceil(index)`.
 /// Kept in the Dart catalog's exact spelling; matching is
