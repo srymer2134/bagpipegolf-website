@@ -176,6 +176,29 @@ export async function getPublicTournament(
   return (data ?? null) as TournamentRow | null;
 }
 
+/// The round's effective hole count — 9 or 18 — which the WHS
+/// course-handicap formula needs in order to halve a nine-hole
+/// index (USGA 5.1a). Mirrors Dart's `holeCountForRound`
+/// (`lib/core/models/tournament.dart`): the round's own pars win,
+/// then the tournament's, then the tournament's declared total.
+///
+/// One deliberate gap from the Dart version: Dart also consults the
+/// curated course catalog (`_curatedTeeCandidatesForRound`) between
+/// the round's tees and the fallback. The website has no curated
+/// catalog, so a round whose pars live ONLY in curated data resolves
+/// here by `total_holes` instead. That is the right fallback — a
+/// nine-hole tournament sets `total_holes = 9` — but it is a looser
+/// chain than the app's, so prefer fixing it by shipping the pars
+/// rather than by special-casing here.
+export function holeCountForRound(
+  tournament: TournamentRow,
+  round: TournamentRound,
+): number {
+  const pars = parsForRound(tournament, round);
+  if (pars.length > 0) return pars.length;
+  return tournament.total_holes;
+}
+
 /// Prefer the round's per-round pars (multi-course events) over
 /// the tournament-level tee-box default. Both are optional on
 /// the row; returns an empty list when neither is present.

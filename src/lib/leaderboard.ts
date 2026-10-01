@@ -27,6 +27,7 @@
 //     surfaces produce the same net rankings.
 
 import {
+  holeCountForRound,
   parsForRound,
   playerHoleScoresFor,
   type TournamentPlayer,
@@ -34,6 +35,7 @@ import {
   type TournamentRow,
   type TournamentTeeBox,
 } from './tournamentQueries';
+import { directCourseHandicapFor } from './directHandicap';
 
 export type LeaderboardRow = {
   rank: number;
@@ -54,22 +56,80 @@ export type CtpEntry = {
   winnerName: string;
 };
 
+/// Rounds half AWAY FROM ZERO, which is what Dart's `num.round()`
+/// does. JS `Math.round(-0.5)` is `-0` (it rounds half toward
+/// positive infinity), so plus handicaps and below-par ratings
+/// would disagree with the app without this.
+export function roundHalfAwayFromZero(v: number): number {
+  const r = v >= 0 ? Math.floor(v + 0.5) : -Math.floor(-v + 0.5);
+  // Normalize JS's negative zero. A tiny negative input (a scratch
+  // player on a nine whose rating sits a hair under par) rounds to
+  // `-0` here, and Dart's `int` has no such value — so the two
+  // engines would report handicaps that are numerically equal but
+  // not `Object.is` equal. That is a real difference anywhere the
+  // value is keyed, compared strictly, or JSON round-tripped.
+  return r === 0 ? 0 : r;
+}
+
+/// One-decimal rounding, matching Dart's
+/// `double.parse(v.toStringAsFixed(1))`. Used only by the nine-hole
+/// index halving, where the USGA's published 9-hole Handicap Index
+/// Adjustment table (Rule 5.2) is a one-decimal lookup.
+function round1(v: number): number {
+  return Number(v.toFixed(1));
+}
+
 /// WHS course handicap: `round(index × slope/113 + (rating − par))`.
-/// Deterministic rounding to nearest integer (banker's rounding
-/// per Dart's Math.round semantics — matches
-/// `Handicap.courseHandicap` on the Dart side).
+///
+/// 🚨 **A direct port of Dart's `Handicap.courseHandicap`.** The two
+/// are pinned together by `src/lib/parity.test.ts` against fixtures
+/// generated from the Dart engines. Do not "simplify" any branch
+/// below without regenerating those fixtures — each one is here
+/// because a round in production needed it.
+///
+/// `holeCount` is **not optional in spirit.** It was missing from this
+/// function entirely until 2026-10-01, which meant every nine-hole
+/// round on the website computed a different handicap than the app.
+/// Team leagues are sixteen weeks of nine holes. The default of 18
+/// exists only so an eighteen-hole caller reads cleanly.
 export function courseHandicap(
   handicapIndex: number,
   slope: number,
   rating: number,
   par: number,
+  holeCount: number = 18,
 ): number {
-  const raw = handicapIndex * slope / 113 + (rating - par);
-  // Dart uses .round() which is round-half-away-from-zero.
-  // Match that behavior explicitly (JS's Math.round is
-  // round-half-toward-positive-infinity for positives — same
-  // result for the values we see in practice, but be explicit).
-  return raw >= 0 ? Math.floor(raw + 0.5) : -Math.floor(-raw + 0.5);
+  // Per USGA 5.1a a nine-hole Course Handicap takes HI/2, rounded to
+  // one decimal, as its input. This flag halves the INDEX only; the
+  // rating/slope/par the caller passes are expected to be nine-hole
+  // figures already (the two guards below catch when they are not).
+  const effectiveIndex = holeCount === 9
+    ? round1(handicapIndex / 2)
+    : handicapIndex;
+
+  // A tee with no rating or slope still has to produce pop dots, or a
+  // player silently gets no strokes. Fall back to the raw index —
+  // the same answer the app gives.
+  if (slope <= 0 || rating <= 0) {
+    return roundHalfAwayFromZero(effectiveIndex);
+  }
+
+  // Nine-hole rounds must carry nine-hole ratings and pars or the
+  // (rating − par) term is nonsense. Sam's Shattuck round of
+  // 2026-09-11 stored the club's EIGHTEEN-hole rating of 73.0 against
+  // a nine-hole par of 43, so (73 − 43) = +30 landed on a 3.05 index
+  // and Round Details showed net 3 (−40) for a 39. A rating above 50
+  // or a par above 45 cannot be a nine-hole figure, so halve it.
+  // Rounds started from a curated nine (Shattuck Back: 34.3 / 110 /
+  // 36) pass through untouched.
+  const effectiveRating = holeCount === 9 && rating > 50 ? rating / 2 : rating;
+  const effectivePar = holeCount === 9 && par > 45
+    ? roundHalfAwayFromZero(par / 2)
+    : par;
+
+  return roundHalfAwayFromZero(
+    effectiveIndex * (slope / 113) + (effectiveRating - effectivePar),
+  );
 }
 
 /// Strokes received on one hole given a course handicap +
@@ -159,7 +219,12 @@ function courseHandicapFor(
   tournament: TournamentRow,
   round: TournamentRound,
   player: TournamentPlayer,
+  holeCount: number,
 ): number | null {
+  // Per-course WHS opt-out (Ballyneal) comes first, exactly as in
+  // Dart's `courseHandicapForPlayer`.
+  const direct = directCourseHandicapFor(tournament, round, player);
+  if (direct != null) return direct;
   const index = resolvedHandicapIndex(round, player);
   if (index == null) return null;
   const tee = resolvedTeeBox(tournament, round);
@@ -170,7 +235,7 @@ function courseHandicapFor(
   if (!Number.isFinite(slope) || !Number.isFinite(rating) || !Number.isFinite(par)) {
     return null;
   }
-  return courseHandicap(index, slope, rating, par);
+  return courseHandicap(index, slope, rating, par, holeCount);
 }
 
 type PerPlayerAcc = {
@@ -207,10 +272,11 @@ function _accumulateRound(
   const pars = parsForRound(tournament, round);
   if (pars.length === 0) return;
   const sis = strokeIndexesFor(tournament, round);
+  const holeCount = holeCountForRound(tournament, round);
   for (const phs of playerHoleScoresFor(round)) {
     const acc = perPlayer.get(phs.playerId);
     if (!acc) continue;
-    const ch = courseHandicapFor(tournament, round, acc.player);
+    const ch = courseHandicapFor(tournament, round, acc.player, holeCount);
     let roundContributedAnyScore = false;
     for (let i = 0; i < phs.holeScores.length && i < pars.length; i++) {
       const s = phs.holeScores[i];

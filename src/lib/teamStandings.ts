@@ -25,7 +25,10 @@ import {
   type TournamentPlayer,
   type TournamentRound,
   type TournamentRow,
+  holeCountForRound,
 } from './tournamentQueries';
+import { allowanceAdjustedHandicap } from './handicapAllowance';
+import { directCourseHandicapFor } from './directHandicap';
 import {
   courseHandicap,
   strokesOnHole,
@@ -49,18 +52,6 @@ export type TeamStandingRow = {
 /// foursomes, singles, etc.) falls back to the individual leaderboard.
 export function isBestBallFormat(format: string | null | undefined): boolean {
   return format === 'best_ball' || format === 'best_ball_four_man';
-}
-
-/// USGA "round to nearest whole" allowance. Locked by the Dart
-/// engine's `_allowanceAdjustedHandicap` contract. Passes through
-/// 0 unchanged; negative (plus-handicap) inputs land per the
-/// same floor-of-x-plus-half rule.
-function allowanceAdjustedHandicap(
-  courseHc: number,
-  allowance: number,
-): number {
-  if (courseHc === 0) return 0;
-  return Math.floor(courseHc * allowance + 0.5);
 }
 
 /// Resolve the round's handicap allowance. Priority:
@@ -139,12 +130,17 @@ function courseHcFor(
   tournament: TournamentRow,
   round: TournamentRound,
   player: TournamentPlayer,
+  holeCount: number,
 ): number | null {
+  // Per-course WHS opt-out (Ballyneal) comes first, exactly as in
+  // Dart's `courseHandicapForPlayer`.
+  const direct = directCourseHandicapFor(tournament, round, player);
+  if (direct != null) return direct;
   const idx = resolvedIndex(round, player);
   if (idx == null) return null;
   const tee = teeForPlayer(tournament, round, player);
   if (!tee) return null;
-  return courseHandicap(idx, tee.slope, tee.rating, tee.par);
+  return courseHandicap(idx, tee.slope, tee.rating, tee.par, holeCount);
 }
 
 /// Build the team standings for a single Best Ball round. Returns
@@ -162,6 +158,7 @@ export function buildRoundTeamStandings(
   if (pars.length === 0) return [];
   const sis = strokeIndexesFor(tournament, round);
   const allowance = allowanceFor(round);
+  const holeCount = holeCountForRound(tournament, round);
 
   // Index players + scores for fast lookup.
   const playerById = new Map<string, TournamentPlayer>();
@@ -188,7 +185,7 @@ export function buildRoundTeamStandings(
     for (const pid of teamPlayerIds) {
       const p = playerById.get(pid);
       if (!p) continue;
-      const ch = courseHcFor(tournament, round, p);
+      const ch = courseHcFor(tournament, round, p, holeCount);
       members.push({
         player: p,
         adjustedHc: ch == null ? null : allowanceAdjustedHandicap(ch, allowance),

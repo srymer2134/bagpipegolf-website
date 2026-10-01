@@ -1,0 +1,791 @@
+{
+ "_comment": "GENERATED from the Dart engines. Do not hand-edit. Regenerate with: REGEN=1 flutter test test/parity/web_parity_fixtures_test.dart, verify the diff, then copy to bagpipegolf-website/src/lib/__fixtures__/web-parity.json",
+ "version": 1,
+ "courseHandicap": [
+  {
+   "hi": 10.0,
+   "slope": 113,
+   "rating": 72.0,
+   "par": 72,
+   "holes": 18,
+   "expected": 10
+  },
+  {
+   "hi": 0.0,
+   "slope": 113,
+   "rating": 72.0,
+   "par": 72,
+   "holes": 18,
+   "expected": 0
+  },
+  {
+   "hi": 4.0,
+   "slope": 120,
+   "rating": 70.2,
+   "par": 70,
+   "holes": 18,
+   "expected": 4
+  },
+  {
+   "hi": 21.5,
+   "slope": 120,
+   "rating": 70.2,
+   "par": 70,
+   "holes": 18,
+   "expected": 23
+  },
+  {
+   "hi": 36.0,
+   "slope": 155,
+   "rating": 76.4,
+   "par": 72,
+   "holes": 18,
+   "expected": 54
+  },
+  {
+   "hi": -2.4,
+   "slope": 130,
+   "rating": 74.1,
+   "par": 72,
+   "holes": 18,
+   "expected": -1
+  },
+  {
+   "hi": 12.0,
+   "slope": 113,
+   "rating": 67.8,
+   "par": 72,
+   "holes": 18,
+   "expected": 8
+  },
+  {
+   "hi": 10.5,
+   "slope": 113,
+   "rating": 72.5,
+   "par": 72,
+   "holes": 18,
+   "expected": 11
+  },
+  {
+   "hi": 9.5,
+   "slope": 113,
+   "rating": 72.0,
+   "par": 72,
+   "holes": 18,
+   "expected": 10
+  },
+  {
+   "hi": -0.5,
+   "slope": 113,
+   "rating": 72.0,
+   "par": 72,
+   "holes": 18,
+   "expected": -1
+  },
+  {
+   "hi": 3.05,
+   "slope": 110,
+   "rating": 34.3,
+   "par": 36,
+   "holes": 9,
+   "expected": 0
+  },
+  {
+   "hi": 10.0,
+   "slope": 113,
+   "rating": 36.0,
+   "par": 36,
+   "holes": 9,
+   "expected": 5
+  },
+  {
+   "hi": 3.05,
+   "slope": 120,
+   "rating": 73.0,
+   "par": 43,
+   "holes": 9,
+   "expected": -5
+  },
+  {
+   "hi": 14.0,
+   "slope": 128,
+   "rating": 71.6,
+   "par": 72,
+   "holes": 9,
+   "expected": 8
+  },
+  {
+   "hi": 9.1,
+   "slope": 113,
+   "rating": 36.0,
+   "par": 36,
+   "holes": 9,
+   "expected": 5
+  },
+  {
+   "hi": 7.0,
+   "slope": 113,
+   "rating": 36.0,
+   "par": 36,
+   "holes": 9,
+   "expected": 4
+  },
+  {
+   "hi": 12.0,
+   "slope": 0,
+   "rating": 72.0,
+   "par": 72,
+   "holes": 18,
+   "expected": 12
+  },
+  {
+   "hi": 12.0,
+   "slope": 113,
+   "rating": 0.0,
+   "par": 72,
+   "holes": 18,
+   "expected": 12
+  },
+  {
+   "hi": 12.0,
+   "slope": 0,
+   "rating": 36.0,
+   "par": 36,
+   "holes": 9,
+   "expected": 6
+  }
+ ],
+ "strokesOnHole": [
+  {
+   "ch": -5,
+   "si": 1,
+   "expected": 0
+  },
+  {
+   "ch": -5,
+   "si": 2,
+   "expected": 0
+  },
+  {
+   "ch": -5,
+   "si": 9,
+   "expected": 0
+  },
+  {
+   "ch": -5,
+   "si": 17,
+   "expected": 0
+  },
+  {
+   "ch": -5,
+   "si": 18,
+   "expected": 0
+  },
+  {
+   "ch": -1,
+   "si": 1,
+   "expected": 0
+  },
+  {
+   "ch": -1,
+   "si": 2,
+   "expected": 0
+  },
+  {
+   "ch": -1,
+   "si": 9,
+   "expected": 0
+  },
+  {
+   "ch": -1,
+   "si": 17,
+   "expected": 0
+  },
+  {
+   "ch": -1,
+   "si": 18,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "si": 1,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "si": 2,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "si": 9,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "si": 17,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "si": 18,
+   "expected": 0
+  },
+  {
+   "ch": 1,
+   "si": 1,
+   "expected": 1
+  },
+  {
+   "ch": 1,
+   "si": 2,
+   "expected": 0
+  },
+  {
+   "ch": 1,
+   "si": 9,
+   "expected": 0
+  },
+  {
+   "ch": 1,
+   "si": 17,
+   "expected": 0
+  },
+  {
+   "ch": 1,
+   "si": 18,
+   "expected": 0
+  },
+  {
+   "ch": 9,
+   "si": 1,
+   "expected": 1
+  },
+  {
+   "ch": 9,
+   "si": 2,
+   "expected": 1
+  },
+  {
+   "ch": 9,
+   "si": 9,
+   "expected": 1
+  },
+  {
+   "ch": 9,
+   "si": 17,
+   "expected": 0
+  },
+  {
+   "ch": 9,
+   "si": 18,
+   "expected": 0
+  },
+  {
+   "ch": 17,
+   "si": 1,
+   "expected": 1
+  },
+  {
+   "ch": 17,
+   "si": 2,
+   "expected": 1
+  },
+  {
+   "ch": 17,
+   "si": 9,
+   "expected": 1
+  },
+  {
+   "ch": 17,
+   "si": 17,
+   "expected": 1
+  },
+  {
+   "ch": 17,
+   "si": 18,
+   "expected": 0
+  },
+  {
+   "ch": 18,
+   "si": 1,
+   "expected": 1
+  },
+  {
+   "ch": 18,
+   "si": 2,
+   "expected": 1
+  },
+  {
+   "ch": 18,
+   "si": 9,
+   "expected": 1
+  },
+  {
+   "ch": 18,
+   "si": 17,
+   "expected": 1
+  },
+  {
+   "ch": 18,
+   "si": 18,
+   "expected": 1
+  },
+  {
+   "ch": 19,
+   "si": 1,
+   "expected": 2
+  },
+  {
+   "ch": 19,
+   "si": 2,
+   "expected": 1
+  },
+  {
+   "ch": 19,
+   "si": 9,
+   "expected": 1
+  },
+  {
+   "ch": 19,
+   "si": 17,
+   "expected": 1
+  },
+  {
+   "ch": 19,
+   "si": 18,
+   "expected": 1
+  },
+  {
+   "ch": 20,
+   "si": 1,
+   "expected": 2
+  },
+  {
+   "ch": 20,
+   "si": 2,
+   "expected": 2
+  },
+  {
+   "ch": 20,
+   "si": 9,
+   "expected": 1
+  },
+  {
+   "ch": 20,
+   "si": 17,
+   "expected": 1
+  },
+  {
+   "ch": 20,
+   "si": 18,
+   "expected": 1
+  },
+  {
+   "ch": 27,
+   "si": 1,
+   "expected": 2
+  },
+  {
+   "ch": 27,
+   "si": 2,
+   "expected": 2
+  },
+  {
+   "ch": 27,
+   "si": 9,
+   "expected": 2
+  },
+  {
+   "ch": 27,
+   "si": 17,
+   "expected": 1
+  },
+  {
+   "ch": 27,
+   "si": 18,
+   "expected": 1
+  },
+  {
+   "ch": 36,
+   "si": 1,
+   "expected": 2
+  },
+  {
+   "ch": 36,
+   "si": 2,
+   "expected": 2
+  },
+  {
+   "ch": 36,
+   "si": 9,
+   "expected": 2
+  },
+  {
+   "ch": 36,
+   "si": 17,
+   "expected": 2
+  },
+  {
+   "ch": 36,
+   "si": 18,
+   "expected": 2
+  },
+  {
+   "ch": 37,
+   "si": 1,
+   "expected": 3
+  },
+  {
+   "ch": 37,
+   "si": 2,
+   "expected": 2
+  },
+  {
+   "ch": 37,
+   "si": 9,
+   "expected": 2
+  },
+  {
+   "ch": 37,
+   "si": 17,
+   "expected": 2
+  },
+  {
+   "ch": 37,
+   "si": 18,
+   "expected": 2
+  },
+  {
+   "ch": 54,
+   "si": 1,
+   "expected": 3
+  },
+  {
+   "ch": 54,
+   "si": 2,
+   "expected": 3
+  },
+  {
+   "ch": 54,
+   "si": 9,
+   "expected": 3
+  },
+  {
+   "ch": 54,
+   "si": 17,
+   "expected": 3
+  },
+  {
+   "ch": 54,
+   "si": 18,
+   "expected": 3
+  }
+ ],
+ "allowanceAdjustedHandicap": [
+  {
+   "ch": -5,
+   "allowance": 1.0,
+   "expected": -5
+  },
+  {
+   "ch": -5,
+   "allowance": 0.95,
+   "expected": -5
+  },
+  {
+   "ch": -5,
+   "allowance": 0.9,
+   "expected": -4
+  },
+  {
+   "ch": -5,
+   "allowance": 0.85,
+   "expected": -4
+  },
+  {
+   "ch": -5,
+   "allowance": 0.75,
+   "expected": -4
+  },
+  {
+   "ch": -5,
+   "allowance": 0.5,
+   "expected": -2
+  },
+  {
+   "ch": -2,
+   "allowance": 1.0,
+   "expected": -2
+  },
+  {
+   "ch": -2,
+   "allowance": 0.95,
+   "expected": -2
+  },
+  {
+   "ch": -2,
+   "allowance": 0.9,
+   "expected": -2
+  },
+  {
+   "ch": -2,
+   "allowance": 0.85,
+   "expected": -2
+  },
+  {
+   "ch": -2,
+   "allowance": 0.75,
+   "expected": -1
+  },
+  {
+   "ch": -2,
+   "allowance": 0.5,
+   "expected": -1
+  },
+  {
+   "ch": -1,
+   "allowance": 1.0,
+   "expected": -1
+  },
+  {
+   "ch": -1,
+   "allowance": 0.95,
+   "expected": -1
+  },
+  {
+   "ch": -1,
+   "allowance": 0.9,
+   "expected": -1
+  },
+  {
+   "ch": -1,
+   "allowance": 0.85,
+   "expected": -1
+  },
+  {
+   "ch": -1,
+   "allowance": 0.75,
+   "expected": -1
+  },
+  {
+   "ch": -1,
+   "allowance": 0.5,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "allowance": 1.0,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "allowance": 0.95,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "allowance": 0.9,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "allowance": 0.85,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "allowance": 0.75,
+   "expected": 0
+  },
+  {
+   "ch": 0,
+   "allowance": 0.5,
+   "expected": 0
+  },
+  {
+   "ch": 1,
+   "allowance": 1.0,
+   "expected": 1
+  },
+  {
+   "ch": 1,
+   "allowance": 0.95,
+   "expected": 1
+  },
+  {
+   "ch": 1,
+   "allowance": 0.9,
+   "expected": 1
+  },
+  {
+   "ch": 1,
+   "allowance": 0.85,
+   "expected": 1
+  },
+  {
+   "ch": 1,
+   "allowance": 0.75,
+   "expected": 1
+  },
+  {
+   "ch": 1,
+   "allowance": 0.5,
+   "expected": 1
+  },
+  {
+   "ch": 7,
+   "allowance": 1.0,
+   "expected": 7
+  },
+  {
+   "ch": 7,
+   "allowance": 0.95,
+   "expected": 7
+  },
+  {
+   "ch": 7,
+   "allowance": 0.9,
+   "expected": 6
+  },
+  {
+   "ch": 7,
+   "allowance": 0.85,
+   "expected": 6
+  },
+  {
+   "ch": 7,
+   "allowance": 0.75,
+   "expected": 5
+  },
+  {
+   "ch": 7,
+   "allowance": 0.5,
+   "expected": 4
+  },
+  {
+   "ch": 15,
+   "allowance": 1.0,
+   "expected": 15
+  },
+  {
+   "ch": 15,
+   "allowance": 0.95,
+   "expected": 14
+  },
+  {
+   "ch": 15,
+   "allowance": 0.9,
+   "expected": 14
+  },
+  {
+   "ch": 15,
+   "allowance": 0.85,
+   "expected": 13
+  },
+  {
+   "ch": 15,
+   "allowance": 0.75,
+   "expected": 11
+  },
+  {
+   "ch": 15,
+   "allowance": 0.5,
+   "expected": 8
+  },
+  {
+   "ch": 18,
+   "allowance": 1.0,
+   "expected": 18
+  },
+  {
+   "ch": 18,
+   "allowance": 0.95,
+   "expected": 17
+  },
+  {
+   "ch": 18,
+   "allowance": 0.9,
+   "expected": 16
+  },
+  {
+   "ch": 18,
+   "allowance": 0.85,
+   "expected": 15
+  },
+  {
+   "ch": 18,
+   "allowance": 0.75,
+   "expected": 14
+  },
+  {
+   "ch": 18,
+   "allowance": 0.5,
+   "expected": 9
+  },
+  {
+   "ch": 21,
+   "allowance": 1.0,
+   "expected": 21
+  },
+  {
+   "ch": 21,
+   "allowance": 0.95,
+   "expected": 20
+  },
+  {
+   "ch": 21,
+   "allowance": 0.9,
+   "expected": 19
+  },
+  {
+   "ch": 21,
+   "allowance": 0.85,
+   "expected": 18
+  },
+  {
+   "ch": 21,
+   "allowance": 0.75,
+   "expected": 16
+  },
+  {
+   "ch": 21,
+   "allowance": 0.5,
+   "expected": 11
+  },
+  {
+   "ch": 36,
+   "allowance": 1.0,
+   "expected": 36
+  },
+  {
+   "ch": 36,
+   "allowance": 0.95,
+   "expected": 34
+  },
+  {
+   "ch": 36,
+   "allowance": 0.9,
+   "expected": 32
+  },
+  {
+   "ch": 36,
+   "allowance": 0.85,
+   "expected": 31
+  },
+  {
+   "ch": 36,
+   "allowance": 0.75,
+   "expected": 27
+  },
+  {
+   "ch": 36,
+   "allowance": 0.5,
+   "expected": 18
+  }
+ ],
+ "directHandicapCourses": [
+  "Ballyneal Golf & Hunt Club",
+  "Ballyneal Mulligan (Par 3)"
+ ]
+}
