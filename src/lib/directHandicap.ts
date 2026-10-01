@@ -66,26 +66,34 @@ export function directCourseHandicap(handicapIndex: number): number {
   return Math.ceil(handicapIndex);
 }
 
-/// The WHS opt-out applied to one player in one round, or `null` when
-/// the round's course does not opt out (in which case the caller runs
-/// the normal `courseHandicap` path).
+/// The WHS opt-out applied to one round, or `null` when the round's
+/// course does not opt out (in which case the caller runs the normal
+/// `courseHandicap` path).
 ///
-/// 🚨 **Deliberately uses the player's BASE handicap index, not the
-/// round's `playerHandicapIndexSnapshot` override.** That is what Dart
-/// does — `courseHandicapForPlayer` returns `player.handicapIndex.ceil()`
-/// before it looks at anything round-specific — and parity means
-/// matching the engine that settles money, not improving on it.
+/// 🚨 **Takes the RESOLVED index — the one that already honours the
+/// round's `playerHandicapIndexSnapshot` override — not the player's
+/// profile index.** Get this wrong and a tournament director's
+/// Saturday-to-Sunday handicap adjustment is silently dropped on
+/// exactly the courses this opt-out exists for.
 ///
-/// It is very likely wrong on both sides: the Ballyneal Brigade is
-/// precisely the tournament that uses per-round handicap adjustments,
-/// so a Saturday-to-Sunday adjustment is ignored on exactly the course
-/// this opt-out was built for. Raised with Sam; fixing it is a change
-/// to the APP first, then a regenerated fixture, then this line. Do not
-/// "fix" it here alone — that re-opens the divergence.
+/// This signature is a correction. The first version took the player
+/// and read `player.handicapIndex`, because I believed Dart's
+/// `courseHandicapForPlayer` ignored the snapshot on these courses. It
+/// does not. That function never consults the snapshot *for any*
+/// course — applying overrides is the CALLER's job, by design, and both
+/// of Dart's resolution paths substitute the overridden index before
+/// calling it:
+///
+///   // round_context.dart:710, and _buildPlayerCHCache at :480
+///   final overridden = tp.copyWith(handicapIndex: indexSnap);
+///   return courseHandicapForPlayer(player: overridden, ...);
+///
+/// So `ceil()` receives the overridden index in the app, and must here
+/// too. Passing the resolved index is what makes the two agree.
 export function directCourseHandicapFor(
   tournament: { course_name: string | null },
   round: Record<string, unknown>,
-  player: { handicapIndex?: number },
+  resolvedHandicapIndex: number | null,
 ): number | null {
   const roundCourse = (round.course_name ?? round.courseName) as
     | string
@@ -93,6 +101,6 @@ export function directCourseHandicapFor(
     | undefined;
   const courseName = roundCourse ?? tournament.course_name;
   if (!usesDirectHandicap(courseName)) return null;
-  if (typeof player.handicapIndex !== 'number') return null;
-  return directCourseHandicap(player.handicapIndex);
+  if (typeof resolvedHandicapIndex !== 'number') return null;
+  return directCourseHandicap(resolvedHandicapIndex);
 }
