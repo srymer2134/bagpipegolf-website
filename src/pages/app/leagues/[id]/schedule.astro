@@ -23,8 +23,15 @@ try {
 }
 
 const today = new Date().toISOString().slice(0, 10);
-const upcoming = (d?.weeks ?? []).filter((w) => w.week_of >= today);
-const completed = (d?.weeks ?? []).filter((w) => w.week_of < today).reverse();
+// `events` merges real league_weeks rows with dates derived from
+// leagues.schedule — week rows are created lazily, so reading only
+// those showed "no events" for any season that has not generated
+// matchups yet.
+const all = d?.events ?? [];
+const upcoming = all.filter((w) => w.week_of >= today);
+const completed = all.filter((w) => w.week_of < today).reverse();
+const isDirector = d?.league.role === 'commissioner';
+const sched = d?.schedule ?? null;
 ---
 
 <BaseLayout title={d ? `${d.league.name} schedule · Bagpipe Golf` : 'League schedule · Bagpipe Golf'}>
@@ -42,11 +49,46 @@ const completed = (d?.weeks ?? []).filter((w) => w.week_of < today).reverse();
         <p class="pagewrap__sub">{d.league.name} · your RSVP shown per event</p>
         <LeagueSubnav id={d.league.id} active="schedule" />
 
-        {d.weeks.length === 0 && (
+        {all.length === 0 && !isDirector && (
           <div class="notice">
-            No events scheduled yet. The commissioner sets the season's dates
-            in the app.
+            No events scheduled yet. Your league director sets the season's
+            dates.
           </div>
+        )}
+
+        {isDirector && (
+          <section class="card setup">
+            <h3>{sched ? 'Edit the season' : 'Set up the season'}</h3>
+            <p class="small muted">
+              {sched
+                ? 'Changing these re-derives every date. Tournaments you have bound to a slot are kept.'
+                : 'A starting point — a first date, how many events, and how far apart.'}
+            </p>
+            <div id="schedErr" class="notice notice--warn" hidden></div>
+            <form id="schedForm" class="setupgrid">
+              <label class="field">
+                <span>First event</span>
+                <input type="date" name="startDate" required
+                       value={sched?.startDate ?? today} />
+              </label>
+              <label class="field">
+                <span>Events</span>
+                <input type="number" name="eventCount" min="2" max="52" required
+                       value={sched?.eventCount ?? 8} />
+              </label>
+              <label class="field">
+                <span>Days apart</span>
+                <input type="number" name="intervalDays" min="1" max="30" required
+                       value={sched?.intervalDays ?? 7} />
+              </label>
+              <button type="submit" id="schedBtn" class="btn btn--primary">
+                {sched ? 'Save schedule' : 'Create schedule'}
+              </button>
+            </form>
+            <p class="small muted">
+              Per-event course, tees and tee times are set in the app.
+            </p>
+          </section>
         )}
 
         {upcoming.length > 0 && (
@@ -74,6 +116,12 @@ const completed = (d?.weeks ?? []).filter((w) => w.week_of < today).reverse();
               </table>
             </div>
             <p class="small muted">RSVP in the app — this portal reads it, it doesn't set it.</p>
+            {d.weeks.length === 0 && (
+              <p class="small muted">
+                These dates come from the season settings. Course and tee times
+                appear once the director sets them per event.
+              </p>
+            )}
           </section>
         )}
 
@@ -108,6 +156,49 @@ const completed = (d?.weeks ?? []).filter((w) => w.week_of < today).reverse();
   </main>
 </BaseLayout>
 
+<script is:inline define:vars={{ leagueId: id }}>
+  (() => {
+    const form = document.getElementById('schedForm');
+    if (!form) return;
+    const btn = document.getElementById('schedBtn');
+    const err = document.getElementById('schedErr');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.hidden = true;
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = 'Saving…';
+      const fd = new FormData(form);
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/schedule`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            startDate: String(fd.get('startDate') || ''),
+            eventCount: Number(fd.get('eventCount') || 0),
+            intervalDays: Number(fd.get('intervalDays') || 0),
+          }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          err.textContent = body.error || `Could not save (${res.status}).`;
+          err.hidden = false;
+          btn.disabled = false;
+          btn.textContent = label;
+          return;
+        }
+        window.location.reload();
+      } catch {
+        err.textContent = 'Network error. Please try again.';
+        err.hidden = false;
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+  })();
+</script>
+
 <style>
   .card h3 { font-size: 17px; color: var(--brand-green-dark); margin: 8px 0 6px; }
   .lsec { margin-top: 28px; }
@@ -123,6 +214,20 @@ const completed = (d?.weeks ?? []).filter((w) => w.week_of < today).reverse();
   .tbl td.yes { color: var(--brand-green-dark, #1f5b30); font-weight: 600; }
   .tbl td.no { color: #9a3b32; }
   .notice { padding: 14px 16px; border-radius: 12px; margin: 16px 0; line-height: 1.5; font-size: 14px; background: #f4f7f5; border: 1px solid #e3e9e5; }
+  .setup { margin: 16px 0 8px; }
+  .setup h3 { font-size: 16px; color: var(--brand-green-dark); margin: 0 0 4px; }
+  .setupgrid {
+    display: grid; grid-template-columns: 1.3fr .7fr .7fr auto;
+    gap: 10px; align-items: end; margin-top: 10px;
+  }
+  @media (max-width: 640px) { .setupgrid { grid-template-columns: 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field > span { font-size: 13px; color: var(--ink-muted, #4b5b54); }
+  .field input {
+    font: inherit; padding: 8px 10px; border: 1px solid #c8d4cd;
+    border-radius: 8px; background: #fff; width: 100%;
+  }
+  .notice--warn { background: #fdecea; border: 1px solid #c4453a; color: #7d241c; }
   .small { font-size: 12.5px; }
   .muted { color: var(--ink-muted, #4b5b54); }
 </style>
