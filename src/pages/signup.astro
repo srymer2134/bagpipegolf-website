@@ -7,15 +7,26 @@ let info: string | null = null;
 const url = new URL(Astro.request.url);
 const next = url.searchParams.get('next') || '/app';
 let prefillEmail = '';
+let prefillFirst = '';
+let prefillLast = '';
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const email = (form.get('email') ?? '').toString().trim();
   const password = (form.get('password') ?? '').toString();
   const confirm = (form.get('confirm') ?? '').toString();
+  const firstName = (form.get('firstName') ?? '').toString().trim();
+  const lastName = (form.get('lastName') ?? '').toString().trim();
   prefillEmail = email;
+  prefillFirst = firstName;
+  prefillLast = lastName;
 
-  if (!email || !password) {
+  // "First Last", the same display name the app builds at signup.
+  const displayName = [firstName, lastName].filter(Boolean).join(' ').trim();
+
+  if (!firstName || !lastName) {
+    error = 'Enter your first and last name.';
+  } else if (!email || !password) {
     error = 'Email and password are required.';
   } else if (password.length < 8) {
     error = 'Password must be at least 8 characters.';
@@ -54,6 +65,30 @@ if (Astro.request.method === 'POST') {
       if (authErr) {
         error = authErr.message || 'Sign-up failed.';
       } else if (data.session) {
+        // Persist "First Last" over the trigger's default.
+        //
+        // `handle_new_user` seeds profiles.display_name with
+        // split_part(email, '@', 1), so without this a new member shows
+        // up on a league roster as "jsmith". The app does the same
+        // write for the same reason (AuthNotifier.signUp).
+        //
+        // PARTIAL update, display_name only — deliberately. A full
+        // profile write would carry model defaults and could clobber a
+        // handicap. The row already exists; the trigger made it.
+        //
+        // Best-effort: a blip here must not fail a signup that has
+        // already succeeded. The fallback is the email local part,
+        // which is wrong but harmless and editable.
+        if (displayName && data.user?.id) {
+          try {
+            await supabase
+              .from('profiles')
+              .update({ display_name: displayName })
+              .eq('id', data.user.id);
+          } catch (e) {
+            console.error('[signup] display_name write failed', e);
+          }
+        }
         return Astro.redirect(next.startsWith('/') ? next : '/app', 303);
       } else {
         // Email confirmation required — no session returned.
@@ -82,6 +117,37 @@ if (Astro.request.method === 'POST') {
     <form method="post" class="card authform">
       {error && <div class="authform__error" role="alert">{error}</div>}
       {info && <div class="authform__info" role="status">{info}</div>}
+
+      <div class="authform__row2">
+        <label class="authform__field">
+          <span class="authform__label">First name</span>
+          <input
+            name="firstName"
+            type="text"
+            autocomplete="given-name"
+            autocapitalize="words"
+            required
+            value={prefillFirst}
+            class="authform__input"
+          />
+        </label>
+        <label class="authform__field">
+          <span class="authform__label">Last name</span>
+          <input
+            name="lastName"
+            type="text"
+            autocomplete="family-name"
+            autocapitalize="words"
+            required
+            value={prefillLast}
+            class="authform__input"
+          />
+        </label>
+      </div>
+      <p class="authform__hint">
+        This is the name other players see — on scorecards, leaderboards and
+        league rosters.
+      </p>
 
       <label class="authform__field">
         <span class="authform__label">Email</span>
@@ -129,6 +195,21 @@ if (Astro.request.method === 'POST') {
 </BaseLayout>
 
 <style>
+  .authform__row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 420px) {
+    .authform__row2 { grid-template-columns: 1fr; }
+  }
+  .authform__hint {
+    font-size: 12.5px;
+    color: var(--ink-muted, #4b5b54);
+    margin: -4px 0 14px;
+    line-height: 1.45;
+  }
+
   .authform { display: grid; gap: 18px; margin-top: 8px; }
   .authform__error,
   .authform__info {
