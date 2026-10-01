@@ -221,12 +221,14 @@ function courseHandicapFor(
   player: TournamentPlayer,
   holeCount: number,
 ): number | null {
-  // Per-course WHS opt-out (Ballyneal) comes first, exactly as in
-  // Dart's `courseHandicapForPlayer`.
-  const direct = directCourseHandicapFor(tournament, round, player);
-  if (direct != null) return direct;
+  // Resolve the index FIRST so the per-round override is honoured on
+  // every path, opt-out courses included — the app's callers do the
+  // same substitution before they reach `courseHandicapForPlayer`.
   const index = resolvedHandicapIndex(round, player);
   if (index == null) return null;
+  // Per-course WHS opt-out (Ballyneal): CH is just the index, rounded up.
+  const direct = directCourseHandicapFor(tournament, round, index);
+  if (direct != null) return direct;
   const tee = resolvedTeeBox(tournament, round);
   if (!tee) return null;
   const slope = Number(tee.slopeRating);

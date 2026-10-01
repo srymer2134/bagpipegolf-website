@@ -1,0 +1,385 @@
+{
+ "_comment": "GENERATED. Do not hand-edit. Columns, defaults, allowed values and cross-field rules are parsed from supabase/migrations/20261013_league_weekly_matchup_tables.sql; templates come from kLeagueTemplates. Regenerate with: REGEN=1 flutter test test/parity/league_config_schema.json, verify the diff, then copy to bagpipegolf-website/src/lib/__generated__/league-config.json",
+ "version": 1,
+ "source": "supabase/migrations/20261013_league_weekly_matchup_tables.sql",
+ "columnCount": 23,
+ "fields": [
+  {
+   "name": "team_size",
+   "type": "smallint",
+   "notNull": true,
+   "default": "1",
+   "allowed": [
+    "1",
+    "2"
+   ],
+   "allowedFrom": "leagues_team_size_chk",
+   "clientPatchable": true
+  },
+  {
+   "name": "default_course_id",
+   "type": "text",
+   "notNull": false,
+   "default": null,
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "default_tee",
+   "type": "text",
+   "notNull": false,
+   "default": null,
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "holes_per_week",
+   "type": "smallint",
+   "notNull": true,
+   "default": "9",
+   "allowed": [
+    "9",
+    "18"
+   ],
+   "allowedFrom": "leagues_holes_per_week_chk",
+   "clientPatchable": true
+  },
+  {
+   "name": "week_format",
+   "type": "text",
+   "notNull": true,
+   "default": "'match_play_singles'",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "points_per_hole",
+   "type": "numeric(3,1)",
+   "notNull": true,
+   "default": "1.0",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "tie_hole_points",
+   "type": "numeric(3,1)",
+   "notNull": true,
+   "default": "0.5",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "points_per_match",
+   "type": "numeric(3,1)",
+   "notNull": true,
+   "default": "2.0",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "team_points",
+   "type": "numeric(3,1)",
+   "notNull": true,
+   "default": "2.0",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "team_points_basis",
+   "type": "text",
+   "notNull": true,
+   "default": "'aggregate_net'",
+   "allowed": [
+    "aggregate_net",
+    "low_ball"
+   ],
+   "allowedFrom": "leagues_team_points_basis_chk",
+   "clientPatchable": true
+  },
+  {
+   "name": "handicap_basis",
+   "type": "text",
+   "notNull": true,
+   "default": "'off_low_in_match'",
+   "allowed": [
+    "off_low_in_match",
+    "full"
+   ],
+   "allowedFrom": "leagues_handicap_basis_chk",
+   "clientPatchable": true
+  },
+  {
+   "name": "allowance_pct",
+   "type": "smallint",
+   "notNull": false,
+   "default": null,
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "max_strokes_given",
+   "type": "smallint",
+   "notNull": false,
+   "default": null,
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "sub_handicap_rule",
+   "type": "text",
+   "notNull": true,
+   "default": "'min_own_regular'",
+   "allowed": [
+    "own",
+    "min_own_regular",
+    "regular",
+    "league_max"
+   ],
+   "allowedFrom": "leagues_sub_handicap_rule_chk",
+   "clientPatchable": true
+  },
+  {
+   "name": "sub_league_max",
+   "type": "numeric(4,1)",
+   "notNull": false,
+   "default": null,
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "absent_rule",
+   "type": "text",
+   "notNull": true,
+   "default": "'ghost'",
+   "allowed": [
+    "ghost",
+    "against_par",
+    "forfeit_hole"
+   ],
+   "allowedFrom": "leagues_absent_rule_chk",
+   "clientPatchable": true
+  },
+  {
+   "name": "absent_ghost_strokes_over_net_par",
+   "type": "smallint",
+   "notNull": true,
+   "default": "2",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "forfeit_points",
+   "type": "numeric(3,1)",
+   "notNull": false,
+   "default": null,
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "bye_rule",
+   "type": "text",
+   "notNull": true,
+   "default": "'half_available'",
+   "allowed": [
+    "half_available",
+    "season_average",
+    "zero"
+   ],
+   "allowedFrom": "leagues_bye_rule_chk",
+   "clientPatchable": true
+  },
+  {
+   "name": "attendance_points",
+   "type": "numeric(3,1)",
+   "notNull": true,
+   "default": "0",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "half_split_slot",
+   "type": "smallint",
+   "notNull": false,
+   "default": null,
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "default_first_tee",
+   "type": "time",
+   "notNull": false,
+   "default": null,
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "tee_interval_minutes",
+   "type": "smallint",
+   "notNull": true,
+   "default": "9",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  }
+ ],
+ "rules": [
+  {
+   "constraint": "leagues_tie_hole_points_chk",
+   "sql": "check (tie_hole_points = 0 or tie_hole_points = points_per_hole / 2)",
+   "fields": [
+    "tie_hole_points",
+    "points_per_hole"
+   ],
+   "summary": "tie_hole_points must be exactly 0 or half of points_per_hole"
+  },
+  {
+   "constraint": "leagues_match_play_format_chk",
+   "sql": "check (points_model <> 'match_play' or week_format in ('match_play_singles', 'two_singles_team', 'best_ball'))",
+   "fields": [
+    "points_model",
+    "week_format"
+   ],
+   "summary": "when points_model is 'match_play', week_format must be one of match_play_singles, two_singles_team, best_ball"
+  },
+  {
+   "constraint": "leagues_absent_rule_format_chk",
+   "sql": "check (points_model <> 'match_play' or ( (absent_rule <> 'forfeit_hole' or week_format = 'best_ball') and (absent_rule <> 'against_par' or week_format in ('match_play_singles', 'two_singles_team'))))",
+   "fields": [
+    "points_model",
+    "absent_rule",
+    "week_format"
+   ],
+   "summary": "when points_model is 'match_play': absent_rule 'forfeit_hole' requires week_format 'best_ball', and 'against_par' requires a singles format (match_play_singles or two_singles_team)"
+  },
+  {
+   "constraint": "leagues_allowance_pct_chk",
+   "sql": "check (allowance_pct is null or allowance_pct between 50 and 100)",
+   "fields": [
+    "allowance_pct"
+   ],
+   "summary": "allowance_pct is null or between 50 and 100 inclusive"
+  }
+ ],
+ "templates": [
+  {
+   "id": "weeklyRecurring",
+   "title": "Weekly League",
+   "rosterHint": "8–12 regulars",
+   "scheduleEnabled": true,
+   "intervalDays": 7,
+   "eventCount": 16,
+   "pointsModel": "position",
+   "defaultWeekFormat": "stableford",
+   "subScoringRule": "regular_keeps_sub",
+   "flightCount": 1,
+   "playoffSize": 4,
+   "matchPreset": null
+  },
+  {
+   "id": "teamLeague",
+   "title": "Match Play League",
+   "rosterHint": "8–24 regulars, in pairs",
+   "scheduleEnabled": true,
+   "intervalDays": 7,
+   "eventCount": 16,
+   "pointsModel": "match_play",
+   "defaultWeekFormat": "match_play",
+   "subScoringRule": "regular_keeps_sub",
+   "flightCount": 1,
+   "playoffSize": 0,
+   "matchPreset": {
+    "team_size": 2,
+    "holes_per_week": 9,
+    "week_format": "two_singles_team",
+    "points_per_hole": 1.0,
+    "tie_hole_points": 0.5,
+    "points_per_match": 2.0,
+    "team_points": 2.0,
+    "absent_rule": "ghost",
+    "absent_ghost_strokes_over_net_par": 2,
+    "sub_handicap_rule": "min_own_regular",
+    "bye_rule": "half_available",
+    "handicap_basis": "off_low_in_match",
+    "tee_interval_minutes": 9
+   }
+  },
+  {
+   "id": "memberGuest",
+   "title": "Member-Guest",
+   "rosterHint": "~40 players",
+   "scheduleEnabled": true,
+   "intervalDays": 1,
+   "eventCount": 2,
+   "pointsModel": "position",
+   "defaultWeekFormat": "best_ball",
+   "subScoringRule": "blind_default",
+   "flightCount": 3,
+   "playoffSize": 0,
+   "matchPreset": null
+  },
+  {
+   "id": "travelTeam",
+   "title": "Standard League",
+   "rosterHint": "Any roster size",
+   "scheduleEnabled": true,
+   "intervalDays": 30,
+   "eventCount": 6,
+   "pointsModel": "stroke_aggregate",
+   "defaultWeekFormat": "stroke_play",
+   "subScoringRule": "regular_keeps_sub",
+   "flightCount": 1,
+   "playoffSize": 0,
+   "matchPreset": null
+  }
+ ],
+ "clientPatchableColumns": [
+  "absent_ghost_strokes_over_net_par",
+  "absent_rule",
+  "allowance_pct",
+  "attendance_points",
+  "bye_rule",
+  "default_course_id",
+  "default_first_tee",
+  "default_tee",
+  "forfeit_points",
+  "half_split_slot",
+  "handicap_basis",
+  "holes_per_week",
+  "max_strokes_given",
+  "page_visibility",
+  "points_per_hole",
+  "points_per_match",
+  "pot_ctp_entry",
+  "pot_ctp_holes",
+  "pot_ld_entry",
+  "pot_ld_holes",
+  "pot_skins",
+  "pot_skins_carryover",
+  "pot_skins_entry",
+  "reminder_time",
+  "sub_handicap_rule",
+  "sub_league_max",
+  "team_points",
+  "team_points_basis",
+  "team_size",
+  "tee_interval_minutes",
+  "tie_hole_points",
+  "timezone",
+  "week_format"
+ ]
+}
