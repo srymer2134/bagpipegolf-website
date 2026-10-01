@@ -1,0 +1,206 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { WEB_LEAGUE_TEMPLATES } from '../../../lib/leagueCreate';
+
+// `/app/leagues/new` — create a league from the web.
+//
+// There was no way to do this before: tournaments got /app/tournaments/new
+// and a create route, leagues got placeholder pages and nothing else.
+//
+// Posts to /api/leagues/create, which inserts Supabase-direct as the
+// signed-in user — the same path the app uses. See lib/leagueCreate.ts.
+
+const today = new Date().toISOString().slice(0, 10);
+---
+
+<BaseLayout title="New league · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Leagues</p>
+    <h1 class="pagewrap__title">Start a league.</h1>
+    <p class="pagewrap__sub">
+      A league is a roster plus a season. You'll get a join code to share
+      once it exists.
+    </p>
+
+    <form id="newLeague">
+      <div id="formError" class="notice notice--warn" hidden></div>
+
+      <fieldset class="fs">
+        <legend>Template</legend>
+        <div class="tpl">
+          {WEB_LEAGUE_TEMPLATES.map((t, i) => (
+            <label class="tplcard">
+              <input type="radio" name="template" value={t.key} checked={i === 0}
+                     data-interval={t.intervalDays} data-events={t.eventCount} />
+              <span class="tplcard__body">
+                <strong>{t.title}</strong>
+                <span class="tplcard__blurb">{t.blurb}</span>
+                <span class="tplcard__hint">{t.rosterHint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <p class="hint">
+          Running a <strong>two-man match-play league</strong>? Create it in
+          the Bagpipe Golf app — its format carries a 23-setting preset that
+          lives in the app, and a league started here would come out
+          configured differently.
+        </p>
+      </fieldset>
+
+      <fieldset class="fs">
+        <legend>Basics</legend>
+        <label class="field">
+          <span>League name</span>
+          <input type="text" name="name" maxlength="120" required
+                 placeholder="City Park Men's Club" />
+        </label>
+        <label class="field">
+          <span>Description <em>optional</em></span>
+          <input type="text" name="description" maxlength="200"
+                 placeholder="Tuesday nights, April to September" />
+        </label>
+      </fieldset>
+
+      <fieldset class="fs">
+        <legend>Season</legend>
+        <label class="check">
+          <input type="checkbox" name="scheduleEnabled" id="schedOn" checked />
+          <span>Set up a schedule now</span>
+        </label>
+        <div id="schedFields">
+          <label class="field">
+            <span>First event</span>
+            <input type="date" name="startDate" value={today} />
+          </label>
+          <div class="row2">
+            <label class="field">
+              <span>Events</span>
+              <input type="number" name="eventCount" min="2" max="52" value="6" />
+            </label>
+            <label class="field">
+              <span>Days apart</span>
+              <input type="number" name="intervalDays" min="1" max="30" value="30" />
+            </label>
+          </div>
+          <p class="hint">
+            A starting point, not a commitment — dates are editable per event
+            once the season exists.
+          </p>
+        </div>
+      </fieldset>
+
+      <button type="submit" id="createBtn" class="btn btn--primary btn--block">
+        Create league
+      </button>
+      <p class="hint">
+        You'll be the commissioner. Add players with the join code afterwards.
+      </p>
+    </form>
+  </main>
+</BaseLayout>
+
+<script is:inline>
+  (() => {
+    const form = document.getElementById('newLeague');
+    const btn = document.getElementById('createBtn');
+    const err = document.getElementById('formError');
+    const schedOn = document.getElementById('schedOn');
+    const schedFields = document.getElementById('schedFields');
+    if (!form || !btn) return;
+
+    const syncSched = () => { schedFields.hidden = !schedOn.checked; };
+    schedOn.addEventListener('change', syncSched);
+    syncSched();
+
+    // Picking a template moves the cadence fields to its defaults — but
+    // only the ones the person hasn't already edited themselves.
+    const touched = new Set();
+    ['eventCount', 'intervalDays'].forEach((n) => {
+      form.elements[n].addEventListener('input', () => touched.add(n));
+    });
+    form.querySelectorAll('input[name="template"]').forEach((r) => {
+      r.addEventListener('change', () => {
+        if (!touched.has('intervalDays')) form.elements.intervalDays.value = r.dataset.interval;
+        if (!touched.has('eventCount')) form.elements.eventCount.value = r.dataset.events;
+      });
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.hidden = true;
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = 'Creating…';
+
+      const fd = new FormData(form);
+      const payload = {
+        name: String(fd.get('name') || ''),
+        description: String(fd.get('description') || ''),
+        template: String(fd.get('template') || ''),
+        scheduleEnabled: schedOn.checked,
+        startDate: String(fd.get('startDate') || ''),
+        eventCount: Number(fd.get('eventCount') || 0),
+        intervalDays: Number(fd.get('intervalDays') || 0),
+      };
+
+      try {
+        const res = await fetch('/api/leagues/create', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          err.textContent = body.error || `Could not create the league (${res.status}).`;
+          err.hidden = false;
+          btn.disabled = false;
+          btn.textContent = label;
+          return;
+        }
+        window.location.href = `/app/leagues/${encodeURIComponent(body.id)}`;
+      } catch {
+        err.textContent = 'Network error. Please try again.';
+        err.hidden = false;
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+  })();
+</script>
+
+<style>
+  .pagewrap--narrow { max-width: 620px; }
+  .fs { border: 0; padding: 0; margin: 0 0 26px; }
+  .fs legend {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-muted, #4b5b54); padding: 0; margin-bottom: 10px;
+  }
+  .tpl { display: flex; flex-direction: column; gap: 8px; }
+  .tplcard {
+    display: flex; gap: 10px; align-items: flex-start;
+    border: 1px solid #dbe4de; border-radius: 12px; padding: 12px 14px; cursor: pointer;
+  }
+  .tplcard:has(input:checked) {
+    border-color: var(--brand-green, #2f7d44);
+    background: var(--brand-green-soft, #f0f7f2);
+  }
+  .tplcard input { margin-top: 3px; }
+  .tplcard__body { display: flex; flex-direction: column; gap: 2px; }
+  .tplcard__blurb { font-size: 14px; color: var(--ink-muted, #4b5b54); }
+  .tplcard__hint { font-size: 12.5px; color: var(--ink-muted, #4b5b54); opacity: .85; }
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .field > span { font-size: 14px; }
+  .field em { font-style: normal; color: var(--ink-muted, #4b5b54); font-size: 12.5px; }
+  .field input {
+    font: inherit; padding: 9px 11px; border: 1px solid #c8d4cd;
+    border-radius: 9px; background: #fff; width: 100%;
+  }
+  .field input:focus-visible { outline: 2px solid var(--brand-green, #2f7d44); outline-offset: 1px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .check { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; }
+  .hint { font-size: 12.5px; color: var(--ink-muted, #4b5b54); margin: 6px 0 0; line-height: 1.5; }
+  .notice { padding: 12px 14px; border-radius: 10px; margin: 0 0 16px; font-size: 14px; }
+  .notice--warn { background: #fdecea; border: 1px solid #c4453a; color: #7d241c; }
+  .btn--block { width: 100%; }
+</style>

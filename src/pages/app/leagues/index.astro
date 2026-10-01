@@ -1,41 +1,138 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../../lib/supabase';
+import { myLeagues, visibilityLabel, type MyLeague } from '../../../lib/leaguePortal';
+
+// `/app/leagues` — the member's league list.
+//
+// Reads through RLS as the signed-in user rather than through
+// `get_public_league`, so a commissioner sees their own league whether
+// or not its public page is on. See `lib/leaguePortal.ts`.
+
+const user = (Astro.locals as App.Locals).user;
+let leagues: MyLeague[] = [];
+let failed = false;
+try {
+  const supabase = createSupabaseClient({
+    request: Astro.request,
+    cookies: Astro.cookies,
+    locals: Astro.locals as App.Locals,
+  });
+  if (user?.id) leagues = await myLeagues(supabase, user.id);
+} catch (err) {
+  console.error('[app/leagues] load failed', err);
+  failed = true;
+}
+
+const active = leagues.filter((l) => !l.completed_at);
+const done = leagues.filter((l) => l.completed_at);
+const running = leagues.filter((l) => l.role === 'commissioner');
 ---
 
 <BaseLayout title="Leagues · Bagpipe Golf">
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">Leagues</p>
     <h1 class="pagewrap__title">Your leagues.</h1>
-    <p class="pagewrap__sub">
-      Seasons you're playing in, directing, or signed up to sub for.
-    </p>
+    <p class="pagewrap__sub">Seasons you're playing in or directing.</p>
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip">In season</span>
-        <h3 class="muted">No active leagues</h3>
-        <p>Once you join a league, the standings and weekly schedule show up here.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Completed</span>
-        <h3 class="muted">No completed seasons yet</h3>
-        <p>Past seasons show up here with final standings.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--warn">Running a league</span>
-        <h3 class="muted">No leagues to manage</h3>
-        <p>When you create one, you'll get full league-director controls here.</p>
-      </article>
-    </section>
+    <div class="cta-row topcta">
+      <a class="btn btn--primary" href="/app/leagues/new">Start a league</a>
+    </div>
+
+    {failed && (
+      <div class="notice notice--warn">Couldn't load your leagues. Try again in a moment.</div>
+    )}
+
+    {!failed && leagues.length === 0 && (
+      <section class="grid grid--2">
+        <article class="card">
+          <span class="chip">In season</span>
+          <h3 class="muted">No leagues yet</h3>
+          <p>
+            Start one above, join with a 6-character code in the app
+            (Leagues → Join), or open an invite link a commissioner sent you.
+          </p>
+        </article>
+      </section>
+    )}
+
+    {active.length > 0 && (
+      <section class="lsec">
+        <h2 class="lsec__h">In season</h2>
+        <div class="grid grid--2">
+          {active.map((l) => (
+            <article class="card">
+              <div class="rowtop">
+                <span class={l.role === 'commissioner' ? 'chip chip--warn' : 'chip'}>
+                  {l.role === 'commissioner' ? 'You run this' : 'Playing'}
+                </span>
+                <span class="muted small">{l.member_count} {l.member_count === 1 ? 'member' : 'members'}</span>
+              </div>
+              <h3><a href={`/app/leagues/${l.id}`}>{l.name}</a></h3>
+              {l.description && <p>{l.description}</p>}
+              <p class="small muted">{visibilityLabel(l.page_visibility)}</p>
+              <div class="cta-row">
+                <a class="btn btn--ghost" href={`/app/leagues/${l.id}/standings`}>Standings</a>
+                <a class="btn btn--ghost" href={`/app/leagues/${l.id}/schedule`}>Schedule</a>
+                {l.role === 'commissioner' && (
+                  <a class="btn btn--ghost" href={`/app/leagues/${l.id}/manage`}>Manage</a>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {done.length > 0 && (
+      <section class="lsec">
+        <h2 class="lsec__h">Completed</h2>
+        <div class="grid grid--2">
+          {done.map((l) => (
+            <article class="card">
+              <span class="chip chip--muted">Completed</span>
+              <h3><a href={`/app/leagues/${l.id}`}>{l.name}</a></h3>
+              <p class="small muted">Season closed {l.completed_at?.slice(0, 10)}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {running.length > 0 && (
+      <p class="small muted runnote">
+        You direct {running.length} {running.length === 1 ? 'league' : 'leagues'}.
+        Season setup, roster and pairings are edited in the Bagpipe Golf app —
+        this portal reads them.
+      </p>
+    )}
   </main>
 </BaseLayout>
 
 <style>
+  .lsec { margin-top: 28px; }
+  .lsec__h {
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--ink-muted, #4b5b54);
+    margin: 0 0 10px;
+  }
   .card h3 {
     font-size: 17px;
     color: var(--brand-green-dark);
     margin: 8px 0 4px;
   }
+  .card h3 a { color: inherit; text-decoration: none; }
+  .card h3 a:hover { text-decoration: underline; }
   .card h3.muted { color: var(--ink-muted); font-weight: 600; }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .card p { margin: 0 0 6px; color: var(--ink-muted); font-size: 14px; }
+  .rowtop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .small { font-size: 12.5px; }
+  .muted { color: var(--ink-muted, #4b5b54); }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .runnote { margin-top: 24px; }
+  .topcta { margin: 4px 0 20px; }
+  .notice { padding: 14px 16px; border-radius: 12px; margin: 16px 0; line-height: 1.5; }
+  .notice--warn { background: #fff6e6; border: 1px solid #d9a441; color: #6b4a06; }
 </style>

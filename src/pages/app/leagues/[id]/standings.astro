@@ -1,48 +1,164 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import {
+  leagueDetail, teamRows, standingsAvailability, myPlayerRow, type PortalDetail,
+} from '../../../../lib/leaguePortal';
+import { fmtPts, computedAgo } from '../../../../lib/leaguePublic';
 
 const { id } = Astro.params;
+const user = (Astro.locals as App.Locals).user;
+
+let d: PortalDetail | null = null;
+let failed = false;
+try {
+  const supabase = createSupabaseClient({
+    request: Astro.request,
+    cookies: Astro.cookies,
+    locals: Astro.locals as App.Locals,
+  });
+  if (id && user?.id) d = await leagueDetail(supabase, id, user.id);
+} catch (err) {
+  console.error('[app/league/standings] load failed', err);
+  failed = true;
+}
+
+const rows = d ? teamRows(d.snapshot?.standings) : [];
+const players = d?.snapshot?.standings?.players ?? [];
+const avail = d ? standingsAvailability(d.league, d.snapshot) : 'ok';
+const myName = d && user?.id ? d.memberNames[user.id] : null;
+const me = d ? myPlayerRow(d.snapshot?.standings, myName) : null;
+const sortedPlayers = [...players].sort((a, b) => b.total - a.total);
 ---
 
-<BaseLayout title="Standings · Bagpipe Golf">
+<BaseLayout title={d ? `${d.league.name} standings · Bagpipe Golf` : 'Standings · Bagpipe Golf'}>
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">League · standings</p>
     <h1 class="pagewrap__title">Season standings.</h1>
-    <p class="pagewrap__sub">Cumulative points, flights, qualifier status.</p>
 
-    <LeagueSubnav id={id!} active="standings" />
+    {!d ? (
+      <section class="card">
+        <h3>{failed ? "Couldn't load this league" : 'Not your league'}</h3>
+        <a class="btn btn--primary" href="/app/leagues">Your leagues</a>
+      </section>
+    ) : (
+      <>
+        <p class="pagewrap__sub">{d.league.name}</p>
+        <LeagueSubnav id={d.league.id} active="standings" />
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Overall</h3>
-        <p>Rank, points, weeks played, drop weeks.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>By flight</h3>
-        <p>Per-flight standings + cut lines.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Trends</h3>
-        <p>Week-by-week movement, hot streaks.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Playoffs</h3>
-        <p>Qualifier status + projected bracket.</p>
-      </article>
-    </section>
+        {avail === 'model-not-supported' && (
+          <div class="notice notice--warn">
+            <strong>Not published to the web yet.</strong> Only match-play
+            leagues publish standings a browser can read — the engine that
+            scores position points runs on a phone. Open the league in the
+            Bagpipe Golf app to see the table.
+            <span class="small"> Tracked as §45.</span>
+          </div>
+        )}
+
+        {avail === 'not-published-yet' && (
+          <div class="notice">
+            No standings published yet. They appear once a member opens the
+            league's standings in the app after a week has been scored.
+          </div>
+        )}
+
+        {avail === 'ok' && (
+          <>
+            {me && (
+              <div class="notice notice--you">
+                <strong>You're {me.place}{['st', 'nd', 'rd'][me.place - 1] ?? 'th'}</strong> ·
+                {' '}{fmtPts(me.row.total)} pts from {me.row.weeks_played} {me.row.weeks_played === 1 ? 'week' : 'weeks'}
+              </div>
+            )}
+
+            <section class="lsec">
+              <h2 class="lsec__h">Overall</h2>
+              <div class="scroll">
+                <table class="tbl">
+                  <thead>
+                    <tr><th>#</th><th>Team</th><th>Pts</th><th>W</th><th>L</th><th>T</th><th>Behind</th></tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr>
+                        <td>{i + 1}</td>
+                        <td>{r.name}</td>
+                        <td><strong>{fmtPts(r.points)}</strong></td>
+                        <td>{r.wins}</td>
+                        <td>{r.losses}</td>
+                        <td>{r.ties}</td>
+                        <td>{r.behind === 0 ? '—' : fmtPts(r.behind)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            {sortedPlayers.length > 0 && (
+              <section class="lsec">
+                <h2 class="lsec__h">Players</h2>
+                <div class="scroll">
+                  <table class="tbl">
+                    <thead>
+                      <tr><th>#</th><th>Player</th><th>Total</th><th>Points</th><th>Attend.</th><th>Played</th></tr>
+                    </thead>
+                    <tbody>
+                      {sortedPlayers.map((p, i) => (
+                        <tr class:list={[p.display_name === myName && 'is-you']}>
+                          <td>{i + 1}</td>
+                          <td>{p.display_name}{p.display_name === myName ? ' (you)' : ''}</td>
+                          <td><strong>{fmtPts(p.total)}</strong></td>
+                          <td>{fmtPts(p.points)}</td>
+                          <td>{fmtPts(p.attendance)}</td>
+                          <td>{p.weeks_played}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            <p class="small muted">
+              As of {computedAgo(d.snapshot!.computed_at)}. Published from a
+              member's phone — the engine that computes it is in the app.
+            </p>
+          </>
+        )}
+
+        <section class="lsec">
+          <h2 class="lsec__h">Flights &amp; playoffs</h2>
+          <p class="small muted">
+            Flighting and playoff brackets are configured and computed in the
+            app. They aren't in the published projection yet, so the portal
+            can't show them without inventing numbers — part of §45's
+            server-side standings work.
+          </p>
+        </section>
+      </>
+    )}
   </main>
 </BaseLayout>
 
 <style>
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+  .card h3 { font-size: 17px; color: var(--brand-green-dark); margin: 8px 0 6px; }
+  .lsec { margin-top: 28px; }
+  .lsec__h {
+    font-size: 15px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-muted, #4b5b54); margin: 0 0 10px;
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .scroll { overflow-x: auto; }
+  .tbl { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .tbl th, .tbl td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #e3e9e5; white-space: nowrap; }
+  .tbl th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted, #4b5b54); }
+  .tbl td { font-variant-numeric: tabular-nums; }
+  .tbl tr.is-you { background: var(--brand-green-soft, #f0f7f2); }
+  .notice { padding: 14px 16px; border-radius: 12px; margin: 16px 0; line-height: 1.5; font-size: 14px; }
+  .notice--warn { background: #fff6e6; border: 1px solid #d9a441; color: #6b4a06; }
+  .notice--you { background: var(--brand-green-soft, #f0f7f2); border: 1px solid var(--brand-green, #2f7d44); }
+  .small { font-size: 12.5px; }
+  .muted { color: var(--ink-muted, #4b5b54); }
 </style>
