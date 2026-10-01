@@ -32,7 +32,23 @@ if (Astro.request.method === 'POST') {
         email,
         password,
         options: {
-          emailRedirectTo: new URL('/login', Astro.request.url).toString(),
+          // Carry `next` through the confirmation link.
+          //
+          // Email confirmation is OFF on this project today — 178 of 179
+          // users were confirmed within 2s of creation and none are
+          // unconfirmed — so `signUp` returns a session and the redirect
+          // below is what actually runs.
+          //
+          // But that is a Supabase setting, not a guarantee. If anyone
+          // turns confirmations on, this link is the only way back, and
+          // without `next` it would drop every cold invite recipient on
+          // /app instead of the invite they were accepting. `/login`
+          // already honours `next`, so this costs nothing and removes a
+          // silent failure that would look like "invites are broken".
+          emailRedirectTo: new URL(
+            `/login?next=${encodeURIComponent(next.startsWith('/') ? next : '/app')}`,
+            Astro.request.url,
+          ).toString(),
         },
       });
       if (authErr) {
@@ -41,7 +57,9 @@ if (Astro.request.method === 'POST') {
         return Astro.redirect(next.startsWith('/') ? next : '/app', 303);
       } else {
         // Email confirmation required — no session returned.
-        info = `Check ${email} for a confirmation link to finish signing up.`;
+        info = next !== '/app'
+          ? `Check ${email} for a confirmation link. Opening it brings you straight back here to finish.`
+          : `Check ${email} for a confirmation link to finish signing up.`;
       }
     } catch (err: any) {
       console.error('[signup POST] auth call threw', err);
