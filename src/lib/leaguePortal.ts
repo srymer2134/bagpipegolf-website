@@ -52,6 +52,46 @@ export type MyLeague = {
   member_count: number;
 };
 
+/**
+ * `leagues.schedule` — the season seed the app's schedule dialog writes.
+ *
+ * `bindings` (slot → tournaments.id) and `formats` (slot →
+ * LeagueWeekFormat.wire) live in the same jsonb and are slot-keyed.
+ * **Any write must preserve them** — the app's dialog says so
+ * explicitly, and dropping them would silently unbind every tournament
+ * a director has attached to the season.
+ */
+export type LeagueSchedule = {
+  startDate: string;
+  intervalDays: number;
+  eventCount: number;
+  bindings?: Record<string, string>;
+  formats?: Record<string, string>;
+};
+
+/**
+ * Derived slot dates: `startDate + k × intervalDays`.
+ *
+ * Mirrors `LeagueSchedule.slotDates` in the Dart model, including its
+ * 104-slot ceiling ("2-year weekly"). Empty when startDate doesn't
+ * parse, same as the app.
+ */
+export function slotDates(sched: LeagueSchedule | null | undefined): string[] {
+  if (!sched?.startDate) return [];
+  const start = new Date(`${sched.startDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return [];
+  const n = Math.min(Math.max(sched.eventCount ?? 0, 0), 104);
+  const step = sched.intervalDays ?? 7;
+  const out: string[] = [];
+  for (let k = 0; k < n; k++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + k * step);
+    out.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+    );
+  }
+  return out;
+}
+
 export type PortalWeek = {
   slot_index: number;
   week_of: string;
@@ -70,6 +110,17 @@ export type PortalDetail = {
   /** This viewer's RSVP per slot. */
   signups: Record<number, string>;
   snapshot: { standings: StandingsSnapshot; computed_at: string } | null;
+  schedule: LeagueSchedule | null;
+  /**
+   * Every event in the season, newest-last — a `league_weeks` row where
+   * one exists, otherwise a date derived from `leagues.schedule`.
+   *
+   * Reading only `league_weeks` was wrong: those rows are created
+   * lazily (the matchup generator seeds them), so a position-points
+   * league that has a season but has never generated matchups has a
+   * schedule and no rows, and the page said "no events scheduled".
+   */
+  events: PortalWeek[];
   /** Display names keyed by user id, for the roster and standings. */
   memberNames: Record<string, string>;
   myUserId: string;
@@ -189,9 +240,39 @@ export async function leagueDetail(
 
   const snapRow = snapRes.data as { standings: StandingsSnapshot; computed_at: string } | null;
 
+  const weeks = (weeksRes.data ?? []) as PortalWeek[];
+
+  // Fetch the seed so a season with no week rows still has events.
+  const { data: schedRow } = await supabase
+    .from('leagues')
+    .select('schedule')
+    .eq('id', id)
+    .maybeSingle();
+  const schedule = ((schedRow as { schedule?: LeagueSchedule } | null)?.schedule ?? null);
+
+  // A week row wins for its slot; derived dates fill the rest.
+  const bySlot = new Map<number, PortalWeek>();
+  slotDates(schedule).forEach((date, slot) => {
+    bySlot.set(slot, {
+      slot_index: slot,
+      week_of: date,
+      status: 'scheduled',
+      course_id: null,
+      tee: null,
+      holes: null,
+      first_tee_at: null,
+      locked_at: null,
+      position_round: false,
+    });
+  });
+  for (const w of weeks) bySlot.set(w.slot_index, w);
+  const events = [...bySlot.values()].sort((a, b) => a.slot_index - b.slot_index);
+
   return {
     league,
-    weeks: (weeksRes.data ?? []) as PortalWeek[],
+    weeks,
+    events,
+    schedule,
     signups,
     snapshot: snapRow ?? null,
     memberNames,
