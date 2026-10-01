@@ -46,7 +46,7 @@ const steps: Step[] = [
     body:
       'Four presets. A template pre-fills every screen that follows and you can override any of it — a "Template · Change" chip stays at the top so you can switch, with a confirmation before it resets your edits.',
     note:
-      'Custom skips the pre-fill entirely. Pick it if your league does not look like any of the three.',
+      'Custom skips the pre-fill entirely. Pick it if your league does not look like any of these.',
   },
   {
     n: '4',
@@ -104,7 +104,7 @@ const steps: Step[] = [
 
 const templates = [
   ['Tuesday Night Men’s League', 'Weekly, 16 events', 'Stableford', 'Position points', '4-seed bracket'],
-  ['Annual Member-Guest', '2 days, back to back', 'Best ball', 'Position points', 'No playoff'],
+  ['Annual Member-Guest', 'One day or a weekend', 'Best ball', 'Position points', 'No playoff'],
   ['Travel-team captain', 'Monthly-ish, 6 events', 'Stroke play', 'Stroke aggregate', 'No playoff'],
   ['Team league', '16 weeks of nine holes', 'Two singles per team', 'Weekly match play', 'No playoff'],
 ];
@@ -113,13 +113,13 @@ const models = [
   {
     name: 'Position points',
     body:
-      'Each week’s finishers convert to season points by finish position; ties split. Highest season total wins. Rewards consistency and handles a field that changes size week to week.',
+      'Each week’s finishers convert to season points by finish position; ties split. Highest season total wins. Rewards consistency and handles a field that changes size week to week — and because it ranks finishers rather than strokes, it does not care whether you scored that week gross or net.',
     best: 'Open weekly leagues',
   },
   {
     name: 'Stroke aggregate',
     body:
-      'Each week adds the player’s net score to a running total; lowest total at season end wins. Simple and obvious — less forgiving, since one blow-up week follows you all season.',
+      'Each week adds the player’s score for that event to a running total; lowest total at season end wins. Gross or net is your call per event, exactly as it is for any tournament — most run both — and the standings read whichever that week was scored on. Simple and obvious, but less forgiving: one blow-up week follows you all season.',
     best: 'Member-guests and short multi-event totals',
   },
   {
