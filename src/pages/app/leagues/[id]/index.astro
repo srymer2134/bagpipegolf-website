@@ -1,50 +1,175 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import {
+  leagueDetail, nextWeek, lastWeek, myPlayerRow, teamRows,
+  standingsAvailability, rsvpLabel, visibilityLabel, type PortalDetail,
+} from '../../../../lib/leaguePortal';
+import { dateLabel, fmtPts } from '../../../../lib/leaguePublic';
 
 const { id } = Astro.params;
+const user = (Astro.locals as App.Locals).user;
+
+let d: PortalDetail | null = null;
+let failed = false;
+try {
+  const supabase = createSupabaseClient({
+    request: Astro.request,
+    cookies: Astro.cookies,
+    locals: Astro.locals as App.Locals,
+  });
+  if (id && user?.id) d = await leagueDetail(supabase, id, user.id);
+} catch (err) {
+  console.error('[app/league] load failed', err);
+  failed = true;
+}
+
+const next = d ? nextWeek(d.weeks) : null;
+const last = d ? lastWeek(d.weeks) : null;
+const myName = d && user?.id ? d.memberNames[user.id] : null;
+const me = d ? myPlayerRow(d.snapshot?.standings, myName) : null;
+const rows = d ? teamRows(d.snapshot?.standings) : [];
+const avail = d ? standingsAvailability(d.league, d.snapshot) : 'ok';
+const played = d ? d.weeks.filter((w) => w.week_of < new Date().toISOString().slice(0, 10)).length : 0;
 ---
 
-<BaseLayout title="League · Bagpipe Golf">
+<BaseLayout title={d ? `${d.league.name} · Bagpipe Golf` : 'League · Bagpipe Golf'}>
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">League</p>
-    <h1 class="pagewrap__title">League details</h1>
-    <p class="pagewrap__sub">
-      Your view as a member. The public league page is shareable — anyone with the link can follow along.
-    </p>
+    <h1 class="pagewrap__title">{d ? d.league.name : 'League'}</h1>
 
-    <LeagueSubnav id={id!} active="overview" />
+    {!d ? (
+      <section class="card">
+        <h3>{failed ? "Couldn't load this league" : 'Not your league'}</h3>
+        <p>
+          {failed
+            ? 'Try again in a moment.'
+            : "You're not a member of this league, so there's nothing here. Ask the commissioner for the join code."}
+        </p>
+        <a class="btn btn--primary" href="/app/leagues">Your leagues</a>
+      </section>
+    ) : (
+      <>
+        <p class="pagewrap__sub">
+          {d.league.role === 'commissioner' ? 'You run this league. ' : ''}
+          {d.weeks.length} {d.weeks.length === 1 ? 'event' : 'events'} · {played} played
+        </p>
+        <LeagueSubnav id={d.league.id} active="overview" />
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Season at a glance</h3>
-        <p>Points model, weekly format, sub rule, flighting, playoffs.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Your position</h3>
-        <p>Rank, points, week-by-week results.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Next event</h3>
-        <p>Date, partner, RSVP, sub request.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Recent week</h3>
-        <p>Pairings, results, points earned.</p>
-      </article>
-    </section>
+        <section class="grid grid--2">
+          <article class="card">
+            <span class="chip">Season at a glance</span>
+            <h3>{d.weeks.length} events · {played} played</h3>
+            <dl class="kv">
+              <div><dt>Scoring</dt><dd>{d.league.points_model ?? '—'}</dd></div>
+              {d.league.week_format && <div><dt>Format</dt><dd>{d.league.week_format}</dd></div>}
+              <div><dt>Public page</dt><dd>{visibilityLabel(d.league.page_visibility)}</dd></div>
+            </dl>
+          </article>
+
+          <article class="card">
+            <span class="chip">Your position</span>
+            {me ? (
+              <>
+                <h3>{me.place}{['st', 'nd', 'rd'][me.place - 1] ?? 'th'} · {fmtPts(me.row.total)} pts</h3>
+                <dl class="kv">
+                  <div><dt>Weeks played</dt><dd>{me.row.weeks_played}</dd></div>
+                  <div><dt>Absent</dt><dd>{me.row.weeks_absent}</dd></div>
+                  <div><dt>As a sub</dt><dd>{me.row.weeks_as_sub}</dd></div>
+                </dl>
+              </>
+            ) : (
+              <>
+                <h3 class="muted">Not in the standings yet</h3>
+                <p>
+                  {avail === 'model-not-supported'
+                    ? "This league scores by position points, which aren't published to the web yet."
+                    : "You'll appear once you've played a week that's been scored."}
+                </p>
+              </>
+            )}
+          </article>
+
+          <article class="card">
+            <span class="chip">Next event</span>
+            {next ? (
+              <>
+                <h3>{dateLabel(next.week_of)}</h3>
+                <dl class="kv">
+                  {next.tee && <div><dt>Tees</dt><dd>{next.tee}</dd></div>}
+                  {next.holes && <div><dt>Holes</dt><dd>{next.holes}</dd></div>}
+                  {next.first_tee_at && <div><dt>First tee</dt><dd>{next.first_tee_at.slice(0, 5)}</dd></div>}
+                  <div><dt>Your RSVP</dt><dd>{rsvpLabel(d.signups[next.slot_index])}</dd></div>
+                </dl>
+                <p class="small muted">RSVP in the app — the portal reads it.</p>
+              </>
+            ) : (
+              <h3 class="muted">{d.weeks.length ? 'Season complete' : 'No events scheduled'}</h3>
+            )}
+          </article>
+
+          <article class="card">
+            <span class="chip">Recent week</span>
+            {last ? (
+              <>
+                <h3>{dateLabel(last.week_of)}</h3>
+                <dl class="kv">
+                  <div><dt>Status</dt><dd>{last.locked_at ? 'Locked' : last.status}</dd></div>
+                  <div><dt>Your RSVP</dt><dd>{rsvpLabel(d.signups[last.slot_index])}</dd></div>
+                </dl>
+                <a class="btn btn--ghost" href={`/app/leagues/${d.league.id}/schedule`}>Full schedule</a>
+              </>
+            ) : (
+              <h3 class="muted">No events played yet</h3>
+            )}
+          </article>
+        </section>
+
+        {rows.length > 0 && (
+          <section class="lsec">
+            <h2 class="lsec__h">Top of the table</h2>
+            <div class="scroll">
+              <table class="tbl">
+                <thead><tr><th>#</th><th>Team</th><th>Pts</th><th>W-L-T</th></tr></thead>
+                <tbody>
+                  {rows.slice(0, 5).map((r, i) => (
+                    <tr>
+                      <td>{i + 1}</td>
+                      <td>{r.name}</td>
+                      <td>{fmtPts(r.points)}</td>
+                      <td>{r.wins}-{r.losses}-{r.ties}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <a class="btn btn--ghost" href={`/app/leagues/${d.league.id}/standings`}>Full standings</a>
+          </section>
+        )}
+      </>
+    )}
   </main>
 </BaseLayout>
 
 <style>
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+  .card h3 { font-size: 17px; color: var(--brand-green-dark); margin: 8px 0 6px; }
+  .card h3.muted { color: var(--ink-muted); font-weight: 600; }
+  .card p { margin: 0 0 6px; color: var(--ink-muted); font-size: 14px; }
+  .kv { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+  .kv div { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+  .kv dt { color: var(--ink-muted, #4b5b54); margin: 0; }
+  .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .lsec { margin-top: 28px; }
+  .lsec__h {
+    font-size: 15px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-muted, #4b5b54); margin: 0 0 10px;
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .scroll { overflow-x: auto; }
+  .tbl { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .tbl th, .tbl td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #e3e9e5; }
+  .tbl th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted, #4b5b54); }
+  .tbl td { font-variant-numeric: tabular-nums; }
+  .small { font-size: 12.5px; }
+  .muted { color: var(--ink-muted, #4b5b54); }
 </style>

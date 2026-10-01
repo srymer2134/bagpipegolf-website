@@ -1,38 +1,128 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import { leagueDetail, rsvpLabel, type PortalDetail } from '../../../../lib/leaguePortal';
+import { dateLabel } from '../../../../lib/leaguePublic';
 
 const { id } = Astro.params;
+const user = (Astro.locals as App.Locals).user;
+
+let d: PortalDetail | null = null;
+let failed = false;
+try {
+  const supabase = createSupabaseClient({
+    request: Astro.request,
+    cookies: Astro.cookies,
+    locals: Astro.locals as App.Locals,
+  });
+  if (id && user?.id) d = await leagueDetail(supabase, id, user.id);
+} catch (err) {
+  console.error('[app/league/schedule] load failed', err);
+  failed = true;
+}
+
+const today = new Date().toISOString().slice(0, 10);
+const upcoming = (d?.weeks ?? []).filter((w) => w.week_of >= today);
+const completed = (d?.weeks ?? []).filter((w) => w.week_of < today).reverse();
 ---
 
-<BaseLayout title="League schedule · Bagpipe Golf">
+<BaseLayout title={d ? `${d.league.name} schedule · Bagpipe Golf` : 'League schedule · Bagpipe Golf'}>
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">League · schedule</p>
     <h1 class="pagewrap__title">Season schedule.</h1>
-    <p class="pagewrap__sub">Weekly events, formats, courses, RSVPs.</p>
 
-    <LeagueSubnav id={id!} active="schedule" />
+    {!d ? (
+      <section class="card">
+        <h3>{failed ? "Couldn't load this league" : 'Not your league'}</h3>
+        <a class="btn btn--primary" href="/app/leagues">Your leagues</a>
+      </section>
+    ) : (
+      <>
+        <p class="pagewrap__sub">{d.league.name} · your RSVP shown per event</p>
+        <LeagueSubnav id={d.league.id} active="schedule" />
 
-    <section class="grid grid--2">
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Upcoming</h3>
-        <p>Date, course, format, your RSVP.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Completed</h3>
-        <p>Past weeks with results.</p>
-      </article>
-    </section>
+        {d.weeks.length === 0 && (
+          <div class="notice">
+            No events scheduled yet. The commissioner sets the season's dates
+            in the app.
+          </div>
+        )}
+
+        {upcoming.length > 0 && (
+          <section class="lsec">
+            <h2 class="lsec__h">Upcoming</h2>
+            <div class="scroll">
+              <table class="tbl">
+                <thead>
+                  <tr><th>#</th><th>Date</th><th>Tee</th><th>Holes</th><th>First tee</th><th>You</th></tr>
+                </thead>
+                <tbody>
+                  {upcoming.map((w) => (
+                    <tr>
+                      <td>{w.slot_index + 1}</td>
+                      <td>{dateLabel(w.week_of)}</td>
+                      <td>{w.tee ?? '—'}</td>
+                      <td>{w.holes ?? '—'}</td>
+                      <td>{w.first_tee_at ? w.first_tee_at.slice(0, 5) : '—'}</td>
+                      <td class:list={[d.signups[w.slot_index] === 'in' && 'yes', d.signups[w.slot_index] === 'out' && 'no']}>
+                        {rsvpLabel(d.signups[w.slot_index])}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p class="small muted">RSVP in the app — this portal reads it, it doesn't set it.</p>
+          </section>
+        )}
+
+        {completed.length > 0 && (
+          <section class="lsec">
+            <h2 class="lsec__h">Completed</h2>
+            <div class="scroll">
+              <table class="tbl">
+                <thead>
+                  <tr><th>#</th><th>Date</th><th>Tee</th><th>Holes</th><th>Status</th><th>You</th></tr>
+                </thead>
+                <tbody>
+                  {completed.map((w) => (
+                    <tr>
+                      <td>{w.slot_index + 1}</td>
+                      <td>{dateLabel(w.week_of)}</td>
+                      <td>{w.tee ?? '—'}</td>
+                      <td>{w.holes ?? '—'}</td>
+                      <td>{w.status === 'cancelled' ? 'Cancelled' : w.locked_at ? 'Locked' : 'Played'}</td>
+                      <td class:list={[d.signups[w.slot_index] === 'in' && 'yes', d.signups[w.slot_index] === 'out' && 'no']}>
+                        {rsvpLabel(d.signups[w.slot_index])}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+      </>
+    )}
   </main>
 </BaseLayout>
 
 <style>
-  .card h3 {
-    font-size: 17px;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
+  .card h3 { font-size: 17px; color: var(--brand-green-dark); margin: 8px 0 6px; }
+  .lsec { margin-top: 28px; }
+  .lsec__h {
+    font-size: 15px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-muted, #4b5b54); margin: 0 0 10px;
   }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 14px; }
+  .scroll { overflow-x: auto; }
+  .tbl { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .tbl th, .tbl td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #e3e9e5; white-space: nowrap; }
+  .tbl th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted, #4b5b54); }
+  .tbl td { font-variant-numeric: tabular-nums; }
+  .tbl td.yes { color: var(--brand-green-dark, #1f5b30); font-weight: 600; }
+  .tbl td.no { color: #9a3b32; }
+  .notice { padding: 14px 16px; border-radius: 12px; margin: 16px 0; line-height: 1.5; font-size: 14px; background: #f4f7f5; border: 1px solid #e3e9e5; }
+  .small { font-size: 12.5px; }
+  .muted { color: var(--ink-muted, #4b5b54); }
 </style>
