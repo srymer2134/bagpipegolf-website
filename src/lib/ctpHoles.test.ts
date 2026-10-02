@@ -15,6 +15,7 @@ import {
   anyRoundTracksCtp,
   explicitCtpHoles,
   longestDriveGenders,
+  mergeCtpWinners,
   par3Holes,
   resolveCtpHoles,
 } from './ctpHoles';
@@ -143,39 +144,175 @@ describe('explicitCtpHoles', () => {
 
 describe('longestDriveGenders', () => {
   const t = (o: Record<string, unknown>) => o as unknown as TournamentRow;
+  const on = (o: Record<string, unknown> = {}) =>
+    t({ track_longest_drive: true, ...o });
 
   it('is empty when longest drive is off', () => {
     expect(longestDriveGenders(t({}))).toEqual([]);
     expect(longestDriveGenders(t({ track_longest_drive: false }))).toEqual([]);
   });
 
-  it('shows BOTH brackets for a legacy tournament with no picker data', () => {
-    // Documented legacy behaviour: the app's settlement screen renders
-    // both rows when the genders list predates the picker.
-    expect(longestDriveGenders(t({ track_longest_drive: true })))
-      .toEqual(['male', 'female']);
-    expect(longestDriveGenders(t({
-      track_longest_drive: true,
-      longest_drive_genders: [],
-    }))).toEqual(['male', 'female']);
+  it('REGRESSION: an ABSENT field_gender means a MEN\'S event', () => {
+    // `Tournament.toApiJson` omits the key when it is 'male', because
+    // male is the model default. Reading absent as "mixed" rendered a
+    // Women's picker on every men's tournament — which is what this
+    // code did before, and would have let a director record a winner
+    // in a bracket the event does not have.
+    expect(longestDriveGenders(on())).toEqual(['male']);
   });
 
-  it('honours an explicit pick', () => {
-    expect(longestDriveGenders(t({
-      track_longest_drive: true,
+  it('REGRESSION: a women\'s event offers only the women\'s bracket', () => {
+    expect(longestDriveGenders(on({ field_gender: 'female' }))).toEqual(['female']);
+  });
+
+  it('a men\'s event stated explicitly is the same as absent', () => {
+    expect(longestDriveGenders(on({ field_gender: 'male' }))).toEqual(['male']);
+  });
+
+  it('a single-gender event IGNORES longest_drive_genders', () => {
+    // The wizard only persists that list for mixed events, so a stale
+    // value on a single-gender event must not win over field_gender.
+    expect(longestDriveGenders(on({
+      field_gender: 'female',
+      longest_drive_genders: ['male'],
+    }))).toEqual(['female']);
+  });
+
+  it('mixed + explicit pick honours the pick', () => {
+    expect(longestDriveGenders(on({
+      field_gender: 'mixed',
       longest_drive_genders: ['female'],
     }))).toEqual(['female']);
   });
 
-  it('normalises case and ignores unknown values', () => {
-    expect(longestDriveGenders(t({
-      track_longest_drive: true,
-      longest_drive_genders: ['MALE', ' female ', 'other'],
+  it('mixed + no pick shows BOTH — documented legacy behaviour', () => {
+    expect(longestDriveGenders(on({ field_gender: 'mixed' })))
+      .toEqual(['male', 'female']);
+    expect(longestDriveGenders(on({
+      field_gender: 'mixed',
+      longest_drive_genders: [],
     }))).toEqual(['male', 'female']);
-    // All-unknown falls back rather than hiding LD entirely.
-    expect(longestDriveGenders(t({
-      track_longest_drive: true,
+  });
+
+  it('normalises case, dedupes, and ignores unknown values', () => {
+    expect(longestDriveGenders(on({
+      field_gender: 'MIXED',
+      longest_drive_genders: ['MALE', ' female ', 'male', 'other'],
+    }))).toEqual(['male', 'female']);
+    // All-unknown on a mixed event falls back rather than hiding LD.
+    expect(longestDriveGenders(on({
+      field_gender: 'mixed',
       longest_drive_genders: ['other'],
     }))).toEqual(['male', 'female']);
+  });
+
+  it('reads the camelCase wire spelling too', () => {
+    expect(longestDriveGenders(t({
+      trackLongestDrive: true,
+      fieldGender: 'female',
+    }))).toEqual(['female']);
+  });
+});
+
+describe('mergeCtpWinners — must MERGE, never replace', () => {
+  // THE REGRESSION THIS FILE EXISTS FOR.
+  //
+  // The editor renders pickers only for holes the round currently
+  // tracks. Building the stored map from just those pickers silently
+  // deletes a winner on any hole no longer tracked — the exact drop
+  // the app's `_mergeClosestToPin` was written to survive.
+  const opts = (tracked: number[], roster: string[]) => ({
+    tracked: new Set(tracked),
+    roster: new Set(roster),
+  });
+
+  it('keeps a winner on a hole that is no longer tracked', () => {
+    // Holes 5 and 15 were CTP when the winners were recorded; the
+    // director has since changed the round to hole 11 only.
+    const { winners, rejected } = mergeCtpWinners(
+      { '5': 'p1', '15': 'p2' },
+      { '11': 'p3' },
+      opts([11], ['p1', 'p2', 'p3']),
+    );
+    expect(winners).toEqual({ '5': 'p1', '15': 'p2', '11': 'p3' });
+    expect(rejected).toEqual([]);
+  });
+
+  it('changes nothing when the client posts no CTP at all', () => {
+    // Saving only a longest-drive winner must not touch CTP. Before
+    // the fix this wiped every recorded winner.
+    const { winners } = mergeCtpWinners(
+      { '5': 'p1', '15': 'p2' },
+      {},
+      opts([5, 15], ['p1', 'p2']),
+    );
+    expect(winners).toEqual({ '5': 'p1', '15': 'p2' });
+  });
+
+  it('an explicit blank CLEARS that hole and only that hole', () => {
+    const { winners } = mergeCtpWinners(
+      { '5': 'p1', '15': 'p2' },
+      { '5': '' },
+      opts([5, 15], ['p1', 'p2']),
+    );
+    expect(winners).toEqual({ '15': 'p2' });
+  });
+
+  it('treats whitespace-only and null as a blank', () => {
+    const { winners } = mergeCtpWinners(
+      { '5': 'p1', '7': 'p2' },
+      { '5': '   ', '7': null },
+      opts([5, 7], ['p1', 'p2']),
+    );
+    expect(winners).toEqual({});
+  });
+
+  it('overwrites a winner on a tracked hole', () => {
+    const { winners } = mergeCtpWinners(
+      { '5': 'p1' }, { '5': 'p2' }, opts([5], ['p1', 'p2']),
+    );
+    expect(winners).toEqual({ '5': 'p2' });
+  });
+
+  it('rejects a winner on an untracked hole without touching the map', () => {
+    const { winners, rejected } = mergeCtpWinners(
+      { '5': 'p1' }, { '9': 'p2' }, opts([5], ['p1', 'p2']),
+    );
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]).toMatch(/hole 9/);
+    expect(winners).toEqual({ '5': 'p1' });
+  });
+
+  it('rejects a winner who is not on the roster', () => {
+    const { rejected } = mergeCtpWinners(
+      {}, { '5': 'ghost' }, opts([5], ['p1']),
+    );
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]).toMatch(/roster/);
+  });
+
+  it('CAN still clear an untracked hole', () => {
+    // Clearing is how a director removes a now-irrelevant winner, so
+    // the tracked-hole check must not block a blank.
+    const { winners, rejected } = mergeCtpWinners(
+      { '5': 'p1' }, { '5': '' }, opts([11], ['p1']),
+    );
+    expect(winners).toEqual({});
+    expect(rejected).toEqual([]);
+  });
+
+  it('normalises stored keys and drops junk from the stored map', () => {
+    const { winners } = mergeCtpWinners(
+      { '05': 'p1', abc: 'p2', '0': 'p3', '-1': 'p4', '7': '' },
+      {},
+      opts([5], ['p1', 'p2', 'p3', 'p4']),
+    );
+    expect(winners).toEqual({ '5': 'p1' });
+  });
+
+  it('survives a null/undefined stored map', () => {
+    expect(mergeCtpWinners(
+      null as never, { '5': 'p1' }, opts([5], ['p1']),
+    ).winners).toEqual({ '5': 'p1' });
   });
 });

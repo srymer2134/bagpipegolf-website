@@ -79,18 +79,37 @@ function currentCtp(r: TournamentRound | null): Record<string, string> {
   if (!raw || typeof raw !== 'object') return {};
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof v === 'string' && v.length > 0) out[String(Number(k))] = v;
+    const hole = Number(k);
+    // Normalise "05" -> "5" so lookups by hole number hit, and drop a
+    // non-numeric key rather than storing it under "NaN".
+    if (!Number.isInteger(hole) || hole < 1) continue;
+    if (typeof v === 'string' && v.length > 0) out[String(hole)] = v;
   }
   return out;
 }
 
 const ctp = currentCtp(round);
+
+// Holes that carry a recorded winner but are NOT tracked by this round
+// any more — because the director later narrowed `ctp_holes`.
+//
+// The write path preserves these (the app's own sync layer defends
+// against dropping them), but preserved-and-invisible is its own
+// problem: the director cannot see a prize they recorded, nor remove
+// one that no longer applies. So they render in their own group, and
+// the only action offered is to clear — which is exactly what the
+// route permits for an untracked hole.
+const staleCtpHoles = Object.keys(ctp)
+  .map((k) => Number(k))
+  .filter((h) => Number.isInteger(h) && !ctpHoles.includes(h))
+  .sort((a, b) => a - b);
 const roundRow = (round ?? {}) as Record<string, unknown>;
 const ldMale = (roundRow.longest_drive_male_id ?? roundRow.longestDriveMaleId ?? '') as string;
 const ldFemale = (roundRow.longest_drive_female_id ?? roundRow.longestDriveFemaleId ?? '') as string;
 
 const nameOf = (pid: string) => players.find((p) => p.id === pid)?.name ?? pid;
-const hasAnything = ctpHoles.length > 0 || ldGenders.length > 0;
+const hasAnything =
+  ctpHoles.length > 0 || ldGenders.length > 0 || staleCtpHoles.length > 0;
 ---
 
 <BaseLayout title="Competitions · Bagpipe Golf">
@@ -152,6 +171,34 @@ const hasAnything = ctpHoles.length > 0 || ldGenders.length > 0;
                             {p.name}
                           </option>
                         ))}
+                      </select>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {staleCtpHoles.length > 0 && (
+              <section class="block">
+                <h2 class="block__h">Recorded on holes no longer in play</h2>
+                <p class="hint">
+                  {staleCtpHoles.length === 1 ? 'This hole' : 'These holes'} had a
+                  closest-to-pin winner recorded, but closest-to-pin is no longer
+                  tracked {staleCtpHoles.length === 1 ? 'there' : 'on them'} for
+                  this round. Kept so nothing is lost silently &mdash; clear
+                  {staleCtpHoles.length === 1 ? ' it' : ' them'} if the prize
+                  no longer applies.
+                </p>
+                <ul class="list">
+                  {staleCtpHoles.map((hole) => (
+                    <li class="item">
+                      <span class="item__label">Hole {hole}</span>
+                      <select class="item__pick" data-ctp={String(hole)}
+                              aria-label={`Closest to pin, hole ${hole} (no longer tracked)`}>
+                        <option value={ctp[String(hole)]} selected>
+                          {nameOf(ctp[String(hole)])}
+                        </option>
+                        <option value="">&mdash; clear &mdash;</option>
                       </select>
                     </li>
                   ))}

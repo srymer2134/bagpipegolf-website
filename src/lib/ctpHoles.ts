@@ -107,19 +107,106 @@ export function anyRoundTracksCtp(tournament: TournamentRow): boolean {
 
 /// Which Longest Drive gender brackets this tournament tracks.
 ///
-/// Mirrors the model's documented legacy behaviour: when
-/// `trackLongestDrive` is on but `longest_drive_genders` is
-/// absent/empty, BOTH brackets show — that is what the app's
-/// settlement screen does for tournaments created before the
-/// mixed-gender picker landed. Returns `[]` when LD is off.
+/// Resolution, mirroring the wizard's `_buildPoolsFromState`:
+///
+///   * LD off                     -> no brackets
+///   * single-gender event        -> that gender only, from `field_gender`
+///   * mixed + explicit picks     -> those picks
+///   * mixed + no picks           -> both (documented legacy behaviour:
+///                                   the app's settlement screen renders
+///                                   both rows when the genders list
+///                                   predates the picker)
+///
+/// 🚨 **`field_gender` is OMITTED on the wire when it is `'male'`**, because
+/// male is the model's default (`Tournament.toApiJson`: `if (fieldGender !=
+/// 'male')`). So an ABSENT key means a men's event, not a mixed one. Reading
+/// absent as "mixed" is the bug this comment exists to prevent: it rendered a
+/// Women's longest-drive picker on every men's tournament, and a Men's one on
+/// every women's tournament, letting a director record a winner in a bracket
+/// the event does not have.
+///
+/// `longest_drive_genders` is only persisted when the commissioner explicitly
+/// picked in a MIXED event (`longestDriveGenders: (_trackLongestDrive &&
+/// _longestDriveGenders.isNotEmpty) ? ... : null`), which is why
+/// single-gender events have to be resolved from `field_gender` instead.
 export function longestDriveGenders(tournament: TournamentRow): string[] {
   const row = tournament as Record<string, unknown>;
   const on = row.track_longest_drive ?? row.trackLongestDrive;
   if (on !== true) return [];
+
+  // Absent === 'male'. See the doc comment.
+  const rawField = row.field_gender ?? row.fieldGender;
+  const field = typeof rawField === 'string' && rawField.trim().length > 0
+    ? rawField.toLowerCase().trim()
+    : 'male';
+  if (field === 'male' || field === 'female') return [field];
+
+  // Mixed: the commissioner's explicit pick, else both.
   const raw = row.longest_drive_genders ?? row.longestDriveGenders;
   if (!Array.isArray(raw) || raw.length === 0) return ['male', 'female'];
   const picked = raw
     .map((g) => String(g).toLowerCase().trim())
-    .filter((g) => g === 'male' || g === 'female');
+    .filter((g) => g === 'male' || g === 'female')
+    .filter((g, i, arr) => arr.indexOf(g) === i);
   return picked.length > 0 ? picked : ['male', 'female'];
+}
+
+/// Apply a submitted set of closest-to-pin winners ON TOP OF the stored
+/// map, rather than replacing it.
+///
+/// 🚨 **This must merge, not replace.** The editor only renders pickers for
+/// holes the round currently TRACKS, so a replace silently deletes any
+/// winner recorded on a hole that is no longer tracked — and deletes every
+/// winner when a client posts longest drive without a `closestToPin` key at
+/// all. The app never does this: `setClosestToPin` copies the existing map
+/// and edits one hole
+/// (`Map<int, String>.from(round.closestToPinByHole)`), and the sync layer
+/// goes further with `_mergeClosestToPin`, whose comment says outright "if
+/// the server dropped one hole's CTP entry on the round-trip, the
+/// locally-correct entry survives."
+///
+/// So dropping an entry is a failure mode the app actively defends against,
+/// and a second writer must not reintroduce it.
+///
+/// Semantics, matching the app's per-hole edit:
+///   * a submitted hole with a winner  -> set it
+///   * a submitted hole with `''`/null -> CLEAR it (a deliberate blank)
+///   * a hole not submitted at all     -> LEAVE IT ALONE
+export function mergeCtpWinners(
+  existing: Record<string, unknown>,
+  submitted: Record<string, unknown>,
+  opts: { tracked: ReadonlySet<number>; roster: ReadonlySet<string> },
+): { winners: Record<string, string>; rejected: string[] } {
+  const winners: Record<string, string> = {};
+  // Carry the stored map forward, normalising keys to plain integers.
+  for (const [k, v] of Object.entries(existing ?? {})) {
+    const hole = Number(k);
+    if (!Number.isInteger(hole) || hole < 1) continue;
+    if (typeof v !== 'string' || v.length === 0) continue;
+    winners[String(hole)] = v;
+  }
+
+  const rejected: string[] = [];
+  for (const [k, v] of Object.entries(submitted ?? {})) {
+    const hole = Number(k);
+    if (!Number.isInteger(hole) || hole < 1) continue;
+    const winner = typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
+
+    if (winner === null) {
+      // A deliberate blank clears that hole and only that hole.
+      delete winners[String(hole)];
+      continue;
+    }
+    if (!opts.tracked.has(hole)) {
+      rejected.push(`hole ${hole} (no CTP on this round)`);
+      continue;
+    }
+    if (!opts.roster.has(winner)) {
+      rejected.push(`hole ${hole} (winner is not on the roster)`);
+      continue;
+    }
+    winners[String(hole)] = winner;
+  }
+
+  return { winners, rejected };
 }

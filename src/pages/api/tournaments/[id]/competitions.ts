@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../../lib/railway';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { getPublicTournament } from '../../../../lib/tournamentQueries';
-import { resolveCtpHoles } from '../../../../lib/ctpHoles';
+import { mergeCtpWinners, resolveCtpHoles } from '../../../../lib/ctpHoles';
 import { ScoreLossError, withFreshRounds } from '../../../../lib/tournamentWrite';
 
 // POST /api/tournaments/[id]/competitions
@@ -72,27 +72,34 @@ export const POST: APIRoute = async (ctx) => {
     // tab could otherwise name someone who has since been removed.
     const rosterIds = new Set((fresh.players ?? []).map((p) => p.id));
 
-    // CTP is only accepted on holes this round actually tracks, per
-    // the SAME resolver the app uses (ported + fixture-pinned in
-    // `ctpHoles.ts`). Without this a client could record a winner on
-    // a hole with no prize, and the leaderboard would show it.
-    const tracked = new Set(resolveCtpHoles(fresh, round));
-    const ctpIn = (raw.closestToPin ?? {}) as Record<string, unknown>;
-    const ctp: Record<string, string> = {};
-    const rejected: string[] = [];
-    for (const [holeKey, pid] of Object.entries(ctpIn)) {
-      const hole = Number(holeKey);
-      const winner = str(pid);
-      if (!Number.isFinite(hole)) continue;
-      // An empty value is how the UI clears a hole — skip it so the
-      // key is simply absent from the map.
-      if (winner === null) continue;
-      if (!tracked.has(hole)) { rejected.push(`hole ${hole} (no CTP)`); continue; }
-      if (!rosterIds.has(winner)) { rejected.push(`hole ${hole} (not on roster)`); continue; }
-      // Wire keys are strings — the app stringifies hole numbers and
-      // parses them back (see `Tournament.toApiJson`).
-      ctp[String(hole)] = winner;
-    }
+    // CTP winners MERGE onto the stored map; they do not replace it.
+    // The editor only renders pickers for holes this round currently
+    // tracks, so replacing would silently delete a winner recorded on
+    // a hole that is no longer tracked — and delete every winner when
+    // a client posts longest drive with no `closestToPin` key at all.
+    //
+    // The app never does that: `setClosestToPin` copies the existing
+    // map and edits one hole, and the sync layer's
+    // `_mergeClosestToPin` exists specifically so "if the server
+    // dropped one hole's CTP entry on the round-trip, the
+    // locally-correct entry survives." Dropping an entry is a failure
+    // mode the app defends against; this writer must not reintroduce
+    // it. Pure + unit-tested in `ctpHoles.test.ts`.
+    const storedCtp = ((round as Record<string, unknown>).closest_to_pin_by_hole
+      ?? (round as Record<string, unknown>).closestToPinByHole
+      ?? {}) as Record<string, unknown>;
+    const { winners: ctp, rejected } = mergeCtpWinners(
+      storedCtp,
+      (raw.closestToPin ?? {}) as Record<string, unknown>,
+      {
+        // Accepted only on holes the round actually tracks, per the
+        // SAME resolver the app uses — otherwise a client could record
+        // a winner where there is no prize and the leaderboard would
+        // show it.
+        tracked: new Set(resolveCtpHoles(fresh, round)),
+        roster: rosterIds,
+      },
+    );
     if (rejected.length > 0) {
       return json({
         error: `Could not record: ${rejected.join(', ')}. Reload and try again.`,
