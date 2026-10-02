@@ -1,46 +1,265 @@
 ---
+// Your profile — W8 of the parity plan.
+//
+// This page used to say "Matches the profile editor in the mobile app.
+// Edits sync everywhere" above two "Coming soon" chips and no form.
+// Now it is true.
+//
+// 🚨 EVERY SAVE IS A PARTIAL WRITE. The app carries a CI ratchet about
+// this (`test/codebase/name_only_profile_writes_test.dart`) guarding
+// the 2026-09-26 signup handicap race: a full-profile PUT sent
+// `handicap: 18.0`, the model default, and overwrote the handicap the
+// user had just typed.
+//
+// A web form is the same hazard with a wider mouth — it renders every
+// field, so a naive save posts every field, and a tab open for ten
+// minutes would write back the handicap it loaded ten minutes ago.
+//
+// So the form posts what it LOADED alongside what it now SHOWS, and
+// the server diffs them. Only changed fields reach Railway. See
+// `lib/profileFields.ts` and `api/profile/update.ts`.
+
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../lib/supabase';
+import { MISSES, PLAYING_STYLES } from '../../lib/profileFields';
 
 const user = Astro.locals.user!;
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let profile: Record<string, unknown> | null = null;
+let loadError: string | null = null;
+try {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('display_name, handicap, home_course_id, playing_style, '
+      + 'typical_miss, typical_miss_irons, phone, handicap_source, '
+      + 'handicap_updated_at')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  profile = (data as Record<string, unknown>) ?? null;
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load your profile.';
+}
+
+const str = (k: string) =>
+  typeof profile?.[k] === 'string' ? (profile[k] as string) : '';
+const handicap = profile?.handicap != null ? String(profile.handicap) : '';
+
+// What the form LOADED. Posted back alongside the edits so the server
+// can diff and send only what changed.
+const loaded = {
+  display_name: str('display_name'),
+  handicap: profile?.handicap ?? null,
+  home_course_id: str('home_course_id'),
+  playing_style: str('playing_style'),
+  typical_miss: str('typical_miss'),
+  typical_miss_irons: str('typical_miss_irons'),
+  phone: str('phone'),
+};
+
+const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const hcSource = str('handicap_source');
 ---
 
 <BaseLayout title="Profile · Bagpipe Golf">
-  <main class="pagewrap">
+  <main class="pagewrap pagewrap--narrow">
     <p class="pagewrap__eyebrow">Profile</p>
     <h1 class="pagewrap__title">Your profile.</h1>
     <p class="pagewrap__sub">
-      Matches the profile editor in the mobile app. Edits sync everywhere.
+      The same fields as the app. A change here follows you into every
+      round, bet, league and tournament.
     </p>
 
-    <section class="grid grid--2">
-      <article class="card">
-        <h3>Account</h3>
+    {loadError && <div class="notice notice--warn">{loadError}</div>}
+
+    <div id="msg" class="notice" hidden></div>
+
+    <form id="pform" novalidate>
+      <fieldset class="fs">
+        <legend>Account</legend>
         <dl class="kv">
           <dt>Email</dt><dd>{user.email}</dd>
         </dl>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Golfer</h3>
-        <p>Display name, handicap index, home course, GHIN number.</p>
-      </article>
-      <article class="card">
-        <span class="chip chip--muted">Coming soon</span>
-        <h3>Notifications</h3>
-        <p>Push / email / SMS / in-app toggles per category.</p>
-      </article>
+        <p class="hint">
+          Changing your email or password is not here yet &mdash; use the app.
+        </p>
+      </fieldset>
+
+      <fieldset class="fs">
+        <legend>Golfer</legend>
+
+        <label class="field">
+          <span>Display name</span>
+          <input type="text" name="display_name" maxlength="50"
+                 value={str('display_name')} placeholder="How you appear on a scorecard" />
+          <em class="fieldnote">
+            Shown on every roster, leaderboard and bet. Up to 50 characters.
+          </em>
+        </label>
+
+        <label class="field">
+          <span>Handicap index</span>
+          <input type="number" name="handicap" step="0.1" min="-10" max="54"
+                 value={handicap} placeholder="e.g. 10.4" />
+          <em class="fieldnote">
+            Between +10 and 54. A plus handicap is negative here &mdash; enter
+            &minus;2.4 for a +2.4.
+            {hcSource ? ` Currently sourced from: ${hcSource}.` : ''}
+          </em>
+        </label>
+
+        <label class="field">
+          <span>Phone <em>optional</em></span>
+          <input type="tel" name="phone" maxlength="32" value={str('phone')}
+                 placeholder="+1 303 555 1234" />
+          <em class="fieldnote">
+            Clear the box to remove it. The only field here you can empty.
+          </em>
+        </label>
+      </fieldset>
+
+      <fieldset class="fs">
+        <legend>How you play</legend>
+        <p class="hint">Used by the AI caddie when it comes back.</p>
+
+        <label class="field">
+          <span>Playing style</span>
+          <select name="playing_style">
+            <option value="">&mdash; not set &mdash;</option>
+            {PLAYING_STYLES.map((s) => (
+              <option value={s} selected={str('playing_style') === s}>{titleCase(s)}</option>
+            ))}
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Typical miss &mdash; driver</span>
+          <select name="typical_miss">
+            <option value="">&mdash; not set &mdash;</option>
+            {MISSES.map((m) => (
+              <option value={m} selected={str('typical_miss') === m}>{titleCase(m)}</option>
+            ))}
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Typical miss &mdash; irons</span>
+          <select name="typical_miss_irons">
+            <option value="">&mdash; not set &mdash;</option>
+            {MISSES.map((m) => (
+              <option value={m} selected={str('typical_miss_irons') === m}>{titleCase(m)}</option>
+            ))}
+          </select>
+        </label>
+        <p class="hint">
+          Once set, these cannot be cleared from the web &mdash; the server does
+          not accept an empty value for them. Pick a different option instead.
+        </p>
+      </fieldset>
+
+      <button type="submit" class="btn btn--primary" id="save">Save changes</button>
+      <p class="hint">
+        Only the fields you actually change are sent. Everything else is left
+        exactly as it is, including from another device.
+      </p>
+    </form>
+
+    <section class="fs">
+      <legend class="legendish">Not here yet</legend>
+      <p class="hint">
+        Bag and clubs, friends, and career stats are in the app. Notification
+        preferences too. They are next in this slice.
+      </p>
     </section>
   </main>
-</BaseLayout>
 
-<style>
-  .card h3 {
-    font-size: 1.0625rem;
-    color: var(--brand-green-dark);
-    margin: 8px 0 4px;
-  }
-  .card p { margin: 0; color: var(--ink-muted); font-size: 0.875rem; }
-  .kv { display: grid; grid-template-columns: 100px 1fr; gap: 6px 14px; margin: 4px 0 0; }
-  .kv dt { color: var(--ink-muted); font-size: 0.8125rem; }
-  .kv dd { margin: 0; color: var(--ink); font-size: 0.875rem; }
-</style>
+  <script is:inline define:vars={{ loaded }}>
+    const form = document.getElementById('pform');
+    const save = document.getElementById('save');
+    const msg = document.getElementById('msg');
+
+    const note = (text, kind) => {
+      msg.textContent = text;
+      msg.className = `notice notice--${kind}`;
+      msg.hidden = false;
+    };
+
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(form);
+      // `next` is what the form NOW shows. `loaded` is what it was
+      // rendered with. The server diffs them so an untouched field is
+      // never sent — see api/profile/update.ts.
+      const next = {
+        display_name: fd.get('display_name') ?? '',
+        handicap: fd.get('handicap') === '' ? null : fd.get('handicap'),
+        home_course_id: loaded.home_course_id,
+        playing_style: fd.get('playing_style') ?? '',
+        typical_miss: fd.get('typical_miss') ?? '',
+        typical_miss_irons: fd.get('typical_miss_irons') ?? '',
+        phone: fd.get('phone') ?? '',
+      };
+
+      save.disabled = true;
+      save.textContent = 'Saving…';
+      try {
+        const res = await fetch('/api/profile/update', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ current: loaded, next }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          note(body.error || 'Could not save your profile.', 'warn');
+          return;
+        }
+        const n = (body.changed || []).length;
+        if (n === 0) {
+          note('Nothing to save — no changes.', 'ok');
+          return;
+        }
+        note(`Saved ${n} change${n === 1 ? '' : 's'}. Reloading…`, 'ok');
+        window.location.reload();
+      } catch {
+        note('Network error — nothing was saved.', 'warn');
+      } finally {
+        save.disabled = false;
+        save.textContent = 'Save changes';
+      }
+    });
+  </script>
+
+  <style>
+    .fs {
+      border: 1px solid var(--line, #dfe6e2); border-radius: 8px;
+      padding: 14px 16px; margin: 0 0 20px;
+    }
+    .fs legend, .legendish {
+      font-size: 0.8125rem; font-weight: 700; padding: 0 6px;
+      color: var(--ink, #16231d);
+    }
+    .legendish { display: block; padding: 0 0 6px; }
+    .kv { display: grid; grid-template-columns: 90px 1fr; gap: 6px 14px; margin: 4px 0 0; }
+    .kv dt { color: var(--ink-muted, #4b5b54); font-size: 0.8125rem; }
+    .kv dd { margin: 0; font-size: 0.875rem; }
+    .field { display: block; margin: 0 0 14px; }
+    .field > span { display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 4px; }
+    .field > span em { font-style: normal; font-weight: 400; opacity: 0.7; }
+    .field input, .field select {
+      width: 100%; box-sizing: border-box; font-size: 0.875rem; padding: 7px 8px;
+    }
+    .fieldnote {
+      display: block; font-style: normal; font-size: 0.75rem;
+      color: var(--ink-muted, #4b5b54); margin-top: 4px; line-height: 1.5;
+    }
+    .hint {
+      font-size: 0.78125rem; color: var(--ink-muted, #4b5b54);
+      margin: 6px 0 0; line-height: 1.55;
+    }
+  </style>
+</BaseLayout>
