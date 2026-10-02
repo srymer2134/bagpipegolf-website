@@ -1,0 +1,379 @@
+---
+// League sign-up — PLACEHOLDER, no payment is taken.
+//
+// Sam 2026-10-02: modelled on how City Park Players Club collects
+// league sign-ups through Unknown Golf
+// (`league.unknowngolf.com/signUpQuestionnaire.jsp`). This page shows
+// the shape ours will take; Stripe comes next.
+//
+// 🚨 NOTHING HERE CHARGES ANYONE. The fee block is illustrative and the
+// pay button is inert. The real seam already exists and is flag-gated —
+// see "What connecting Stripe actually needs" at the bottom of the page
+// and `FeatureFlags.stripeEnabled` in the Flutter repo.
+//
+// WHAT THEIR FORM ASKS, AND WHY OURS IS SHORTER
+//
+// Unknown Golf's questionnaire collects 17 fields: gender, first/last
+// name, suffix, email, handle, mobile, USGA handicap id, a PHOTO of the
+// handicap card, date of birth, age, tee box, division, team partners
+// (each repeating most of the above), team name, tee time, promo code,
+// entry fee, comments.
+//
+// It has to. There is no account behind it — every sign-up starts from
+// nothing, every season, for every event.
+//
+// We already know the player. So the honest replication is not
+// "reproduce 17 fields"; it is "ask only what the event adds". That is
+// the section split below: what we know (read-only, from the profile)
+// versus what the event needs (the only things anyone types).
+//
+// Deliberately NOT copied:
+//   * handicap-card photo upload — we hold a handicap and a GHIN id on
+//     the profile; a photo is a manual-verification workflow we have no
+//     reviewer for, so it would collect a liability and change nothing.
+//   * age, computed from DOB — we only need DOB where an age division
+//     exists, and then the division is what matters, not the number.
+//   * separate gender field — the field_gender / tee resolution already
+//     carries this where it affects play.
+
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import { leagueDetail } from '../../../../lib/leaguePortal';
+
+const { id } = Astro.params;
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(`/login?next=${encodeURIComponent(Astro.request.url)}`, 302);
+}
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let detail = null;
+let loadError: string | null = null;
+try {
+  detail = await leagueDetail(supabase, id!, user.id);
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load the league.';
+}
+
+// The signed-in player's own profile — the point of the page is that
+// most of the form is already answered.
+let profile: {
+  display_name: string | null;
+  handicap: number | null;
+  phone: string | null;
+} | null = null;
+if (detail) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('display_name, handicap, phone')
+    .eq('id', user.id)
+    .maybeSingle();
+  profile = (data as typeof profile) ?? null;
+}
+
+const league = detail?.league ?? null;
+const nextEvent = detail?.events?.find((e) => e.status !== 'complete')
+  ?? detail?.events?.[0]
+  ?? null;
+
+// ── Illustrative figures ────────────────────────────────────────
+// Hard-coded ON PURPOSE and labelled as such in the UI. There is no
+// season-dues column on `leagues` yet — only the weekly pot columns
+// (`pot_skins_entry`, `pot_ctp_entry`, `pot_ld_entry` from migration
+// 20261017) and the tournament-scoped `EntryFee` model
+// (`amount_cents`, `due_date`). Inventing a dues column here to make a
+// placeholder look real is how a placeholder becomes a schema.
+const EXAMPLE = {
+  seasonDuesCents: 12000,
+  weeklyGreensFeeCents: 3500,
+  potSkinsCents: 1000,
+  potCtpCents: 500,
+};
+const money = (cents: number) =>
+  `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
+
+const feeRows = [
+  { label: 'Season dues', value: money(EXAMPLE.seasonDuesCents), note: 'once, at sign-up' },
+  { label: 'Weekly greens fee', value: money(EXAMPLE.weeklyGreensFeeCents), note: 'paid at the course' },
+  { label: 'Skins pot', value: money(EXAMPLE.potSkinsCents), note: 'optional, per week' },
+  { label: 'Closest to the pin', value: money(EXAMPLE.potCtpCents), note: 'optional, per week' },
+];
+const dueNowCents = EXAMPLE.seasonDuesCents;
+---
+
+<BaseLayout title="League sign-up · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    {loadError && <div class="notice notice--warn">{loadError}</div>}
+    {!detail && !loadError && (
+      <div class="notice notice--warn">
+        That league could not be found, or you are not on its roster.
+      </div>
+    )}
+
+    {league && (
+      <>
+        <p class="pagewrap__eyebrow">{league.name}</p>
+        <h1 class="pagewrap__title">Sign up for the season.</h1>
+        <LeagueSubnav id={id!} active="signup" />
+
+        <div class="notice notice--warn ph">
+          <strong>Placeholder.</strong> This page shows the shape of league
+          sign-up and <strong>takes no payment</strong>. Every figure below is
+          an example, not this league's real dues &mdash; there is no dues
+          field on a league yet. Card payment arrives with Stripe; what that
+          needs is listed at the bottom.
+        </div>
+
+        {/* ── 1. What we already know ─────────────────────────── */}
+        <section class="blk">
+          <h2 class="blk__h">1 &middot; Your details</h2>
+          <p class="hint">
+            Already on your profile &mdash; nothing to re-type. Change any of
+            it in <a href="/app/profile">Profile</a> and it follows you into
+            every league and event.
+          </p>
+          <dl class="known">
+            <div><dt>Name</dt><dd>{profile?.display_name ?? '—'}</dd></div>
+            <div><dt>Email</dt><dd>{user.email}</dd></div>
+            <div>
+              <dt>Handicap</dt>
+              <dd>{profile?.handicap != null ? profile.handicap : 'not set'}</dd>
+            </div>
+            <div>
+              <dt>Mobile</dt>
+              <dd>{profile?.phone ?? <span class="muted">not set — optional</span>}</dd>
+            </div>
+          </dl>
+          <p class="hint">
+            Unknown Golf asks City Park players for name, email, phone,
+            handicap, date of birth and a photo of their handicap card
+            <em>every single sign-up</em>, because there is no account behind
+            the form. This is the part we do not have to ask.
+          </p>
+        </section>
+
+        {/* ── 2. What the event actually adds ─────────────────── */}
+        <section class="blk">
+          <h2 class="blk__h">2 &middot; What this league needs</h2>
+          <p class="hint">The only things anyone types.</p>
+
+          <label class="field">
+            <span>Tee box you'll play</span>
+            <select disabled>
+              <option>Select a tee —</option>
+            </select>
+            <em class="fieldnote">
+              Populated from the league's default course once a season has
+              one{nextEvent?.course_id ? '' : ' — this season has no course set yet'}.
+            </em>
+          </label>
+
+          <label class="field">
+            <span>Division / flight <em>optional</em></span>
+            <select disabled>
+              <option>Director decides from handicaps —</option>
+            </select>
+            <em class="fieldnote">
+              Leagues already compute flights from handicap
+              (<code>flight_count</code>), so this is a request, not an
+              assignment.
+            </em>
+          </label>
+
+          <label class="field">
+            <span>GHIN / USGA handicap ID <em>optional</em></span>
+            <input type="text" placeholder="e.g. 1234567" disabled />
+            <em class="fieldnote">
+              Only useful once GHIN sync is live. No card photo &mdash; we
+              would have nobody to review it.
+            </em>
+          </label>
+
+          <label class="field">
+            <span>Anything the director should know <em>optional</em></span>
+            <textarea rows="3" placeholder="Can't make the first two weeks…" disabled></textarea>
+          </label>
+        </section>
+
+        {/* ── 3. Partner, only when the format needs one ──────── */}
+        <section class="blk">
+          <h2 class="blk__h">3 &middot; Your partner</h2>
+          <p class="hint">
+            Shown only for a team format. This league is
+            <strong> {league.points_model ?? 'not yet configured'}</strong>
+            {league.points_model === 'match_play'
+              ? ' — a two-player team league, so a partner is required.'
+              : ' — no partner needed.'}
+          </p>
+          <label class="field">
+            <span>Partner</span>
+            <input type="text" placeholder="Search the roster, or invite by email" disabled />
+            <em class="fieldnote">
+              Roster search first, then an email invite &mdash; the same
+              invite path the app already uses, so an unregistered partner
+              gets a real account rather than a typed-in name.
+            </em>
+          </label>
+        </section>
+
+        {/* ── 4. Money ───────────────────────────────────────── */}
+        <section class="blk">
+          <h2 class="blk__h">4 &middot; Fees</h2>
+          <p class="hint">
+            <strong>Example figures.</strong> A league has no dues field yet;
+            these show the shape only.
+          </p>
+          <dl class="fees">
+            {feeRows.map((r) => (
+              <div class="fees__row">
+                <dt>{r.label} <em>{r.note}</em></dt>
+                <dd>{r.value}</dd>
+              </div>
+            ))}
+            <div class="fees__row fees__row--total">
+              <dt>Due now</dt>
+              <dd>{money(dueNowCents)}</dd>
+            </div>
+          </dl>
+          <label class="field">
+            <span>Promo code <em>optional</em></span>
+            <input type="text" placeholder="CPPC2026" disabled />
+          </label>
+          <p class="hint">
+            Weekly greens fees are paid at the course and are listed so the
+            season's real cost is visible up front &mdash; Bagpipe does not
+            collect them. Pots are opt-in per week, not at sign-up.
+          </p>
+        </section>
+
+        {/* ── 5. The payment step, inert ──────────────────────── */}
+        <section class="blk">
+          <h2 class="blk__h">5 &middot; Payment</h2>
+          <div class="pay">
+            <div class="pay__amt">{money(dueNowCents)}</div>
+            <button type="button" class="btn btn--primary" disabled>
+              Pay by card
+            </button>
+            <p class="pay__note">
+              Inert. No charge is possible from this page &mdash; there is no
+              payment provider connected.
+            </p>
+          </div>
+          <p class="hint">
+            The alternative we should keep either way: a director marks a
+            player paid by cash or transfer. Unknown Golf's flow ends in
+            "pending approval" for exactly this reason, and most club money
+            still moves offline.
+          </p>
+        </section>
+
+        <button type="button" class="btn btn--primary btn--wide" disabled>
+          Request a spot
+        </button>
+        <p class="hint">
+          Would send the request to the director for approval, then confirm by
+          email &mdash; the same two-step Unknown Golf uses. Inert here.
+        </p>
+
+        {/* ── What Stripe actually needs ──────────────────────── */}
+        <section class="blk blk--gates">
+          <h2 class="blk__h">What connecting Stripe actually needs</h2>
+          <p class="hint">
+            The client seam is already built and flag-gated in the app &mdash;
+            <code>PaymentsService</code> with a working mock,
+            <code>EntryFee</code> and <code>TournamentPayment</code> models, a
+            payments screen, and <code>FeatureFlags.stripeEnabled</code>. It is
+            off behind three named gates, none of which are code:
+          </p>
+          <ol class="gates">
+            <li><strong>The <code>/api/payments/*</code> endpoints</strong> on Railway (Patrick) &mdash; Track B plan, phases 1&ndash;2.</li>
+            <li><strong>Phase 0.3 legal review.</strong> Taking money for someone else's league has terms, refund and liability consequences.</li>
+            <li><strong><code>STRIPE_PUBLISHABLE_KEY</code></strong> set in the environment.</li>
+          </ol>
+          <p class="hint">
+            Two things worth deciding before any of that: <strong>a league has
+            no dues column</strong> (only weekly pot entries and a
+            tournament-scoped <code>EntryFee</code>), and the existing scope
+            note says entry fees only &mdash; <strong>side-game settlement
+            stays off-app</strong>. This page follows both.
+          </p>
+        </section>
+      </>
+    )}
+  </main>
+
+  <style>
+    .ph { margin: 0 0 26px; }
+    .blk { margin: 0 0 30px; }
+    .blk__h {
+      font-size: 0.9375rem; margin: 0 0 4px;
+      padding-bottom: 6px; border-bottom: 1px solid var(--line, #dfe6e2);
+    }
+    .blk--gates {
+      background: var(--wash, #f3f6f4); border-radius: 8px;
+      padding: 14px 16px; margin-top: 36px;
+    }
+    .hint {
+      font-size: 0.78125rem; color: var(--ink-muted, #4b5b54);
+      margin: 6px 0 12px; line-height: 1.55;
+    }
+    .muted { color: var(--ink-muted, #4b5b54); }
+
+    .known, .fees { margin: 0 0 12px; }
+    .known > div, .fees__row {
+      display: flex; justify-content: space-between; gap: 14px;
+      padding: 7px 0; border-bottom: 1px solid var(--line, #dfe6e2);
+    }
+    .known dt, .fees__row dt {
+      font-size: 0.8125rem; color: var(--ink-muted, #4b5b54); margin: 0;
+    }
+    .known dd, .fees__row dd {
+      font-size: 0.8125rem; font-weight: 600; margin: 0;
+      font-variant-numeric: tabular-nums; text-align: right;
+    }
+    .fees__row dt em { font-style: normal; opacity: 0.75; }
+    .fees__row--total {
+      border-bottom: none; border-top: 2px solid var(--line, #dfe6e2);
+      padding-top: 10px; margin-top: 2px;
+    }
+    .fees__row--total dt, .fees__row--total dd {
+      font-size: 0.9375rem; color: var(--ink, #16231d); font-weight: 700;
+    }
+
+    .field { display: block; margin: 0 0 14px; }
+    .field > span { display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 4px; }
+    .field > span em { font-style: normal; font-weight: 400; opacity: 0.7; }
+    .field input, .field select, .field textarea {
+      width: 100%; box-sizing: border-box; font-size: 0.8125rem; padding: 7px 8px;
+    }
+    .field input:disabled, .field select:disabled, .field textarea:disabled {
+      background: var(--wash, #f3f6f4); cursor: not-allowed;
+    }
+    .fieldnote {
+      display: block; font-style: normal; font-size: 0.75rem;
+      color: var(--ink-muted, #4b5b54); margin-top: 4px; line-height: 1.5;
+    }
+
+    .pay {
+      border: 1px dashed var(--line, #dfe6e2); border-radius: 8px;
+      padding: 16px; text-align: center;
+    }
+    .pay__amt {
+      font-size: 1.75rem; font-weight: 700;
+      font-variant-numeric: tabular-nums; margin-bottom: 10px;
+    }
+    .pay__note {
+      font-size: 0.75rem; color: var(--ink-muted, #4b5b54);
+      margin: 10px 0 0;
+    }
+    .btn--wide { width: 100%; }
+    .gates { margin: 0 0 10px; padding-left: 20px; }
+    .gates li { font-size: 0.8125rem; margin-bottom: 6px; line-height: 1.55; }
+  </style>
+</BaseLayout>
