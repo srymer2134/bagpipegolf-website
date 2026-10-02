@@ -428,7 +428,7 @@ const clientPlayers = players.map((p) => ({
   <style>
     .rounds { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
     .rounds__chip {
-      font-size: 13px; padding: 5px 11px; border-radius: 999px;
+      font-size: 0.8125rem; padding: 5px 11px; border-radius: 999px;
       border: 1px solid var(--line, #dfe6e2); text-decoration: none;
       color: var(--ink-muted, #4b5b54);
     }
@@ -442,7 +442,7 @@ const clientPlayers = players.map((p) => ({
     }
     .bar__left { display: flex; flex-wrap: wrap; gap: 8px; }
     .hint {
-      font-size: 12.5px; color: var(--ink-muted, #4b5b54);
+      font-size: 0.78125rem; color: var(--ink-muted, #4b5b54);
       margin: 0 0 20px; line-height: 1.5;
     }
 
@@ -456,7 +456,7 @@ const clientPlayers = players.map((p) => ({
     }
     .card__head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
     .card__name {
-      flex: 1; min-width: 0; font-weight: 650; font-size: 15px;
+      flex: 1; min-width: 0; font-weight: 650; font-size: 0.9375rem;
       border: 1px solid transparent; border-radius: 5px;
       padding: 4px 6px; background: transparent; color: inherit;
     }
@@ -464,28 +464,28 @@ const clientPlayers = players.map((p) => ({
       border-color: var(--line, #dfe6e2); background: var(--surface, #fff);
     }
     .card__del {
-      flex: none; width: 26px; height: 26px; line-height: 1; font-size: 18px;
+      flex: none; width: 26px; height: 26px; line-height: 1; font-size: 1.125rem;
       border: 1px solid var(--line, #dfe6e2); border-radius: 5px;
       background: transparent; color: var(--ink-muted, #4b5b54); cursor: pointer;
     }
     .card__del:hover { color: #a3261f; border-color: #a3261f; }
     .card__row { display: flex; gap: 6px; margin-bottom: 8px; }
-    .card__row select, .card__row input { flex: 1; min-width: 0; font-size: 13px; padding: 5px 6px; }
+    .card__row select, .card__row input { flex: 1; min-width: 0; font-size: 0.8125rem; padding: 5px 6px; }
     .card__players, .pool__list { list-style: none; margin: 0; padding: 0; }
-    .card__empty { font-size: 12.5px; color: var(--ink-muted, #4b5b54); padding: 6px 2px; }
+    .card__empty { font-size: 0.78125rem; color: var(--ink-muted, #4b5b54); padding: 6px 2px; }
 
     .row {
       display: flex; gap: 8px; align-items: center;
       padding: 6px 2px; border-top: 1px solid var(--line, #dfe6e2);
     }
-    .row__name { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+    .row__name { flex: 1; min-width: 0; font-size: 0.84375rem; overflow-wrap: anywhere; }
     .row__hc {
-      flex: none; font-size: 12px; font-variant-numeric: tabular-nums;
+      flex: none; font-size: 0.75rem; font-variant-numeric: tabular-nums;
       color: var(--ink-muted, #4b5b54); min-width: 2.2em; text-align: right;
     }
-    .row__move { flex: none; max-width: 10.5em; font-size: 12px; padding: 3px 4px; }
+    .row__move { flex: none; max-width: 10.5em; font-size: 0.75rem; padding: 3px 4px; }
 
     .pool { border-top: 2px solid var(--line, #dfe6e2); padding-top: 14px; }
-    .pool__h { font-size: 14px; margin: 0 0 6px; }
+    .pool__h { font-size: 0.875rem; margin: 0 0 6px; }
   </style>
 </BaseLayout>
