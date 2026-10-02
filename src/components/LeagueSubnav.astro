@@ -1,7 +1,7 @@
 ---
 interface Props {
   id: string;
-  active: 'overview' | 'standings' | 'schedule' | 'manage';
+  active: 'overview' | 'standings' | 'schedule' | 'signup' | 'manage';
 }
 
 const { id, active } = Astro.props;
@@ -10,6 +10,7 @@ const links: Array<{ key: Props['active']; label: string }> = [
   { key: 'overview',  label: 'Overview' },
   { key: 'standings', label: 'Standings' },
   { key: 'schedule',  label: 'Schedule' },
+  { key: 'signup',    label: 'Sign-up' },
   { key: 'manage',    label: 'Manage (Director)' },
 ];
 
