@@ -192,6 +192,7 @@ try {
               <ul class="templateCard__includes">
                 {t.copy.includes.slice(0, 3).map((line) => <li>{line}</li>)}
               </ul>
+              <p class="templateCard__flex">{t.copy.flexibility}</p>
               {t.id === 'bandonDunesCup' && (
                 <div
                   class="templateCard__bandonPicker"
@@ -338,8 +339,8 @@ try {
       <section data-step="3" class="wizard__step" aria-label="Rounds">
         <h2 class="wizard__stepTitle">Rounds</h2>
         <p class="wizard__stepSub">
-          Add up to 4 rounds. Each round has its own tee color +
-          hole count.
+          Up to 12 rounds. Each has its own tee color, hole count and
+          format — reorder or replace anything a template filled in.
         </p>
 
         <ul id="roundsList" class="roundsList"></ul>
@@ -3356,6 +3357,16 @@ try {
     top: 0;
     color: var(--brand-green);
     font-weight: 800;
+  }
+  .templateCard__flex {
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--brand-green, #2f7d44);
+    background: var(--brand-green-soft, #f0f7f2);
+    border-radius: 0 8px 8px 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--ink, #1b2a23);
   }
   .templateCard__meta {
     margin: 6px 0 0;
