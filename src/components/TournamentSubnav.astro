@@ -1,7 +1,8 @@
 ---
 interface Props {
   id: string;
-  active: 'overview' | 'leaderboard' | 'scorecard' | 'pairings' | 'calcutta'
+  active: 'overview' | 'leaderboard' | 'scorecard' | 'pairings' | 'competitions'
+    | 'calcutta'
     | 'payouts' | 'manage';
 }
 
@@ -12,6 +13,7 @@ const links: Array<{ key: Props['active']; label: string }> = [
   { key: 'leaderboard', label: 'Leaderboard' },
   { key: 'scorecard',   label: 'Scorecard' },
   { key: 'pairings',    label: 'Pairings' },
+  { key: 'competitions', label: 'Competitions' },
   { key: 'calcutta',    label: 'Calcutta' },
   { key: 'payouts',     label: 'Payouts' },
   { key: 'manage',      label: 'Manage (Director)' },

@@ -1,0 +1,300 @@
+---
+// Tournament-wide competitions — W4b of the parity plan.
+//
+// Sam's requirement, verbatim: "if its a tourney wide side game or
+// competition (i.e.-closest to the pin, skins, etc) that will need to
+// be something the TD/LDs have access to update on the website as
+// well as the app."
+//
+// What is editable here, and why only these:
+//
+//   * CLOSEST TO PIN — per hole, per round. Nobody can derive this
+//     from a scorecard; a human watched the shot. Until now it could
+//     only be entered in the app, so a director at a clubhouse desk
+//     had to pick up a phone.
+//   * LONGEST DRIVE — per gender bracket, per round. Same reason.
+//
+//   * SKINS are deliberately NOT editable. They are computed from
+//     scores (`skinsPool.ts`), so "editing" one would mean overriding
+//     the engine — which is a different and much riskier feature than
+//     recording an observation. The read-only result is shown so the
+//     page answers "who won what" completely.
+//
+// Which holes offer a CTP picker comes from `resolveCtpHoles`, a port
+// of the app's resolver pinned by fixtures generated from it
+// (`ctpHoles.ts` + `__fixtures__/ctp-holes.json`). Offering the wrong
+// holes is quietly wrong in both directions: too few and a prize goes
+// unpaid, too many and pickers spray over a round where the director
+// deliberately chose two.
+//
+// WRITE SAFETY: the browser never sends `rounds`. See
+// `/api/tournaments/[id]/competitions` and `lib/tournamentWrite.ts`.
+
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import {
+  getPublicTournament,
+  type TournamentPlayer,
+  type TournamentRound,
+} from '../../../../lib/tournamentQueries';
+import { longestDriveGenders, resolveCtpHoles } from '../../../../lib/ctpHoles';
+
+const { id } = Astro.params;
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(`/login?next=${encodeURIComponent(Astro.request.url)}`, 302);
+}
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let tournament = null;
+let loadError: string | null = null;
+try {
+  tournament = await getPublicTournament(supabase, id!);
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load tournament.';
+}
+
+if (tournament && tournament.user_id !== user.id) {
+  return Astro.redirect(`/app/tournaments/${id}/leaderboard`, 302);
+}
+
+const rounds: TournamentRound[] = tournament?.rounds ?? [];
+const wanted = Astro.url.searchParams.get('round');
+const round = rounds.find((r) => r.id === wanted) ?? rounds[0] ?? null;
+const players: TournamentPlayer[] = tournament?.players ?? [];
+
+const ctpHoles = tournament && round ? resolveCtpHoles(tournament, round) : [];
+const ldGenders = tournament ? longestDriveGenders(tournament) : [];
+
+function currentCtp(r: TournamentRound | null): Record<string, string> {
+  if (!r) return {};
+  const raw = (r as Record<string, unknown>).closest_to_pin_by_hole
+    ?? (r as Record<string, unknown>).closestToPinByHole;
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'string' && v.length > 0) out[String(Number(k))] = v;
+  }
+  return out;
+}
+
+const ctp = currentCtp(round);
+const roundRow = (round ?? {}) as Record<string, unknown>;
+const ldMale = (roundRow.longest_drive_male_id ?? roundRow.longestDriveMaleId ?? '') as string;
+const ldFemale = (roundRow.longest_drive_female_id ?? roundRow.longestDriveFemaleId ?? '') as string;
+
+const nameOf = (pid: string) => players.find((p) => p.id === pid)?.name ?? pid;
+const hasAnything = ctpHoles.length > 0 || ldGenders.length > 0;
+---
+
+<BaseLayout title="Competitions · Bagpipe Golf">
+  <main class="pagewrap">
+    {loadError && <div class="notice notice--warn">{loadError}</div>}
+    {!tournament && !loadError && (
+      <div class="notice notice--warn">That tournament could not be found.</div>
+    )}
+
+    {tournament && (
+      <>
+        <p class="pagewrap__eyebrow">{tournament.name}</p>
+        <h1 class="pagewrap__title">Competitions.</h1>
+        <TournamentSubnav id={id!} active="competitions" />
+
+        {rounds.length === 0 && (
+          <div class="notice notice--warn">This tournament has no rounds yet.</div>
+        )}
+
+        {round && rounds.length > 1 && (
+          <nav class="rounds" aria-label="Choose a round">
+            {rounds.map((r) => (
+              <a
+                href={`/app/tournaments/${id}/competitions?round=${encodeURIComponent(r.id)}`}
+                class:list={['rounds__chip', r.id === round.id && 'is-active']}
+              >{r.name}</a>
+            ))}
+          </nav>
+        )}
+
+        {round && !hasAnything && (
+          <div class="notice">
+            No field-wide competitions are switched on for this round. Turn on
+            closest-to-pin or longest drive in the app's tournament setup, or
+            pick CTP holes for this round, and they will appear here.
+          </div>
+        )}
+
+        {round && hasAnything && (
+          <>
+            <div id="saveMsg" class="notice" hidden></div>
+
+            {ctpHoles.length > 0 && (
+              <section class="block">
+                <h2 class="block__h">Closest to the pin</h2>
+                <p class="hint">
+                  {ctpHoles.length} hole{ctpHoles.length === 1 ? '' : 's'} on this
+                  round. Leave a hole blank if nobody hit the green.
+                </p>
+                <ul class="list">
+                  {ctpHoles.map((hole) => (
+                    <li class="item">
+                      <span class="item__label">Hole {hole}</span>
+                      <select class="item__pick" data-ctp={String(hole)}
+                              aria-label={`Closest to pin winner, hole ${hole}`}>
+                        <option value="">&mdash; nobody &mdash;</option>
+                        {players.map((p) => (
+                          <option value={p.id} selected={ctp[String(hole)] === p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {ldGenders.length > 0 && (
+              <section class="block">
+                <h2 class="block__h">Longest drive</h2>
+                <p class="hint">One winner per bracket, per round.</p>
+                <ul class="list">
+                  {ldGenders.includes('male') && (
+                    <li class="item">
+                      <span class="item__label">Men</span>
+                      <select class="item__pick" data-ld="male"
+                              aria-label="Longest drive winner, men">
+                        <option value="">&mdash; nobody &mdash;</option>
+                        {players.map((p) => (
+                          <option value={p.id} selected={ldMale === p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </li>
+                  )}
+                  {ldGenders.includes('female') && (
+                    <li class="item">
+                      <span class="item__label">Women</span>
+                      <select class="item__pick" data-ld="female"
+                              aria-label="Longest drive winner, women">
+                        <option value="">&mdash; nobody &mdash;</option>
+                        {players.map((p) => (
+                          <option value={p.id} selected={ldFemale === p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </li>
+                  )}
+                </ul>
+              </section>
+            )}
+
+            <button type="button" class="btn btn--primary" id="save">
+              Save winners
+            </button>
+
+            <p class="foot">
+              Skins are computed from the scorecards, not recorded here &mdash;
+              see the <a href={`/app/tournaments/${id}/payouts`}>payouts</a> page.
+            </p>
+          </>
+        )}
+      </>
+    )}
+  </main>
+
+  <script
+    is:inline
+    define:vars={{
+      apiPath: `/api/tournaments/${id}/competitions`,
+      roundId: round?.id ?? null,
+    }}
+  >
+    if (roundId) {
+      const save = document.getElementById('save');
+      if (save) {
+        save.addEventListener('click', async () => {
+          const closestToPin = {};
+          document.querySelectorAll('[data-ctp]').forEach((el) => {
+            closestToPin[el.dataset.ctp] = el.value || '';
+          });
+          const ld = {};
+          document.querySelectorAll('[data-ld]').forEach((el) => {
+            ld[el.dataset.ld] = el.value || '';
+          });
+
+          const note = (msg, kind) => {
+            const n = document.getElementById('saveMsg');
+            n.textContent = msg;
+            n.className = `notice notice--${kind}`;
+            n.hidden = false;
+          };
+
+          save.disabled = true;
+          save.textContent = 'Saving…';
+          try {
+            const res = await fetch(apiPath, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                roundId,
+                closestToPin,
+                longestDriveMaleId: ld.male || null,
+                longestDriveFemaleId: ld.female || null,
+              }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              note(body.guard === 'score_loss'
+                ? `${body.error} Reload this page to pick up the latest.`
+                : (body.error || 'Could not save the winners.'), 'warn');
+              return;
+            }
+            note('Winners saved.', 'ok');
+          } catch {
+            note('Network error — nothing was saved.', 'warn');
+          } finally {
+            save.disabled = false;
+            save.textContent = 'Save winners';
+          }
+        });
+      }
+    }
+  </script>
+
+  <style>
+    .rounds { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+    .rounds__chip {
+      font-size: 13px; padding: 5px 11px; border-radius: 999px;
+      border: 1px solid var(--line, #dfe6e2); text-decoration: none;
+      color: var(--ink-muted, #4b5b54);
+    }
+    .rounds__chip.is-active {
+      background: var(--ink, #16231d); color: #fff; border-color: var(--ink, #16231d);
+    }
+
+    .block { margin: 0 0 26px; }
+    .block__h { font-size: 15px; margin: 0 0 4px; }
+    .hint {
+      font-size: 12.5px; color: var(--ink-muted, #4b5b54);
+      margin: 0 0 10px; line-height: 1.5;
+    }
+    .list { list-style: none; margin: 0; padding: 0; max-width: 460px; }
+    .item {
+      display: flex; gap: 12px; align-items: center; justify-content: space-between;
+      padding: 8px 0; border-top: 1px solid var(--line, #dfe6e2);
+    }
+    .item__label {
+      font-size: 13.5px; font-weight: 600;
+      font-variant-numeric: tabular-nums; flex: none;
+    }
+    .item__pick { flex: 1; min-width: 0; max-width: 16em; font-size: 13px; padding: 5px 6px; }
+    .foot {
+      font-size: 12.5px; color: var(--ink-muted, #4b5b54);
+      margin: 18px 0 0; line-height: 1.5;
+    }
+  </style>
+</BaseLayout>
