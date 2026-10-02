@@ -1,4 +1,5 @@
 ---
+import { ROUND_FORMATS, roundFormatLabels } from '../lib/roundFormats';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AppLinkBanner from '../components/AppLinkBanner.astro';
 import { CUP_TEMPLATE_LIST } from '../lib/cupTemplates';
@@ -13,130 +14,15 @@ import { CUP_TEMPLATE_LIST } from '../lib/cupTemplates';
 // wizard can never drift. Copy (`pitch`, `fit`, `includes`, `meta`,
 // `detail`) also lives in that module.
 
-interface Format {
-  name: string;
-  kind: 'individual' | 'team';
-  players?: string;
-  body: string;
-  allowance?: string;
-}
+// The round-format catalog comes from `src/lib/roundFormats.ts`, which
+// merges this page's prose onto facts generated from the app's own
+// `RoundFormat` enum. Until 2026-10-02 this file hand-maintained its
+// own list of 12 while the app had 20 — Two-Man Total shipped the day
+// before and never arrived — and carried a second, differently
+// incomplete list for the Cup tables. Both are now derived, and
+// `roundFormats.test.ts` fails if a new format has no copy.
+const formats = ROUND_FORMATS;
 
-const formats: Format[] = [
-  {
-    name: 'Stroke Play',
-    kind: 'individual',
-    body:
-      'Each player records gross strokes per hole; the lowest 18-hole total wins. Net = gross minus course handicap. The World Handicap System caps any hole at net double bogey.',
-    allowance: '95% Course Handicap',
-  },
-  {
-    name: 'Match Play (Singles)',
-    kind: 'individual',
-    body:
-      '1-on-1 hole by hole. Win the hole = +1. The match ends when one side leads by more holes than remain (e.g. 4&3). Net match play applies 100% of the handicap difference on the lowest-index holes.',
-  },
-  {
-    name: 'Stableford',
-    kind: 'individual',
-    body:
-      'Points format: bogey=1, par=2, birdie=3, eagle=4, double-eagle=5; double-bogey or worse=0. Net Stableford applies handicap before scoring.',
-    allowance: '95% Course Handicap',
-  },
-  {
-    name: 'Modified Stableford',
-    kind: 'individual',
-    body:
-      'Stableford with a custom table that rewards aggressive play. PGA Tour Barracuda uses: eagle +5, birdie +2, par 0, bogey −1, double-or-worse −3.',
-  },
-  {
-    name: 'Best Ball / Four-Ball',
-    kind: 'team',
-    players: '2-person teams',
-    body:
-      'Each player plays their own ball; the lower of the two team scores counts as the team hole score. Handicap applied BEFORE comparing (net per hole, not low gross). Common at member-guest events.',
-    allowance: '85% Course Handicap (each player)',
-  },
-  {
-    name: 'Scramble',
-    kind: 'team',
-    players: '4-person default (2 and 3 supported)',
-    body:
-      'All teammates tee off; the captain picks the best drive; everyone plays their next shot from there until holed. One team gross per hole. Texas Scramble adds a minimum-drives rule (each player\'s drive used at least 3 times) — organize manually.',
-    allowance: '4 players: 25%A + 20%B + 15%C + 10%D (70% total)',
-  },
-  {
-    name: 'Foursomes (Alternate Shot)',
-    kind: 'team',
-    players: '2-person teams',
-    body:
-      'Partners alternate STROKES on a single ball. One partner tees off odd holes, the other even. Traditional, punishing, and gorgeous when it works.',
-    allowance: '(low + high) × 50%',
-  },
-  {
-    name: 'Greensomes (Modified Alternate)',
-    kind: 'team',
-    players: '2-person teams',
-    body:
-      'Both partners tee off; pick the better drive; the partner whose drive was NOT chosen plays the second. Alternate strokes from there.',
-    allowance: '60% low + 40% high Course Handicap',
-  },
-  {
-    name: 'Pinehurst (Chapman)',
-    kind: 'team',
-    players: '2-person teams',
-    body:
-      'Both partners tee off, then SWAP balls for the second shot. After the two seconds, pick one ball; the OTHER partner plays the third, and they alternate to the hole.',
-    allowance: '60% low + 40% high',
-  },
-  {
-    name: 'Bloodsome (Reverse Scramble)',
-    kind: 'team',
-    players: '2-person teams',
-    body:
-      'Worst-drive variant of Foursomes. Both partners tee off; the captain picks the WORSE drive; the team plays alternate shot from there. Punishing but memorable.',
-    allowance: '50% of combined Course Handicaps',
-  },
-  {
-    name: 'Round Robin',
-    kind: 'team',
-    players: '4 players',
-    body:
-      'Partners rotate every 6 holes so every pairing plays together once. Holes 1–6: AB vs CD. 7–12: AC vs BD. 13–18: AD vs BC. Each 6-hole segment is its own match.',
-  },
-  {
-    name: 'Six-Six-Six',
-    kind: 'team',
-    players: '4 players',
-    body:
-      'Same rotation as Round Robin — three 6-hole segments — but best-ball scoring within each segment rather than match play.',
-  },
-];
-
-// Buddies Trip Templates — pulled from the shared cupTemplates
-// module (also consumed by /buddies-trips + the wizard's Step 0).
-// Point weights + formats mirror the mobile app's canonical
-// wizard specs. Update `src/lib/cupTemplates.ts` when a preset's
-// round order or point weighting changes.
-//
-// The presentation shape below (session / format / points strings)
-// is derived from the shared `CupTemplateRound` — a small helper
-// keeps the display layer decoupled from the wire values.
-
-const roundFormatLabels: Record<string, string> = {
-  stroke_play: 'Singles Stroke Play',
-  match_play_singles: 'Singles Match Play',
-  best_ball: 'Best Ball (Four-Ball)',
-  best_ball_four_man: '4-Man Best Ball',
-  best_three_of_four: 'Best Three of Four',
-  foursomes: 'Foursomes (Alt Shot)',
-  greensomes: 'Greensomes',
-  pinehurst: 'Pinehurst',
-  modified_stableford: 'Modified Stableford',
-  high_low_2v2: 'High-Low',
-  twelves: 'Twelves',
-  bramble: 'Bramble',
-  yellow_ball: 'Yellow Ball',
-};
 
 const buddiesTemplates = CUP_TEMPLATE_LIST.map((t) => ({
   name: t.name,
@@ -220,6 +106,16 @@ const buddiesTemplates = CUP_TEMPLATE_LIST.map((t) => ({
           ))
         }
       </div>
+
+      <aside class="callout">
+        <strong>A round can change format partway through.</strong>
+        Holes 1–6 alternate shot, 7–12 best ball, 13–18 two-man total —
+        set the stretches and the format for each when you build the
+        round. Boundaries are yours to move; 9+9 and 12+6 work the same
+        way. Each stretch scores by its own rules and uses its own
+        handicap allowance, so Net is right without configuring
+        anything extra.
+      </aside>
 
       <aside class="callout">
         <strong>Why a "team" round still tracks per-player stats.</strong>

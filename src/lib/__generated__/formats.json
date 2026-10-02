@@ -1,0 +1,208 @@
+{
+ "_comment": "GENERATED. Do not hand-edit. Built from RoundFormat + roundFormatMeta (lib/core/models/round_format.dart), kSegmentableFormats (round_segment.dart) and GameType (betting.dart). Regenerate with: REGEN=1 flutter test test/parity/round_formats_catalog.json, verify the diff, then copy to bagpipegolf-website/src/lib/__generated__/formats.json",
+ "version": 1,
+ "formatCount": 20,
+ "sideGameCount": 32,
+ "formats": [
+  {
+   "code": "stroke_play",
+   "label": "Stroke Play",
+   "teamSize": 1,
+   "isTeamFormat": false,
+   "handicapAllowance": 0.95,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  },
+  {
+   "code": "match_play_singles",
+   "label": "Match Play (Singles)",
+   "teamSize": 1,
+   "isTeamFormat": false,
+   "handicapAllowance": 1.0,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  },
+  {
+   "code": "stableford",
+   "label": "Stableford",
+   "teamSize": 1,
+   "isTeamFormat": false,
+   "handicapAllowance": 0.95,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  },
+  {
+   "code": "best_ball",
+   "label": "Best Ball / Four-Ball",
+   "teamSize": 2,
+   "isTeamFormat": true,
+   "handicapAllowance": 0.85,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "best_ball_four_man",
+   "label": "Best Ball (4-Man, Best 2 of 4)",
+   "teamSize": 4,
+   "isTeamFormat": true,
+   "handicapAllowance": 0.85,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "scramble",
+   "label": "Scramble",
+   "teamSize": 4,
+   "isTeamFormat": true,
+   "handicapAllowance": null,
+   "allowanceEngineOwned": true,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "scramble_two_man",
+   "label": "2-Man Scramble",
+   "teamSize": 2,
+   "isTeamFormat": true,
+   "handicapAllowance": null,
+   "allowanceEngineOwned": true,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "foursomes",
+   "label": "Foursomes (Alt. Shot)",
+   "teamSize": 2,
+   "isTeamFormat": true,
+   "handicapAllowance": null,
+   "allowanceEngineOwned": true,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "greensomes",
+   "label": "Greensomes",
+   "teamSize": 2,
+   "isTeamFormat": true,
+   "handicapAllowance": null,
+   "allowanceEngineOwned": true,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "pinehurst",
+   "label": "Pinehurst / Chapman",
+   "teamSize": 2,
+   "isTeamFormat": true,
+   "handicapAllowance": null,
+   "allowanceEngineOwned": true,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "modified_stableford",
+   "label": "Modified Stableford",
+   "teamSize": 1,
+   "isTeamFormat": false,
+   "handicapAllowance": 0.95,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  },
+  {
+   "code": "round_robin",
+   "label": "Round Robin",
+   "teamSize": 2,
+   "isTeamFormat": false,
+   "handicapAllowance": 1.0,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  },
+  {
+   "code": "six_six_six",
+   "label": "Six-Six-Six",
+   "teamSize": 2,
+   "isTeamFormat": false,
+   "handicapAllowance": 0.85,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  },
+  {
+   "code": "bloodsome",
+   "label": "Bloodsome",
+   "teamSize": 2,
+   "isTeamFormat": false,
+   "handicapAllowance": 1.0,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "best_three_of_four",
+   "label": "Best Three of Four",
+   "teamSize": 4,
+   "isTeamFormat": true,
+   "handicapAllowance": 1.0,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "high_low_2v2",
+   "label": "High-Low (2 v 2)",
+   "teamSize": 2,
+   "isTeamFormat": true,
+   "handicapAllowance": 1.0,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  },
+  {
+   "code": "twelves",
+   "label": "Twelves (2 v 2)",
+   "teamSize": 2,
+   "isTeamFormat": true,
+   "handicapAllowance": 1.0,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  },
+  {
+   "code": "two_man_total",
+   "label": "Two-Man Total",
+   "teamSize": 2,
+   "isTeamFormat": true,
+   "handicapAllowance": 1.0,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "bramble",
+   "label": "Bramble / Shamble (2-man)",
+   "teamSize": 2,
+   "isTeamFormat": true,
+   "handicapAllowance": 0.85,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": true
+  },
+  {
+   "code": "yellow_ball",
+   "label": "Yellow Ball (aka Devil Ball / Lone Ranger)",
+   "teamSize": 4,
+   "isTeamFormat": true,
+   "handicapAllowance": 0.9,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  }
+ ]
+}
