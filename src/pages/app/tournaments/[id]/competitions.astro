@@ -1,0 +1,592 @@
+---
+// Tournament-wide competitions — W4b of the parity plan.
+//
+// Sam's requirement, verbatim: "if its a tourney wide side game or
+// competition (i.e.-closest to the pin, skins, etc) that will need to
+// be something the TD/LDs have access to update on the website as
+// well as the app."
+//
+// What is editable here, and why only these:
+//
+//   * CLOSEST TO PIN — per hole, per round. Nobody can derive this
+//     from a scorecard; a human watched the shot. Until now it could
+//     only be entered in the app, so a director at a clubhouse desk
+//     had to pick up a phone.
+//   * LONGEST DRIVE — per gender bracket, per round. Same reason.
+//
+//   * SKINS are deliberately NOT editable. They are computed from
+//     scores (`skinsPool.ts`), so "editing" one would mean overriding
+//     the engine — which is a different and much riskier feature than
+//     recording an observation. The read-only result is shown so the
+//     page answers "who won what" completely.
+//
+// Which holes offer a CTP picker comes from `resolveCtpHoles`, a port
+// of the app's resolver pinned by fixtures generated from it
+// (`ctpHoles.ts` + `__fixtures__/ctp-holes.json`). Offering the wrong
+// holes is quietly wrong in both directions: too few and a prize goes
+// unpaid, too many and pickers spray over a round where the director
+// deliberately chose two.
+//
+// WRITE SAFETY: the browser never sends `rounds`. See
+// `/api/tournaments/[id]/competitions` and `lib/tournamentWrite.ts`.
+
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import {
+  getPublicTournament,
+  type TournamentPlayer,
+  type TournamentRound,
+} from '../../../../lib/tournamentQueries';
+import { longestDriveGenders, par3Holes, resolveCtpHoles, explicitCtpHoles }
+  from '../../../../lib/ctpHoles';
+import {
+  fieldGenderOf,
+  readCompetitionConfig,
+  SKINS_KINDS,
+} from '../../../../lib/competitionConfig';
+
+const { id } = Astro.params;
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(`/login?next=${encodeURIComponent(Astro.request.url)}`, 302);
+}
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let tournament = null;
+let loadError: string | null = null;
+try {
+  tournament = await getPublicTournament(supabase, id!);
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load tournament.';
+}
+
+if (tournament && tournament.user_id !== user.id) {
+  return Astro.redirect(`/app/tournaments/${id}/leaderboard`, 302);
+}
+
+const rounds: TournamentRound[] = tournament?.rounds ?? [];
+const wanted = Astro.url.searchParams.get('round');
+const round = rounds.find((r) => r.id === wanted) ?? rounds[0] ?? null;
+const players: TournamentPlayer[] = tournament?.players ?? [];
+
+const ctpHoles = tournament && round ? resolveCtpHoles(tournament, round) : [];
+const ldGenders = tournament ? longestDriveGenders(tournament) : [];
+
+function currentCtp(r: TournamentRound | null): Record<string, string> {
+  if (!r) return {};
+  const raw = (r as Record<string, unknown>).closest_to_pin_by_hole
+    ?? (r as Record<string, unknown>).closestToPinByHole;
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const hole = Number(k);
+    // Normalise "05" -> "5" so lookups by hole number hit, and drop a
+    // non-numeric key rather than storing it under "NaN".
+    if (!Number.isInteger(hole) || hole < 1) continue;
+    if (typeof v === 'string' && v.length > 0) out[String(hole)] = v;
+  }
+  return out;
+}
+
+const ctp = currentCtp(round);
+
+// Holes that carry a recorded winner but are NOT tracked by this round
+// any more — because the director later narrowed `ctp_holes`.
+//
+// The write path preserves these (the app's own sync layer defends
+// against dropping them), but preserved-and-invisible is its own
+// problem: the director cannot see a prize they recorded, nor remove
+// one that no longer applies. So they render in their own group, and
+// the only action offered is to clear — which is exactly what the
+// route permits for an untracked hole.
+const staleCtpHoles = Object.keys(ctp)
+  .map((k) => Number(k))
+  .filter((h) => Number.isInteger(h) && !ctpHoles.includes(h))
+  .sort((a, b) => a - b);
+const roundRow = (round ?? {}) as Record<string, unknown>;
+const ldMale = (roundRow.longest_drive_male_id ?? roundRow.longestDriveMaleId ?? '') as string;
+const ldFemale = (roundRow.longest_drive_female_id ?? roundRow.longestDriveFemaleId ?? '') as string;
+
+const nameOf = (pid: string) => players.find((p) => p.id === pid)?.name ?? pid;
+
+// ── Setup (the config side) ──────────────────────────────────────
+const config = tournament ? readCompetitionConfig(tournament) : null;
+const fieldGender = tournament ? fieldGenderOf(tournament) : 'male';
+// Candidate holes for the CTP picker. The par 3s are the suggestion;
+// `ctp_holes` may legitimately name any hole, so an already-chosen
+// non-par-3 is offered too rather than silently dropped from the UI.
+const par3s = tournament && round ? par3Holes(tournament, round) : [];
+const explicitHoles = round ? explicitCtpHoles(round) : null;
+const candidateHoles = Array.from(
+  new Set([...par3s, ...(explicitHoles ?? [])]),
+).sort((a, b) => a - b);
+
+const SKINS_LABELS: Record<string, string> = {
+  gross_skins: 'Gross skins',
+  net_skins: 'Net skins',
+  super_skins: 'Super skins (across flights)',
+};
+
+const BUYIN_KINDS: Array<{ key: string; label: string; on: boolean }> = config
+  ? [
+      ...SKINS_KINDS.map((k) => ({
+        key: k, label: SKINS_LABELS[k] ?? k, on: config.skins.includes(k),
+      })),
+      { key: 'closest_to_pin', label: 'Closest to the pin', on: config.closestToPin },
+      { key: 'longest_drive', label: 'Longest drive', on: config.longestDrive },
+    ]
+  : [];
+const hasAnything =
+  ctpHoles.length > 0 || ldGenders.length > 0 || staleCtpHoles.length > 0;
+---
+
+<BaseLayout title="Competitions · Bagpipe Golf">
+  <main class="pagewrap">
+    {loadError && <div class="notice notice--warn">{loadError}</div>}
+    {!tournament && !loadError && (
+      <div class="notice notice--warn">That tournament could not be found.</div>
+    )}
+
+    {tournament && (
+      <>
+        <p class="pagewrap__eyebrow">{tournament.name}</p>
+        <h1 class="pagewrap__title">Competitions.</h1>
+        <TournamentSubnav id={id!} active="competitions" />
+
+        {rounds.length === 0 && (
+          <div class="notice notice--warn">This tournament has no rounds yet.</div>
+        )}
+
+        {round && rounds.length > 1 && (
+          <nav class="rounds" aria-label="Choose a round">
+            {rounds.map((r) => (
+              <a
+                href={`/app/tournaments/${id}/competitions?round=${encodeURIComponent(r.id)}`}
+                class:list={['rounds__chip', r.id === round.id && 'is-active']}
+              >{r.name}</a>
+            ))}
+          </nav>
+        )}
+
+        {config && (
+          <details class="setup">
+            <summary>Set up competitions</summary>
+            <p class="hint">
+              Which field-wide competitions this tournament runs, and what each
+              costs to enter. Skins are scored from the cards; closest to the
+              pin and longest drive are recorded by hand below.
+            </p>
+
+            <div id="cfgMsg" class="notice" hidden></div>
+
+            <ul class="list">
+              {SKINS_KINDS.map((k) => (
+                <li class="item">
+                  <label class="chk">
+                    <input type="checkbox" data-cfg="skins" value={k}
+                           checked={config.skins.includes(k)} />
+                    <span>{SKINS_LABELS[k]}</span>
+                  </label>
+                </li>
+              ))}
+              <li class="item">
+                <label class="chk">
+                  <input type="checkbox" data-cfg="ctp" checked={config.closestToPin} />
+                  <span>Closest to the pin</span>
+                </label>
+              </li>
+              <li class="item">
+                <label class="chk">
+                  <input type="checkbox" data-cfg="ld" checked={config.longestDrive} />
+                  <span>Longest drive</span>
+                </label>
+              </li>
+            </ul>
+
+            {fieldGender === 'mixed' && (
+              <div class="sub">
+                <p class="hint">
+                  Longest drive brackets. Leave both unticked to score one
+                  combined longest drive.
+                </p>
+                <ul class="list">
+                  {['male', 'female'].map((g) => (
+                    <li class="item">
+                      <label class="chk">
+                        <input type="checkbox" data-cfg="ldg" value={g}
+                               checked={config.longestDriveGenders.includes(g)} />
+                        <span>{g === 'male' ? 'Men' : 'Women'}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {fieldGender !== 'mixed' && config.longestDrive && (
+              <p class="hint">
+                This is a {fieldGender === 'female' ? "women's" : "men's"} field, so
+                longest drive is scored as a single bracket.
+              </p>
+            )}
+
+            <div class="sub">
+              <p class="hint">Entry per player. Leave at 0 to track without money.</p>
+              <ul class="list">
+                {BUYIN_KINDS.map((b) => (
+                  <li class="item">
+                    <span class="item__label">{b.label}</span>
+                    <input class="item__buyin" type="number" min="0" step="1"
+                           data-buyin={b.key}
+                           value={String(config.buyIns[b.key] ?? 0)}
+                           aria-label={`Entry for ${b.label}`} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {round && config.closestToPin && candidateHoles.length > 0 && (
+              <div class="sub">
+                <p class="hint">
+                  Which holes carry closest to the pin on
+                  <strong> {round.name}</strong>? Tick none to use every par 3.
+                  {explicitHoles !== null && explicitHoles.length === 0
+                    && ' Right now this round has closest to the pin switched off.'}
+                </p>
+                <div class="holes">
+                  {candidateHoles.map((h) => (
+                    <label class:list={['hole', !par3s.includes(h) && 'hole--odd']}>
+                      <input type="checkbox" data-ctphole={String(h)}
+                             checked={(explicitHoles ?? []).includes(h)} />
+                      <span>{h}</span>
+                    </label>
+                  ))}
+                </div>
+                {candidateHoles.some((h) => !par3s.includes(h)) && (
+                  <p class="hint">
+                    Shaded holes are not par 3s &mdash; kept because this round
+                    already lists them.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <button type="button" class="btn btn--primary" id="saveCfg">
+              Save setup
+            </button>
+          </details>
+        )}
+
+        {round && !hasAnything && (
+          <div class="notice">
+            No field-wide competitions are switched on for this round. Turn on
+            closest-to-pin or longest drive in the app's tournament setup, or
+            pick CTP holes for this round, and they will appear here.
+          </div>
+        )}
+
+        {round && hasAnything && (
+          <>
+            <div id="saveMsg" class="notice" hidden></div>
+
+            {ctpHoles.length > 0 && (
+              <section class="block">
+                <h2 class="block__h">Closest to the pin</h2>
+                <p class="hint">
+                  {ctpHoles.length} hole{ctpHoles.length === 1 ? '' : 's'} on this
+                  round. Leave a hole blank if nobody hit the green.
+                </p>
+                <ul class="list">
+                  {ctpHoles.map((hole) => (
+                    <li class="item">
+                      <span class="item__label">Hole {hole}</span>
+                      <select class="item__pick" data-ctp={String(hole)}
+                              aria-label={`Closest to pin winner, hole ${hole}`}>
+                        <option value="">&mdash; nobody &mdash;</option>
+                        {players.map((p) => (
+                          <option value={p.id} selected={ctp[String(hole)] === p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {staleCtpHoles.length > 0 && (
+              <section class="block">
+                <h2 class="block__h">Recorded on holes no longer in play</h2>
+                <p class="hint">
+                  {staleCtpHoles.length === 1 ? 'This hole' : 'These holes'} had a
+                  closest-to-pin winner recorded, but closest-to-pin is no longer
+                  tracked {staleCtpHoles.length === 1 ? 'there' : 'on them'} for
+                  this round. Kept so nothing is lost silently &mdash; clear
+                  {staleCtpHoles.length === 1 ? ' it' : ' them'} if the prize
+                  no longer applies.
+                </p>
+                <ul class="list">
+                  {staleCtpHoles.map((hole) => (
+                    <li class="item">
+                      <span class="item__label">Hole {hole}</span>
+                      <select class="item__pick" data-ctp={String(hole)}
+                              aria-label={`Closest to pin, hole ${hole} (no longer tracked)`}>
+                        <option value={ctp[String(hole)]} selected>
+                          {nameOf(ctp[String(hole)])}
+                        </option>
+                        <option value="">&mdash; clear &mdash;</option>
+                      </select>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {ldGenders.length > 0 && (
+              <section class="block">
+                <h2 class="block__h">Longest drive</h2>
+                <p class="hint">One winner per bracket, per round.</p>
+                <ul class="list">
+                  {ldGenders.includes('male') && (
+                    <li class="item">
+                      <span class="item__label">Men</span>
+                      <select class="item__pick" data-ld="male"
+                              aria-label="Longest drive winner, men">
+                        <option value="">&mdash; nobody &mdash;</option>
+                        {players.map((p) => (
+                          <option value={p.id} selected={ldMale === p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </li>
+                  )}
+                  {ldGenders.includes('female') && (
+                    <li class="item">
+                      <span class="item__label">Women</span>
+                      <select class="item__pick" data-ld="female"
+                              aria-label="Longest drive winner, women">
+                        <option value="">&mdash; nobody &mdash;</option>
+                        {players.map((p) => (
+                          <option value={p.id} selected={ldFemale === p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </li>
+                  )}
+                </ul>
+              </section>
+            )}
+
+            <button type="button" class="btn btn--primary" id="save">
+              Save winners
+            </button>
+
+            <p class="foot">
+              Skins are computed from the scorecards, not recorded here &mdash;
+              see the <a href={`/app/tournaments/${id}/payouts`}>payouts</a> page.
+            </p>
+          </>
+        )}
+      </>
+    )}
+  </main>
+
+  <script
+    is:inline
+    define:vars={{
+      apiPath: `/api/tournaments/${id}/competitions`,
+      cfgPath: `/api/tournaments/${id}/competition-config`,
+      roundId: round?.id ?? null,
+      isMixed: fieldGender === 'mixed',
+    }}
+  >
+    // ── Setup save (config side) ──────────────────────────────
+    const saveCfg = document.getElementById('saveCfg');
+    if (saveCfg) {
+      const cfgNote = (msg, kind) => {
+        const n = document.getElementById('cfgMsg');
+        n.textContent = msg;
+        n.className = `notice notice--${kind}`;
+        n.hidden = false;
+      };
+      const checked = (sel) =>
+        [...document.querySelectorAll(sel)].filter((el) => el.checked);
+
+      saveCfg.addEventListener('click', async () => {
+        const buyIns = {};
+        document.querySelectorAll('[data-buyin]').forEach((el) => {
+          const n = Number(el.value);
+          if (Number.isFinite(n) && n > 0) buyIns[el.dataset.buyin] = n;
+        });
+
+        const config = {
+          skins: checked('[data-cfg="skins"]').map((el) => el.value),
+          closestToPin: !!document.querySelector('[data-cfg="ctp"]')?.checked,
+          longestDrive: !!document.querySelector('[data-cfg="ld"]')?.checked,
+          // Brackets only mean anything on a mixed field; a
+          // single-gender event derives its bracket server-side from
+          // field_gender, so sending picks here would be noise.
+          longestDriveGenders: isMixed
+            ? checked('[data-cfg="ldg"]').map((el) => el.value)
+            : [],
+          buyIns,
+        };
+
+        const body = { config };
+        // Which holes carry CTP is per-round, so it rides along only
+        // when this round is showing a hole picker.
+        const holePickers = document.querySelectorAll('[data-ctphole]');
+        if (roundId && holePickers.length > 0) {
+          body.roundId = roundId;
+          body.ctpHoles = [...holePickers]
+            .filter((el) => el.checked)
+            .map((el) => Number(el.dataset.ctphole));
+        }
+
+        saveCfg.disabled = true;
+        saveCfg.textContent = 'Saving…';
+        try {
+          const res = await fetch(cfgPath, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            cfgNote(out.guard === 'score_loss'
+              ? `${out.error} Reload this page to pick up the latest.`
+              : (out.error || 'Could not save the setup.'), 'warn');
+            return;
+          }
+          // The page renders its pickers FROM this config, so a reload
+          // is the honest way to show the new shape rather than
+          // patching the DOM and hoping it matches the server.
+          cfgNote('Setup saved — reloading…', 'ok');
+          window.location.reload();
+        } catch {
+          cfgNote('Network error — nothing was saved.', 'warn');
+        } finally {
+          saveCfg.disabled = false;
+          saveCfg.textContent = 'Save setup';
+        }
+      });
+    }
+
+    if (roundId) {
+      const save = document.getElementById('save');
+      if (save) {
+        save.addEventListener('click', async () => {
+          const closestToPin = {};
+          document.querySelectorAll('[data-ctp]').forEach((el) => {
+            closestToPin[el.dataset.ctp] = el.value || '';
+          });
+          const ld = {};
+          document.querySelectorAll('[data-ld]').forEach((el) => {
+            ld[el.dataset.ld] = el.value || '';
+          });
+
+          const note = (msg, kind) => {
+            const n = document.getElementById('saveMsg');
+            n.textContent = msg;
+            n.className = `notice notice--${kind}`;
+            n.hidden = false;
+          };
+
+          save.disabled = true;
+          save.textContent = 'Saving…';
+          try {
+            const res = await fetch(apiPath, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                roundId,
+                closestToPin,
+                longestDriveMaleId: ld.male || null,
+                longestDriveFemaleId: ld.female || null,
+              }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              note(body.guard === 'score_loss'
+                ? `${body.error} Reload this page to pick up the latest.`
+                : (body.error || 'Could not save the winners.'), 'warn');
+              return;
+            }
+            note('Winners saved.', 'ok');
+          } catch {
+            note('Network error — nothing was saved.', 'warn');
+          } finally {
+            save.disabled = false;
+            save.textContent = 'Save winners';
+          }
+        });
+      }
+    }
+  </script>
+
+  <style>
+    .rounds { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+    .rounds__chip {
+      font-size: 13px; padding: 5px 11px; border-radius: 999px;
+      border: 1px solid var(--line, #dfe6e2); text-decoration: none;
+      color: var(--ink-muted, #4b5b54);
+    }
+    .rounds__chip.is-active {
+      background: var(--ink, #16231d); color: #fff; border-color: var(--ink, #16231d);
+    }
+
+    .block { margin: 0 0 26px; }
+    .block__h { font-size: 15px; margin: 0 0 4px; }
+    .hint {
+      font-size: 12.5px; color: var(--ink-muted, #4b5b54);
+      margin: 0 0 10px; line-height: 1.5;
+    }
+    .list { list-style: none; margin: 0; padding: 0; max-width: 460px; }
+    .item {
+      display: flex; gap: 12px; align-items: center; justify-content: space-between;
+      padding: 8px 0; border-top: 1px solid var(--line, #dfe6e2);
+    }
+    .item__label {
+      font-size: 13.5px; font-weight: 600;
+      font-variant-numeric: tabular-nums; flex: none;
+    }
+    .item__pick { flex: 1; min-width: 0; max-width: 16em; font-size: 13px; padding: 5px 6px; }
+    .setup {
+      border: 1px solid var(--line, #dfe6e2); border-radius: 8px;
+      padding: 12px 14px; margin: 0 0 26px;
+      background: var(--surface, #fff);
+    }
+    .setup > summary {
+      font-size: 14px; font-weight: 650; cursor: pointer; padding: 2px 0;
+    }
+    .sub {
+      margin-top: 14px; padding-top: 12px;
+      border-top: 1px solid var(--line, #dfe6e2);
+    }
+    .chk { display: flex; gap: 8px; align-items: center; font-size: 13.5px; cursor: pointer; }
+    .chk input { flex: none; }
+    .item__buyin {
+      flex: none; width: 6.5em; font-size: 13px; padding: 5px 6px;
+      font-variant-numeric: tabular-nums; text-align: right;
+    }
+    .holes { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; }
+    .hole {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 2.6em; padding: 5px 7px; gap: 5px;
+      border: 1px solid var(--line, #dfe6e2); border-radius: 6px;
+      font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer;
+    }
+    .hole--odd { background: var(--wash, #f3f6f4); }
+    .hole input { flex: none; margin: 0; }
+
+    .foot {
+      font-size: 12.5px; color: var(--ink-muted, #4b5b54);
+      margin: 18px 0 0; line-height: 1.5;
+    }
+  </style>
+</BaseLayout>

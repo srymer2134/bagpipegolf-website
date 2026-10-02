@@ -1,0 +1,388 @@
+{
+ "_comment": "GENERATED from lib/core/utils/ctp_holes.dart. Do not hand-edit. Regenerate with: REGEN=1 flutter test test/parity/ctp_holes_fixtures.json, verify the diff, then copy to bagpipegolf-website/src/lib/__fixtures__/ctp-holes.json",
+ "version": 1,
+ "cases": [
+  {
+   "label": "explicit list wins over trackCTPOnPar3s=false",
+   "ctpHoles": [
+    5,
+    15
+   ],
+   "trackCTPOnPar3s": false,
+   "roundPars": [
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    3,
+    4,
+    5
+   ],
+   "tournamentPars": null,
+   "expectedCtpHoles": [
+    5,
+    15
+   ],
+   "expectedPar3Holes": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedAnyRoundTracksCtp": true
+  },
+  {
+   "label": "explicit list wins over trackCTPOnPar3s=true",
+   "ctpHoles": [
+    11
+   ],
+   "trackCTPOnPar3s": true,
+   "roundPars": [
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    3,
+    4,
+    5
+   ],
+   "tournamentPars": null,
+   "expectedCtpHoles": [
+    11
+   ],
+   "expectedPar3Holes": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedAnyRoundTracksCtp": true
+  },
+  {
+   "label": "explicit list may name a NON-par-3 hole",
+   "ctpHoles": [
+    4
+   ],
+   "trackCTPOnPar3s": true,
+   "roundPars": [
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    3,
+    4,
+    5
+   ],
+   "tournamentPars": null,
+   "expectedCtpHoles": [
+    4
+   ],
+   "expectedPar3Holes": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedAnyRoundTracksCtp": true
+  },
+  {
+   "label": "EXPLICIT EMPTY means no CTP, even with the flag on",
+   "ctpHoles": [],
+   "trackCTPOnPar3s": true,
+   "roundPars": [
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    3,
+    4,
+    5
+   ],
+   "tournamentPars": null,
+   "expectedCtpHoles": [],
+   "expectedPar3Holes": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedAnyRoundTracksCtp": false
+  },
+  {
+   "label": "null list + flag ON = every par 3 on the round",
+   "ctpHoles": null,
+   "trackCTPOnPar3s": true,
+   "roundPars": [
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    3,
+    4,
+    5
+   ],
+   "tournamentPars": null,
+   "expectedCtpHoles": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedPar3Holes": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedAnyRoundTracksCtp": true
+  },
+  {
+   "label": "null list + flag OFF = nothing",
+   "ctpHoles": null,
+   "trackCTPOnPar3s": false,
+   "roundPars": [
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    3,
+    4,
+    5
+   ],
+   "tournamentPars": null,
+   "expectedCtpHoles": [],
+   "expectedPar3Holes": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedAnyRoundTracksCtp": false
+  },
+  {
+   "label": "nine-hole round, flag ON",
+   "ctpHoles": null,
+   "trackCTPOnPar3s": true,
+   "roundPars": [
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4
+   ],
+   "tournamentPars": null,
+   "expectedCtpHoles": [
+    2,
+    6
+   ],
+   "expectedPar3Holes": [
+    2,
+    6
+   ],
+   "expectedAnyRoundTracksCtp": true
+  },
+  {
+   "label": "round has no pars — falls back to the tournament tees",
+   "ctpHoles": null,
+   "trackCTPOnPar3s": true,
+   "roundPars": null,
+   "tournamentPars": [
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    3,
+    4,
+    5
+   ],
+   "expectedCtpHoles": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedPar3Holes": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedAnyRoundTracksCtp": true
+  },
+  {
+   "label": "round pars WIN over tournament pars",
+   "ctpHoles": null,
+   "trackCTPOnPar3s": true,
+   "roundPars": [
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4
+   ],
+   "tournamentPars": [
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    3,
+    4,
+    5
+   ],
+   "expectedCtpHoles": [
+    2,
+    6
+   ],
+   "expectedPar3Holes": [
+    2,
+    6
+   ],
+   "expectedAnyRoundTracksCtp": true
+  },
+  {
+   "label": "no pars anywhere + flag ON = nothing, not a crash",
+   "ctpHoles": null,
+   "trackCTPOnPar3s": true,
+   "roundPars": null,
+   "tournamentPars": null,
+   "expectedCtpHoles": [],
+   "expectedPar3Holes": [],
+   "expectedAnyRoundTracksCtp": false
+  },
+  {
+   "label": "empty pars list is treated as absent",
+   "ctpHoles": null,
+   "trackCTPOnPar3s": true,
+   "roundPars": [],
+   "tournamentPars": [
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    3,
+    4,
+    5
+   ],
+   "expectedCtpHoles": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedPar3Holes": [
+    3,
+    7,
+    12,
+    16
+   ],
+   "expectedAnyRoundTracksCtp": true
+  }
+ ]
+}
