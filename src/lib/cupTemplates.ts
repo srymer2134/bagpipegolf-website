@@ -123,6 +123,20 @@ export interface CupTemplateCopy {
   meta: string;
   /** Longer detail paragraph under the meta line. */
   detail: string;
+  /**
+   * One high-level line telling the director this is a starting point,
+   * not a fixed shape.
+   *
+   * REQUIRED on every template, deliberately. Sam 2026-10-01: "all of
+   * these cups are [customizable]. Make sure to highlight that." Making
+   * it part of the type means a new Cup cannot ship without saying so —
+   * which is how the Bandon card ended up reading like a rulebook.
+   *
+   * Keep it high level. The card is not the place to enumerate which
+   * field lives on which step; the Review step already explains what is
+   * configured in the app versus the web.
+   */
+  flexibility: string;
 }
 
 /** A Cup template — combines the wizard-writable round schema
@@ -173,6 +187,8 @@ const ryderCupClassic: CupTemplate = {
     meta: '5 sessions · 3 days · 28 points total',
     detail:
       'Applies Match Points scoring and adds a Team Rosters step to the wizard. Standings recompute round-by-round as scores land.',
+    flexibility:
+      'Every round is yours to change — reorder them, swap a format, add or drop rounds, pick the course for each. The template is a starting point, not a fixed shape.',
   },
   defaults: {
     scoringMode: 'match_points',
@@ -210,6 +226,8 @@ const scarecrowCup: CupTemplate = {
     meta: '5 rounds · 2 courses · 33 points total',
     detail:
       'Preset session grid, Cup composition with team composer, and a live Cup Scoreboard. Practice-green tiebreaker off-app when it comes down to it.',
+    flexibility:
+      'Every round is yours to change — reorder them, swap a format, add or drop rounds, pick the course for each. The template is a starting point, not a fixed shape.',
   },
   defaults: {
     scoringMode: 'match_points',
@@ -282,6 +300,8 @@ const ballynealBrigade: CupTemplate = {
     meta: '4 rounds · Team + Individual Championship aggregate',
     detail:
       'One board for the whole trip — net-only leaderboard, round-strip chips, and Thru-Sat carry-in for the Championship. Optional Sat PM opts skipped players out of the aggregate cleanly.',
+    flexibility:
+      'Every round is yours to change — reorder them, swap a format, add or drop rounds, pick the course for each. The template is a starting point, not a fixed shape.',
   },
   defaults: {
     scoringMode: 'stroke_aggregate',
@@ -487,22 +507,23 @@ const bandonDunesCup: CupTemplate = {
   id: 'bandonDunesCup',
   name: 'Bandon Dunes Cup',
   tagline:
-    'Round-count-driven — you pick 2–12 rounds, the template pre-populates the schedule. Team rounds early, medal round penult, Singles Match Play always closes.',
+    'Tell it how many rounds you are playing and it lays out a trip — team golf early, a medal round, Singles Match Play to finish. Rearrange any of it.',
   copy: {
     pitch:
-      'Round-count-driven — pick 2–12 rounds, the template pre-populates the schedule. Singles Match Play always closes.',
+      'Say how many rounds you are playing, 2 to 12, and the trip lays itself out. Every round is then yours to move, reformat or replace.',
     fit: 'Bucket-list trips (Bandon, Streamsong, Cabot, etc.) — any length from a long weekend to a 10-day event.',
     includes: [
-      'Team rounds up front, medal round penultimate, Singles Match Play closes',
-      '6+ rounds: The Preserve par-3 shootout',
-      "10+ rounds: Shorty's joins the rotation",
+      'A suggested shape: team golf early, a medal round, Singles Match Play to close',
+      'Longer trips pick up a par-3 shootout — put it wherever it suits the trip',
       'Par-3 Closest-to-Pin tracked on every par 3 across the whole trip',
       'Supports 4–48 players',
     ],
     meta:
-      '2–12 rounds · signature 6-round shape shown · 31 points total · Team Cup points, Gross + Net · Preserve par-3 competition · Shorty\'s joins at 10+ rounds',
+      "2–12 rounds · signature 6-round shape shown · 31 points total · Team Cup points, Gross + Net · every round editable",
     detail:
-      "The Tournament Director picks the round count first, then applies the Bandon template. Trips of 4+ rounds finish with Singles Stroke Play (medal round) into Singles Match Play (Cup championship). Trips of 6+ include The Preserve par-3 shootout; trips of 10+ add Shorty's. Par 3 Closest-to-Pin tracked on every par 3 across the whole trip. Supports 4–48 players.",
+      "Pick the round count and the template lays out a trip: team golf up front, a medal round, and Singles Match Play as the Cup championship. Longer trips pick up the short-course rounds — a par-3 shootout, and Shorty's on the longest trips — but none of it is fixed. Want Shorty's on day three instead of day ten? Move it. Par 3 Closest-to-Pin is tracked on every par 3 across the whole trip. Supports 4–48 players.",
+    flexibility:
+      'Every round is yours to change — reorder them, swap a format, add or drop rounds, pick the course for each. The template is a starting point, not a fixed shape.',
   },
   defaults: {
     scoringMode: 'match_points',

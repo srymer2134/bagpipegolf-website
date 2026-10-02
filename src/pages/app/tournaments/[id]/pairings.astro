@@ -1,0 +1,491 @@
+---
+// Pairings, groups and tee sheet — W3 of the parity plan.
+//
+// The highest-value director surface that is pure read/write of
+// tournament data the app already stores: who plays with whom, off
+// which hole, at what time, and who keeps the card.
+//
+// WRITE SAFETY — read this before changing the save path.
+//
+// Railway's PATCH accepts `rounds` and writes it WHOLESALE: no
+// per-record merge, no shrink detection. (Layer 3 of
+// DATA_DROP_PREVENTION was specified and never built — verified in
+// the API source 2026-10-01.) A page that posts a `rounds` array it
+// assembled at load time is the 2026-06-21 Scarecrow Cup R1 wipe
+// re-implemented in a tab that may have been open for an hour.
+//
+// So this page NEVER sends `rounds`. It sends one round's pairing
+// intent to `/api/tournaments/[id]/pairings`, which re-reads the
+// tournament server-side in that request, rebuilds the array from
+// THAT read, and runs a score-loss guard before anything is written.
+// See `src/lib/tournamentWrite.ts`.
+//
+// Scope: pairings only. Entering or correcting a SCORE from the web
+// is W4/W4a, needs F3 settled and Patrick's ack, and must not be
+// bolted on here.
+
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import {
+  getPublicTournament,
+  holeCountForRound,
+  type TournamentPlayer,
+  type TournamentRound,
+} from '../../../../lib/tournamentQueries';
+
+const { id } = Astro.params;
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(`/login?next=${encodeURIComponent(Astro.request.url)}`, 302);
+}
+
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals,
+});
+
+let tournament = null;
+let loadError: string | null = null;
+try {
+  tournament = await getPublicTournament(supabase, id!);
+} catch (err: any) {
+  loadError = err?.message ?? 'Could not load tournament.';
+}
+
+// Director-only, mirroring /manage. Non-directors who are signed in
+// get the read-only leaderboard rather than a 403.
+if (tournament && tournament.user_id !== user.id) {
+  return Astro.redirect(`/app/tournaments/${id}/leaderboard`, 302);
+}
+
+const rounds: TournamentRound[] = tournament?.rounds ?? [];
+const wanted = Astro.url.searchParams.get('round');
+const round = rounds.find((r) => r.id === wanted) ?? rounds[0] ?? null;
+
+const players: TournamentPlayer[] = tournament?.players ?? [];
+const playerById = new Map(players.map((p) => [p.id, p]));
+
+type Group = {
+  id: string;
+  name: string;
+  playerIds: string[];
+  startingHole: number | null;
+  teeTime: string | null;
+  scorekeeperUserId: string | null;
+};
+
+function readGroups(r: TournamentRound | null): Group[] {
+  if (!r) return [];
+  const raw = (r.teams ?? []) as Array<Record<string, unknown>>;
+  return raw.map((t, i) => {
+    const ids = (t.player_ids ?? t.playerIds ?? []) as unknown;
+    const hole = Number(t.starting_hole ?? t.startingHole);
+    return {
+      id: typeof t.id === 'string' ? t.id : `group_${i}`,
+      name: typeof t.name === 'string' && t.name.trim().length > 0
+        ? t.name
+        : `Group ${i + 1}`,
+      playerIds: Array.isArray(ids)
+        ? ids.filter((x): x is string => typeof x === 'string')
+        : [],
+      startingHole: Number.isFinite(hole) ? hole : null,
+      teeTime: typeof (t.tee_time ?? t.teeTime) === 'string'
+        ? ((t.tee_time ?? t.teeTime) as string)
+        : null,
+      scorekeeperUserId:
+        typeof (t.scorekeeper_user_id ?? t.scorekeeperUserId) === 'string'
+          ? ((t.scorekeeper_user_id ?? t.scorekeeperUserId) as string)
+          : null,
+    };
+  });
+}
+
+const groups = readGroups(round);
+const assigned = new Set(groups.flatMap((g) => g.playerIds));
+const unassigned = players.filter((p) => !assigned.has(p.id));
+const holeCount = tournament && round ? holeCountForRound(tournament, round) : 18;
+
+// Scorekeeping needs a real account — a walk-in with no `userId`
+// cannot be handed a card on their phone.
+const keeperCandidates = players.filter((p) => typeof p.userId === 'string' && p.userId);
+
+const hcOf = (p: TournamentPlayer) =>
+  typeof p.handicapIndex === 'number' ? p.handicapIndex : 0;
+
+const clientPlayers = players.map((p) => ({
+  id: p.id,
+  name: p.name,
+  handicap: hcOf(p),
+  userId: typeof p.userId === 'string' ? p.userId : null,
+}));
+---
+
+<BaseLayout title="Pairings · Bagpipe Golf">
+  <main class="pagewrap">
+    {loadError && <div class="notice notice--warn">{loadError}</div>}
+    {!tournament && !loadError && (
+      <div class="notice notice--warn">That tournament could not be found.</div>
+    )}
+
+    {tournament && (
+      <>
+        <p class="pagewrap__eyebrow">{tournament.name}</p>
+        <h1 class="pagewrap__title">Pairings &amp; tee sheet.</h1>
+        <TournamentSubnav id={id!} active="pairings" />
+
+        {rounds.length === 0 && (
+          <div class="notice notice--warn">
+            This tournament has no rounds yet. Add one on
+            <a href={`/app/tournaments/${id}/manage`}> Manage</a> first.
+          </div>
+        )}
+
+        {round && (
+          <>
+            {rounds.length > 1 && (
+              <nav class="rounds" aria-label="Choose a round">
+                {rounds.map((r) => (
+                  <a
+                    href={`/app/tournaments/${id}/pairings?round=${encodeURIComponent(r.id)}`}
+                    class:list={['rounds__chip', r.id === round.id && 'is-active']}
+                  >{r.name}</a>
+                ))}
+              </nav>
+            )}
+
+            <div id="saveMsg" class="notice" hidden></div>
+
+            <section class="bar">
+              <div class="bar__left">
+                <button type="button" class="btn btn--ghost" id="addGroup">
+                  Add a group
+                </button>
+                <button type="button" class="btn btn--ghost" id="autoAssign">
+                  Auto-assign by handicap
+                </button>
+              </div>
+              <button type="button" class="btn btn--primary" id="save">
+                Save pairings
+              </button>
+            </section>
+
+            <p class="hint">
+              Groups, starting holes and tee times only. Scores are entered in
+              the app &mdash; nothing on this page can change one.
+            </p>
+
+            <div id="groups" class="grid"></div>
+
+            <section class="pool">
+              <h2 class="pool__h">Not in a group <span id="poolCount"></span></h2>
+              <ul id="pool" class="pool__list"></ul>
+            </section>
+          </>
+        )}
+      </>
+    )}
+  </main>
+
+  <script
+    is:inline
+    define:vars={{
+      apiPath: `/api/tournaments/${id}/pairings`,
+      roundId: round?.id ?? null,
+      initialGroups: groups,
+      allPlayers: clientPlayers,
+      keeperIds: keeperCandidates.map((p) => p.id),
+      holeCount,
+    }}
+  >
+    if (roundId) {
+      const byId = new Map(allPlayers.map((p) => [p.id, p]));
+      const keeperSet = new Set(keeperIds);
+      // Deep copy so Save always sends current state, never the
+      // server-rendered snapshot.
+      let groups = JSON.parse(JSON.stringify(initialGroups));
+
+      const el = (id) => document.getElementById(id);
+      const esc = (s) => String(s).replace(/[&<>"']/g,
+        (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+      function assignedIds() {
+        return new Set(groups.flatMap((g) => g.playerIds));
+      }
+
+      function holeOptions(sel) {
+        let out = '<option value="">Hole —</option>';
+        for (let h = 1; h <= holeCount; h++) {
+          out += `<option value="${h}"${sel === h ? ' selected' : ''}>Hole ${h}</option>`;
+        }
+        return out;
+      }
+
+      function keeperOptions(g) {
+        let out = '<option value="">Scorekeeper —</option>';
+        for (const pid of g.playerIds) {
+          const p = byId.get(pid);
+          if (!p || !keeperSet.has(pid)) continue;
+          const on = g.scorekeeperUserId === p.userId;
+          out += `<option value="${esc(p.userId)}"${on ? ' selected' : ''}>${esc(p.name)}</option>`;
+        }
+        return out;
+      }
+
+      function moveOptions(gi) {
+        let out = '';
+        groups.forEach((g, i) => {
+          if (i === gi) return;
+          out += `<option value="${i}">Move to ${esc(g.name)}</option>`;
+        });
+        out += '<option value="-1">Remove from group</option>';
+        return out;
+      }
+
+      function render() {
+        const host = el('groups');
+        host.innerHTML = groups.map((g, gi) => `
+          <article class="card" data-gi="${gi}">
+            <header class="card__head">
+              <input class="card__name" data-act="name" value="${esc(g.name)}"
+                     maxlength="40" aria-label="Group name" />
+              <button type="button" class="card__del" data-act="delgroup"
+                      aria-label="Delete ${esc(g.name)}">&times;</button>
+            </header>
+            <div class="card__row">
+              <select data-act="hole" aria-label="Starting hole">${holeOptions(g.startingHole)}</select>
+              <input type="time" data-act="teetime" value="${esc(g.teeTime ?? '')}"
+                     aria-label="Tee time" />
+            </div>
+            <div class="card__row">
+              <select data-act="keeper" aria-label="Scorekeeper">${keeperOptions(g)}</select>
+            </div>
+            <ul class="card__players">
+              ${g.playerIds.length === 0
+                ? '<li class="card__empty">No players yet</li>'
+                : g.playerIds.map((pid) => {
+                    const p = byId.get(pid);
+                    const name = p ? p.name : pid;
+                    const hc = p ? p.handicap : 0;
+                    return `<li class="row">
+                      <span class="row__name">${esc(name)}</span>
+                      <span class="row__hc">${hc}</span>
+                      <select class="row__move" data-act="move" data-pid="${esc(pid)}"
+                              aria-label="Move ${esc(name)}">
+                        <option value="">&hellip;</option>${moveOptions(gi)}
+                      </select>
+                    </li>`;
+                  }).join('')}
+            </ul>
+          </article>`).join('');
+
+        const open = allPlayers.filter((p) => !assignedIds().has(p.id));
+        el('poolCount').textContent = open.length ? `(${open.length})` : '(none)';
+        el('pool').innerHTML = open.length === 0
+          ? '<li class="card__empty">Everyone is in a group.</li>'
+          : open.map((p) => `
+            <li class="row">
+              <span class="row__name">${esc(p.name)}</span>
+              <span class="row__hc">${p.handicap}</span>
+              <select class="row__move" data-act="pool-move" data-pid="${esc(p.id)}"
+                      aria-label="Add ${esc(p.name)} to a group">
+                <option value="">Add to&hellip;</option>
+                ${groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}
+              </select>
+            </li>`).join('');
+      }
+
+      function note(msg, kind) {
+        const n = el('saveMsg');
+        n.textContent = msg;
+        n.className = `notice notice--${kind}`;
+        n.hidden = false;
+      }
+
+      el('groups').addEventListener('change', (ev) => {
+        const t = ev.target;
+        const act = t.dataset.act;
+        const card = t.closest('[data-gi]');
+        if (!card) return;
+        const gi = Number(card.dataset.gi);
+        const g = groups[gi];
+        if (!g) return;
+        if (act === 'name') g.name = t.value.trim() || `Group ${gi + 1}`;
+        else if (act === 'hole') g.startingHole = t.value ? Number(t.value) : null;
+        else if (act === 'teetime') g.teeTime = t.value || null;
+        else if (act === 'keeper') g.scorekeeperUserId = t.value || null;
+        else if (act === 'move') {
+          const pid = t.dataset.pid;
+          g.playerIds = g.playerIds.filter((x) => x !== pid);
+          const dest = Number(t.value);
+          if (dest >= 0 && groups[dest]) groups[dest].playerIds.push(pid);
+          // A scorekeeper who left the group is no longer its keeper.
+          const keeper = byId.get(pid);
+          if (keeper && g.scorekeeperUserId === keeper.userId) g.scorekeeperUserId = null;
+          render();
+          return;
+        }
+        if (act === 'name') render();
+      });
+
+      el('groups').addEventListener('click', (ev) => {
+        const t = ev.target;
+        if (t.dataset.act !== 'delgroup') return;
+        const gi = Number(t.closest('[data-gi]').dataset.gi);
+        const g = groups[gi];
+        if (!g) return;
+        if (g.playerIds.length && !confirm(
+          `${g.name} has ${g.playerIds.length} player(s). Delete it and return them to the pool?`
+        )) return;
+        groups.splice(gi, 1);
+        render();
+      });
+
+      el('pool').addEventListener('change', (ev) => {
+        const t = ev.target;
+        if (t.dataset.act !== 'pool-move') return;
+        const dest = Number(t.value);
+        if (!groups[dest]) return;
+        groups[dest].playerIds.push(t.dataset.pid);
+        render();
+      });
+
+      el('addGroup').addEventListener('click', () => {
+        groups.push({
+          id: `group_${roundId}_${Date.now()}`,
+          name: `Group ${groups.length + 1}`,
+          playerIds: [], startingHole: null, teeTime: null, scorekeeperUserId: null,
+        });
+        render();
+      });
+
+      el('autoAssign').addEventListener('click', () => {
+        if (!confirm('Replace the current groups with a handicap-balanced draw?')) return;
+        // Snake draft, mirroring `autoAssignGroupsByHandicap` in
+        // src/lib/pairings.ts — balanced by handicap across groups.
+        const size = 4;
+        const count = Math.max(1, Math.ceil(allPlayers.length / size));
+        const sorted = [...allPlayers].sort((a, b) => a.handicap - b.handicap);
+        const buckets = Array.from({ length: count }, () => []);
+        let idx = 0, forward = true;
+        for (const p of sorted) {
+          buckets[idx].push(p.id);
+          if (forward) { if (idx === count - 1) forward = false; else idx += 1; }
+          else { if (idx === 0) forward = true; else idx -= 1; }
+        }
+        groups = buckets.map((ids, i) => ({
+          id: `group_${roundId}_auto_${i}`,
+          name: `Group ${i + 1}`,
+          playerIds: ids,
+          startingHole: null, teeTime: null, scorekeeperUserId: null,
+        }));
+        render();
+      });
+
+      el('save').addEventListener('click', async () => {
+        const btn = el('save');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+          const res = await fetch(apiPath, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              roundId,
+              teams: groups.map((g) => ({
+                id: g.id,
+                name: g.name,
+                playerIds: g.playerIds,
+                startingHole: g.startingHole,
+                teeTime: g.teeTime,
+                scorekeeperUserId: g.scorekeeperUserId,
+              })),
+            }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            // A 409 is the score-loss guard: the tournament changed
+            // under us. Reloading is the fix, not retrying.
+            note(body.guard === 'score_loss'
+              ? `${body.error} Reload this page to pick up the latest.`
+              : (body.error || 'Could not save the pairings.'), 'warn');
+            return;
+          }
+          note('Pairings saved.', 'ok');
+        } catch (err) {
+          note('Network error — nothing was saved.', 'warn');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Save pairings';
+        }
+      });
+
+      render();
+    }
+  </script>
+
+  <style>
+    .rounds { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+    .rounds__chip {
+      font-size: 13px; padding: 5px 11px; border-radius: 999px;
+      border: 1px solid var(--line, #dfe6e2); text-decoration: none;
+      color: var(--ink-muted, #4b5b54);
+    }
+    .rounds__chip.is-active {
+      background: var(--ink, #16231d); color: #fff; border-color: var(--ink, #16231d);
+    }
+
+    .bar {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      justify-content: space-between; align-items: center; margin-bottom: 6px;
+    }
+    .bar__left { display: flex; flex-wrap: wrap; gap: 8px; }
+    .hint {
+      font-size: 12.5px; color: var(--ink-muted, #4b5b54);
+      margin: 0 0 20px; line-height: 1.5;
+    }
+
+    .grid {
+      display: grid; gap: 14px; margin-bottom: 28px;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+    .card {
+      border: 1px solid var(--line, #dfe6e2); border-radius: 8px;
+      padding: 12px; background: var(--surface, #fff);
+    }
+    .card__head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .card__name {
+      flex: 1; min-width: 0; font-weight: 650; font-size: 15px;
+      border: 1px solid transparent; border-radius: 5px;
+      padding: 4px 6px; background: transparent; color: inherit;
+    }
+    .card__name:hover, .card__name:focus {
+      border-color: var(--line, #dfe6e2); background: var(--surface, #fff);
+    }
+    .card__del {
+      flex: none; width: 26px; height: 26px; line-height: 1; font-size: 18px;
+      border: 1px solid var(--line, #dfe6e2); border-radius: 5px;
+      background: transparent; color: var(--ink-muted, #4b5b54); cursor: pointer;
+    }
+    .card__del:hover { color: #a3261f; border-color: #a3261f; }
+    .card__row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .card__row select, .card__row input { flex: 1; min-width: 0; font-size: 13px; padding: 5px 6px; }
+    .card__players, .pool__list { list-style: none; margin: 0; padding: 0; }
+    .card__empty { font-size: 12.5px; color: var(--ink-muted, #4b5b54); padding: 6px 2px; }
+
+    .row {
+      display: flex; gap: 8px; align-items: center;
+      padding: 6px 2px; border-top: 1px solid var(--line, #dfe6e2);
+    }
+    .row__name { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+    .row__hc {
+      flex: none; font-size: 12px; font-variant-numeric: tabular-nums;
+      color: var(--ink-muted, #4b5b54); min-width: 2.2em; text-align: right;
+    }
+    .row__move { flex: none; max-width: 10.5em; font-size: 12px; padding: 3px 4px; }
+
+    .pool { border-top: 2px solid var(--line, #dfe6e2); padding-top: 14px; }
+    .pool__h { font-size: 14px; margin: 0 0 6px; }
+  </style>
+</BaseLayout>
