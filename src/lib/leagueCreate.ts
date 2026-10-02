@@ -127,7 +127,17 @@ export type LeagueTemplate = {
 /// configuration, so they live here and nowhere else. A Dart id with
 /// no entry falls back to its rosterHint rather than rendering blank.
 const BLURBS: Record<string, string> = {
-  travelTeam: 'Events on dates you pick. Cumulative net strokes; lowest wins.',
+  // Says nothing about gross vs net on purpose. The director picks
+  // that per event, and `league_standings.dart` honours it —
+  // `useNet = tournamentShowsAnyNet(tourney)` ranks on gross when an
+  // event is gross-only. This line used to read "Cumulative net
+  // strokes", which told a director we had taken a decision away
+  // from them that we had not. Same correction Sam made in the app
+  // on 2026-10-01 (flutter #1337); it could not reach here because
+  // these blurbs are website-only prose with nothing syncing them.
+  travelTeam:
+    'Events on dates you pick. Season-long stroke totals — gross or ' +
+    'net, your call per event.',
   weeklyRecurring: 'A fixed weekly night. Finish-position points across the season.',
   teamLeague:
     'Two-player teams, head to head every week. Two singles matches plus a team point.',
