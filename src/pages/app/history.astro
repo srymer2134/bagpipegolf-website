@@ -1,7 +1,8 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { createSupabaseClient } from '../../lib/supabase';
-import { listRounds, formatVsPar, type RoundRow } from '../../lib/queries';
+import { formatVsPar, type RoundRow } from '../../lib/queries';
+import { loadRoundsForDisplay } from '../../lib/spineRounds';
 
 const supabase = createSupabaseClient({
   request: Astro.request,
@@ -9,10 +10,15 @@ const supabase = createSupabaseClient({
   locals: Astro.locals,
 });
 
+// Spine list merged with the legacy table — see lib/spineRounds.ts.
+// A spine-only read would fix 163 rounds and lose 2 real ones, so
+// both are read and merged.
 let rows: RoundRow[] = [];
 let loadError: string | null = null;
 try {
-  rows = await listRounds(supabase, { limit: 100 });
+  const loaded = await loadRoundsForDisplay(Astro, supabase, { limit: 100 });
+  rows = loaded.rows;
+  loadError = loaded.legacyError;
 } catch (err: any) {
   loadError = err?.message ?? 'Could not load rounds.';
 }

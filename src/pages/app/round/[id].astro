@@ -3,11 +3,11 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import ScoreGrid from '../../../components/ScoreGrid.astro';
 import { createSupabaseClient } from '../../../lib/supabase';
 import {
-  getRound,
   holeScoresAsArray,
   formatVsPar,
   type RoundRow,
 } from '../../../lib/queries';
+import { loadRoundForDisplay } from '../../../lib/spineRounds';
 
 const { id } = Astro.params;
 
@@ -17,10 +17,24 @@ const supabase = createSupabaseClient({
   locals: Astro.locals,
 });
 
+// Spine first, `public.rounds` only as a fallback.
+//
+// `public.rounds.hole_scores` last took a value on 2026-08-16 and the
+// table last took a ROW on 2026-09-10 (verified against dev
+// 2026-10-04). Reading it meant 149 spine rounds could not be opened
+// at all, 5 redirected to ?missing=, and 9 rendered a blank
+// scorecard. The fallback stays because two of Sam's own rounds live
+// only in the legacy table. See lib/spineRounds.ts.
 let round: RoundRow | null = null;
 let loadError: string | null = null;
 try {
-  round = await getRound(supabase, id!);
+  const loaded = await loadRoundForDisplay(
+    Astro,
+    supabase,
+    id!,
+    Astro.locals.user?.id ?? null,
+  );
+  round = loaded.round;
 } catch (err: any) {
   loadError = err?.message ?? 'Could not load round.';
 }
