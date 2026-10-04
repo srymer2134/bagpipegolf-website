@@ -1,0 +1,60 @@
+# Security headers for STATIC assets — the gap `src/middleware.ts` cannot reach
+#
+# Item 0.8 (website #124) added CSP + the three companion headers in
+# Astro middleware. That covers every SSR response, which is almost the
+# whole site: `astro.config.mjs` is `output: 'server'` and no page
+# declares `prerender = true`.
+#
+# But two pilot landing pages are hand-written HTML in `public/`, and
+# `dist/_routes.json` EXCLUDES them from the Worker:
+#
+#     "exclude": ["/_astro/*", ..., "/badbirdie/*", "/nalg/*"]
+#
+# Cloudflare serves those straight from the assets binding, so
+# middleware never runs and they got none of #124's headers. The PR
+# body for #124 said "on every response"; that was wrong for these two
+# paths. This file is the fix — `_headers` is the only hook that
+# applies to asset responses.
+#
+# Found 2026-10-04 while verifying #124 live: the headers were missing
+# from the site right after deploy, which is what prompted checking
+# whether middleware runs for static paths at all.
+
+# ── Both pilot pages ────────────────────────────────────────────
+#
+# These get a STRICTER script-src than the SSR pages. Verified by
+# reading both files: neither has a single inline <script> block —
+# each loads exactly one local `./data.js` and one local
+# `./styles.css`. So `'self'` is sufficient and `'unsafe-inline'`,
+# which the SSR pages still need for Astro's `is:inline` blocks, is
+# deliberately absent here.
+#
+# style-src DOES keep 'unsafe-inline': `nalg/index.html` carries one
+# `style=` attribute, and both pull Google Fonts stylesheets.
+#
+# No form-action relaxation and no connect-src beyond 'self': these
+# pages have no <form> and make no network calls. If a future edit
+# adds either, this block must be widened in the same commit — a CSP
+# that silently breaks a partner-facing page is worse than one that
+# was never tightened.
+/badbirdie/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+
+/nalg/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+
+# ── Hashed build output ─────────────────────────────────────────
+#
+# `/_astro/*` is also excluded from the Worker. These are
+# content-hashed CSS/JS, so they need no CSP of their own — a
+# stylesheet is not a document — but nosniff is cheap and correct, and
+# an immutable cache on content-hashed files is what the hash is for.
+/_astro/*
+  X-Content-Type-Options: nosniff
+  Cache-Control: public, max-age=31536000, immutable
