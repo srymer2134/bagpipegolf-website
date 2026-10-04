@@ -23,7 +23,33 @@ const KNOWN_SUPABASE_PROJECT_REFS: Readonly<Record<string, string>> = {
   doqjphzxatgawfznrtfn: 'prod',
 };
 
+// 🚨 ADMIN-ONLY (PA-S6). This enumerates which env bindings the
+// Worker has. That is a map of the deployment for anyone probing it —
+// which integrations exist, which secrets are set, which are missing —
+// and it answered anonymously.
+//
+// Gated on the same admin allow-list the app uses
+// (`kFairwayiqAdminEmails`), kept here as a literal because the
+// website has no import path into the Flutter repo. Six entries as of
+// 2026-10-02; if it drifts, the diagnostic going quiet for an admin is
+// the safe failure.
+const ADMIN_EMAILS = new Set([
+  'sonofahero2@gmail.com',
+  'swrymer@gmail.com',
+  'cjkeefe@comcast.net',
+  'yerapat@gmail.com',
+  'nwrymer10@gmail.com',
+  'chrisschroeder.hq@gmail.com',
+]);
+
 export const GET: APIRoute = async ({ locals }) => {
+  const email = (locals as App.Locals)?.user?.email?.toLowerCase().trim();
+  if (!email || !ADMIN_EMAILS.has(email)) {
+    // 404, not 403 — an unauthenticated prober should not learn the
+    // route exists.
+    return new Response('Not found', { status: 404 });
+  }
+
   const runtime = (locals as any)?.runtime;
   const env = runtime?.env;
 

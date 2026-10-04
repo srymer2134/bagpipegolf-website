@@ -28,9 +28,30 @@ export const POST: APIRoute = async (ctx) => {
     return json({ error: 'Missing tournament id.' }, 400);
   }
 
+  // 🚨 OWNER-ONLY (PA-S6). Without this check, any signed-in user
+  // could duplicate ANY tournament — and `getPublicTournament` reads
+  // through the anon-readable policy, so "any" meant every tournament
+  // ever created. The copy carries the full roster across, including
+  // `userId`s and the phone numbers in `players[]`, so this was a
+  // one-request way to take a copy of someone else's field.
+  //
+  // Checked here rather than relying on RLS because the read is
+  // deliberately public (the kiosk feature) — the read being allowed
+  // is exactly why the write needs its own gate.
+  const locals = ctx.locals as App.Locals;
+  if (!locals.user?.id) {
+    return json({ error: 'Sign in to duplicate a tournament.' }, 401);
+  }
+
   const supabase = createSupabaseFromApi(ctx);
   const source = await getPublicTournament(supabase, id);
   if (!source) {
+    return json({ error: 'Source tournament not found.' }, 404);
+  }
+  if (source.user_id !== locals.user.id) {
+    // 404 rather than 403: a non-owner has no business learning that
+    // this id exists, and the public read path already tells them
+    // nothing else about it.
     return json({ error: 'Source tournament not found.' }, 404);
   }
 

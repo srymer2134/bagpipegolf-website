@@ -109,12 +109,21 @@ export function createSupabaseClient(ctx: SupaCtx): SupabaseClient {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
+          // 🚨 ORDER IS THE SECURITY PROPERTY HERE. `...options` comes
+          // from @supabase/ssr, and 0.12.0's defaults include
+          // `httpOnly: false` — so spreading it LAST silently
+          // overrode the `httpOnly: true` above it and shipped the
+          // session cookie readable by any script on the page. It
+          // looked correct in review for exactly that reason.
+          //
+          // Spread first, harden after. Found by Patrick's 2026-10-04
+          // platform audit (F12 / PA-S6).
           ctx.cookies.set(name, value, {
+            ...options,
             path: '/',
             sameSite: 'lax',
             secure: import.meta.env.PROD,
             httpOnly: true,
-            ...options,
           });
         });
       },

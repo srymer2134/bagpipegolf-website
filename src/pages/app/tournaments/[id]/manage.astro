@@ -1238,7 +1238,10 @@ if (tournament) {
       );
 
       try {
-        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/update`, {
+        // Guarded route, NOT the transparent /update proxy — this payload
+        // is built from a page-load snapshot, so it must be merged onto a
+        // fresh server read. See api/tournaments/[id]/rounds.ts.
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/rounds`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -2568,7 +2571,9 @@ if (tournament) {
       clearError();
       try {
         const payload = buildWirePayload();
-        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/update`, {
+        // Guarded route — `payload.rounds` comes from a page-load
+        // snapshot. See api/tournaments/[id]/rounds.ts.
+        const res = await fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/rounds`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(payload),

@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { safeNext } from '../lib/safeNext';
 import { createSupabaseClient } from '../lib/supabase';
 
 let error: string | null = null;
@@ -26,7 +27,7 @@ if (Astro.request.method === 'POST') {
       if (authErr) {
         error = authErr.message || 'Sign-in failed. Check your email and password.';
       } else {
-        return Astro.redirect(next.startsWith('/') ? next : '/app', 303);
+        return Astro.redirect(safeNext(next), 303);
       }
     } catch (err: any) {
       // Something below Supabase auth threw (env misconfig, Workers
