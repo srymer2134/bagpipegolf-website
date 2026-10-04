@@ -1,7 +1,8 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { createSupabaseClient } from '../../lib/supabase';
-import { listRounds, listBets, formatVsPar, type RoundRow, type BetRow } from '../../lib/queries';
+import { listBets, formatVsPar, type RoundRow, type BetRow } from '../../lib/queries';
+import { loadRoundsForDisplay } from '../../lib/spineRounds';
 import {
   listMyTournaments,
   isCompleted,
@@ -21,11 +22,17 @@ let activeBets: BetRow[] = [];
 let allTournaments: TournamentRow[] = [];
 let loadError: string | null = null;
 try {
-  [recentRounds, activeBets, allTournaments] = await Promise.all([
-    listRounds(supabase, { limit: 4 }),
+  // Recent rounds come from the spine merged with the legacy table —
+  // reading `public.rounds` alone showed nothing newer than
+  // 2026-09-10. See lib/spineRounds.ts.
+  const [recent, bets, tournaments] = await Promise.all([
+    loadRoundsForDisplay(Astro, supabase, { limit: 4 }),
     listBets(supabase, { limit: 6, activeOnly: true }),
     listMyTournaments(supabase, { limit: 6 }),
   ]);
+  recentRounds = recent.rows;
+  activeBets = bets;
+  allTournaments = tournaments;
 } catch (err: any) {
   loadError = err?.message ?? 'Could not load dashboard.';
 }
