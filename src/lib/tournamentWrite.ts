@@ -279,3 +279,72 @@ export function normalizePairings(
 
   return out;
 }
+
+/// Score-bearing keys, in both wire spellings. `rebaseRoundsOntoFresh`
+/// never takes these from a client.
+export const SCORE_KEYS = [
+  'player_hole_scores',
+  'playerHoleScores',
+  'team_hole_scores',
+  'teamHoleScores',
+] as const;
+
+/// Rebase a client's `rounds` array onto a FRESH server read.
+///
+/// `withFreshRounds` above is the right shape for a surface that edits
+/// ONE round — it hands the mutator the fresh round and there is no way
+/// to supply a stale one. But `manage.astro`'s two round editors send a
+/// whole array built from a page-load snapshot, and rewriting both to
+/// emit deltas is a much larger change than the bug warrants.
+///
+/// So this takes the array and makes it safe structurally rather than
+/// by inspection:
+///
+///   * each client round is overlaid on the FRESH round of the same id,
+///     so fields the client never knew about survive;
+///   * every score key is then restored from the fresh round, so the
+///     client's score values are DISCARDED rather than validated — a
+///     stale snapshot physically cannot carry scores through;
+///   * a round the server does not have is accepted as new, minus any
+///     score keys it invented;
+///   * ordering follows the client, which is what the drag-to-reorder
+///     editor is for.
+///
+/// It does not run the guard — the caller does, so the throw happens at
+/// the request boundary with the tournament id in hand.
+export function rebaseRoundsOntoFresh(
+  freshRounds: Record<string, unknown>[],
+  clientRounds: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const freshById = new Map<string, Record<string, unknown>>();
+  for (const r of freshRounds) {
+    if (r && typeof r.id === 'string') freshById.set(r.id, r);
+  }
+
+  const out: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  for (const client of clientRounds) {
+    if (!client || typeof client !== 'object') continue;
+    const rid = typeof client.id === 'string' ? client.id : null;
+    // A duplicated id would let one entry's scores be restored twice
+    // and the other round silently vanish from the guard's view.
+    if (rid !== null && seen.has(rid)) continue;
+    if (rid !== null) seen.add(rid);
+
+    const base = rid !== null ? freshById.get(rid) : undefined;
+    if (base === undefined) {
+      const created: Record<string, unknown> = { ...client };
+      for (const k of SCORE_KEYS) delete created[k];
+      out.push(created);
+      continue;
+    }
+
+    const next: Record<string, unknown> = { ...base, ...client };
+    for (const k of SCORE_KEYS) {
+      if (k in base) next[k] = base[k];
+      else delete next[k];
+    }
+    out.push(next);
+  }
+  return out;
+}

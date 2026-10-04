@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { safeNext } from '../lib/safeNext';
 import { createSupabaseClient } from '../lib/supabase';
 
 let error: string | null = null;
@@ -57,7 +58,7 @@ if (Astro.request.method === 'POST') {
           // already honours `next`, so this costs nothing and removes a
           // silent failure that would look like "invites are broken".
           emailRedirectTo: new URL(
-            `/login?next=${encodeURIComponent(next.startsWith('/') ? next : '/app')}`,
+            `/login?next=${encodeURIComponent(safeNext(next))}`,
             Astro.request.url,
           ).toString(),
         },
@@ -89,7 +90,7 @@ if (Astro.request.method === 'POST') {
             console.error('[signup] display_name write failed', e);
           }
         }
-        return Astro.redirect(next.startsWith('/') ? next : '/app', 303);
+        return Astro.redirect(safeNext(next), 303);
       } else {
         // Email confirmation required — no session returned.
         info = next !== '/app'
