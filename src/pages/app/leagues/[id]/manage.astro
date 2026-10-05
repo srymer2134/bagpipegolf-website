@@ -1,4 +1,11 @@
 ---
+import {
+  mergeRosterHandicaps,
+  rosterUserIds,
+  type ProfileHandicapRow,
+  type RosterRow,
+  type RosterWithHandicap,
+} from '../../../../lib/leagueRoster';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
@@ -23,7 +30,7 @@ const user = (Astro.locals as App.Locals).user;
 
 let d: PortalDetail | null = null;
 let config: Record<string, unknown> | null = null;
-let roster: Array<{ display_name: string | null; handicap: number | null; role: string | null; status: string | null }> = [];
+let roster: RosterWithHandicap[] = [];
 let failed = false;
 
 try {
@@ -43,11 +50,24 @@ try {
           .maybeSingle(),
         supabase
           .from('league_members')
-          .select('display_name, handicap, role, status')
+          .select('user_id, display_name, role, status')
           .eq('league_id', id),
       ]);
       config = (cfgRes.data as Record<string, unknown> | null) ?? null;
-      roster = (rosRes.data ?? []) as typeof roster;
+      // Handicaps come from profiles — the one source the app reads too.
+      // league_members.handicap is a drifting add-time copy, pending
+      // removal (fairwayiq-flutter PATRICK_BACKLOG §68); not read here.
+      const rows = (rosRes.data ?? []) as RosterRow[];
+      const ids = rosterUserIds(rows);
+      let profiles: ProfileHandicapRow[] = [];
+      if (ids.length > 0) {
+        const profRes = await supabase
+          .from('profiles')
+          .select('id, handicap')
+          .in('id', ids);
+        profiles = (profRes.data ?? []) as ProfileHandicapRow[];
+      }
+      roster = mergeRosterHandicaps(rows, profiles);
     }
   }
 } catch (err) {
