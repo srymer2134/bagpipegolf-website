@@ -6,7 +6,7 @@
 // the copy) showed different numbers for the same member. Sam's ruling:
 // "the leagues and website should reference profiles.handicap, no second
 // placeholder." The column is being dropped (fairwayiq-flutter
-// PATRICK_BACKLOG §67); until then it is simply not read here.
+// PATRICK_BACKLOG §68); until then it is simply not read here.
 
 export type RosterRow = {
   user_id: string | null;

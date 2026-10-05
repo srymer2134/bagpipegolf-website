@@ -56,7 +56,7 @@ try {
       config = (cfgRes.data as Record<string, unknown> | null) ?? null;
       // Handicaps come from profiles — the one source the app reads too.
       // league_members.handicap is a drifting add-time copy, pending
-      // removal (fairwayiq-flutter PATRICK_BACKLOG §67); not read here.
+      // removal (fairwayiq-flutter PATRICK_BACKLOG §68); not read here.
       const rows = (rosRes.data ?? []) as RosterRow[];
       const ids = rosterUserIds(rows);
       let profiles: ProfileHandicapRow[] = [];
