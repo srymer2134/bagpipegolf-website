@@ -612,6 +612,56 @@ export const sideGames: SideGame[] = [
     related: ['lost-balls', 'snake', 'dots'],
   },
   {
+    slug: 'bunker-hunt',
+    name: 'Bunker Hunt',
+    aka: ['bimodal bunkers'],
+    players: '2–4',
+    summary:
+      'The sand bet with a choice of temperament. Pick Holder and it plays like Snake — the last player in a bunker carries it home and pays. Pick Count and every bunkered hole settles on the spot.',
+    rules: [
+      'You choose the mode when you set the game up. It is locked for the round, so decide on the first tee.',
+      'HOLDER — the last player to find sand holds it. Whoever is holding at the last putt pays one unit to every other player, for every bunker anybody found all day. Rotates all round; the only hole that matters is the last one somebody caught it on.',
+      'COUNT — on any hole where somebody is in sand, each bunkered player pays one unit to each player who stayed out. Stay dry and you collect a full unit from every player who did not.',
+      'In Count, a full unit goes to every saver — the payout does not shrink as more players stay clean.',
+      'A hole where everybody is in sand washes to zero. Nobody is left to pay.',
+      'Both modes read the per-hole bunker toggle on the score modal, not the score.',
+      'Zero-sum either way.',
+    ],
+    example: {
+      setup: '$2 a unit, three players — A, B and C.',
+      play: [
+        'HOLDER: A is bunkered on 3, C on 8, B never. C is holding at the end and the day saw two bunkers.',
+        'COUNT, same round: on 3 only A is in sand; on 4 A and C are in and B is clean.',
+      ],
+      result:
+        'Holder — C pays $2 × 2 others × 2 bunkers = −$8; A and B each +$4. Count — hole 3: A −$4, B +$2, C +$2. Hole 4: A −$2, C −$2, B +$4.',
+    },
+    variations: [
+      'Holder rewards finishing clean; Count punishes every visit. Holder is the crueller of the two — one careless bunker on 18 can hand you the whole day.',
+      'Some groups exempt fairway bunkers. Decide before the round; the app counts whatever you toggle.',
+    ],
+    inApp: [
+      'Add Bunker Hunt at setup and pick Holder or Count on the mode control.',
+      'Tap the bunker toggle for any player who found sand on a hole.',
+      'The live screen shows who is holding it in Holder mode, and the running pot in Count.',
+    ],
+    faq: [
+      {
+        q: 'How is this different from Bunkers?',
+        a: 'Bunkers is a flat penalty — every hole you find sand costs you a unit to each opponent, full stop. Bunker Hunt reads the same toggle but settles it one of two ways, and Holder mode means you can visit the sand five times and still pay nothing if somebody else is holding at the end.',
+      },
+      {
+        q: 'Can I change mode mid-round?',
+        a: 'No. It is locked when the game is created, because the two modes settle completely differently and switching would make the holes already played mean something else.',
+      },
+      {
+        q: 'What if everyone finds sand on the same hole?',
+        a: 'Nothing happens on that hole in Count mode — there is nobody clean to collect. In Holder mode it still counts toward the pot and whoever was last in sand holds it.',
+      },
+    ],
+    related: ['bunkers', 'snake', 'lost-balls'],
+  },
+  {
     slug: 'chairman',
     name: 'Chairman',
     aka: ['chairman golf game', 'the chair'],

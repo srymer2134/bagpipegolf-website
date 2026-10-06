@@ -186,6 +186,61 @@ describe('hand-written counts match what the app ships', () => {
   });
 });
 
+describe('the side-game library matches the app', () => {
+  // The count guard below checks what pages CLAIM. It did not check
+  // what the library CONTAINS — so when Bunker Hunt shipped as the
+  // 33rd game on 2026-10-02, every page correctly read "33 side games"
+  // off the generated catalog while the library held 32 and the game
+  // had no page at all. Found by Sam, 2026-10-05, not by this file.
+  const lib = readFileSync('src/lib/sideGames.ts', 'utf8');
+  const catalog = readFileSync('src/pages/side-games.astro', 'utf8');
+
+  it('the rules library has one entry per game the app ships', () => {
+    const slugs = [...lib.matchAll(/^    slug: '([a-z0-9-]+)',$/gm)].map(
+      (m) => m[1],
+    );
+    expect(new Set(slugs).size, 'duplicate slug').toBe(slugs.length);
+    expect(slugs).toHaveLength(SIDE_GAME_COUNT);
+  });
+
+  it('the catalog page lists one card per game', () => {
+    const start = catalog.indexOf('const games: Game[] = [');
+    const end = catalog.indexOf('\n];', start);
+    expect(start, 'games array not found').toBeGreaterThan(-1);
+    const names = [
+      ...catalog.slice(start, end).matchAll(/^    name: '(.+)',$/gm),
+    ].map((m) => m[1]);
+    expect(new Set(names).size, 'duplicate card').toBe(names.length);
+    expect(names).toHaveLength(SIDE_GAME_COUNT);
+  });
+
+  it('every catalog card resolves to a rules page', () => {
+    // The page maps card name → slug by lowercasing. A card with no
+    // matching library entry renders as plain text with no link, which
+    // looks deliberate and is not.
+    const start = catalog.indexOf('const games: Game[] = [');
+    const end = catalog.indexOf('\n];', start);
+    const names = [
+      ...catalog.slice(start, end).matchAll(/^    name: '(.+)',$/gm),
+    ].map((m) => m[1].replace(/\s*\(.*\)\s*$/, '').toLowerCase());
+    const libNames = new Set(
+      [...lib.matchAll(/^    name: '(.+)',$/gm)].map((m) => m[1].toLowerCase()),
+    );
+    expect(names.filter((n) => !libNames.has(n))).toEqual([]);
+  });
+
+  it('Bunker Hunt is present and is not the same game as Bunkers', () => {
+    // These are two different bets that both read the bunker toggle.
+    // The app labels `GameType.sandies` "Bunkers" (flat per-hole
+    // penalty) and `GameType.bunkers` "Bunker Hunt" (bimodal, holder
+    // or count). Conflating them would tell a reader the wrong rules.
+    expect(lib).toContain("slug: 'bunker-hunt'");
+    expect(lib).toContain("slug: 'bunkers'");
+    expect(catalog).toContain("name: 'Bunker Hunt'");
+    expect(catalog).toContain("name: 'Bunkers'");
+  });
+});
+
 describe('the tournaments page does not keep its own list', () => {
   const page = readFileSync('src/pages/tournaments.astro', 'utf8');
 
