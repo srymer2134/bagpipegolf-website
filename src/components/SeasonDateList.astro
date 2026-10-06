@@ -1,15 +1,19 @@
 ---
-// A season as a list of dates — one row per event.
+// A season as a list of dates — one field per event.
 //
 // Shared by /app/leagues/new and /app/leagues/[id]/schedule so the two
-// cannot drift. It was duplicated in both for about an hour and the
-// first version collided with each page's own `.field` rule, which
-// silently won on `display` and jammed the label against the input.
-// Everything here is namespaced `evt*` for that reason, and the styles
-// are scoped to this component.
+// calendar surfaces cannot drift.
+//
+// DESIGN NOTE, 2026-10-06. The first version put a numbered chip, a
+// divider, a hover tint and a per-row Clear button on every line
+// inside a bordered container. Sam: "way worse… make it more modern."
+// He was right — that was chrome, not design. Eight date pickers do
+// not need eight badges. This version removes all of it and lets a
+// grid and whitespace do the work: a label, a field, and one quiet
+// line once a date is chosen. Nothing else.
 //
 // DOM CONTRACT, relied on by both pages' submit handlers:
-//   • the list container has id={listId}
+//   • the grid container has id={listId}
 //   • every date input is `input[data-slot]`, in slot order
 // So a page reads its dates with:
 //   [...document.querySelectorAll('#<listId> input[data-slot]')]
@@ -37,155 +41,111 @@ const {
 } = Astro.props;
 ---
 
-<div class="evts" id={listId} data-count-input={countInputId}></div>
+<div class="sdl">
+  <div class="sdl__grid" id={listId} data-count-input={countInputId}></div>
 
-<details class="evts__helper">
-  <summary>Space them out for me</summary>
-  <div class="evts__helperbody">
-    <label class="evts__hfield">
+  <div class="sdl__foot">
+    <p class="sdl__count" id={`${listId}_summary`}></p>
+    <button type="button" class="sdl__link" id={`${listId}_toggle`}>
+      Space them out
+    </button>
+  </div>
+
+  <div class="sdl__spacer" id={`${listId}_spacer`} hidden>
+    <label class="sdl__sfield">
       <span>Starting</span>
       <input type="date" id={`${listId}_from`} value={spaceFrom} />
     </label>
-    <label class="evts__hfield">
-      <span>Every … days</span>
-      <input type="number" id={`${listId}_every`} min="1" max="365" value={spaceEvery} />
+    <label class="sdl__sfield">
+      <span>Every</span>
+      <span class="sdl__days">
+        <input type="number" id={`${listId}_every`} min="1" max="365" value={spaceEvery} />
+        <span class="sdl__daysuffix">days</span>
+      </span>
     </label>
-    <button type="button" class="evts__fill" id={`${listId}_fill`}>
-      Fill the dates
-    </button>
+    <button type="button" class="sdl__apply" id={`${listId}_fill`}>Apply</button>
+    <p class="sdl__hint">Fills the fields above. Change any of them after.</p>
   </div>
-  <p class="evts__note">
-    A shortcut for a league that really does meet on a fixed cadence. It only
-    fills the boxes — change any of them afterwards.
-  </p>
-</details>
+</div>
 
-<script is:inline define:vars={{ listId, countInputId, initial }}>
+<script is:inline define:vars={{ listId, initial }}>
   (() => {
-    const list = document.getElementById(listId);
-    const count = document.getElementById(countInputId);
-    if (!list || !count) return;
+    const grid = document.getElementById(listId);
+    if (!grid) return;
+    const count = document.getElementById(grid.dataset.countInput);
+    if (!count) return;
 
-    const WEEKDAYS = [
-      'Sunday', 'Monday', 'Tuesday', 'Wednesday',
-      'Thursday', 'Friday', 'Saturday',
-    ];
-    const MONTHS = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
+    const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    // Parsed in parts on purpose. new Date('2026-04-15') is UTC
+    // Parsed in parts on purpose: new Date('2026-04-15') is UTC
     // midnight, which renders as the 14th in every US timezone.
-    function describe(iso) {
+    function weekday(iso) {
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
       if (!m) return '';
-      const [y, mo, d] = [+m[1], +m[2], +m[3]];
-      const wd = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
-      return `${WEEKDAYS[wd]}, ${MONTHS[mo - 1]} ${d}`;
-    }
-
-    function values() {
-      return [...list.querySelectorAll('input[data-slot]')].map((i) => i.value);
+      return WD[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()];
     }
 
     function render() {
       const n = Math.max(1, Math.min(52, Number(count.value) || 0));
-      const keep = values();
-      list.innerHTML = '';
+      const keep = [...grid.querySelectorAll('input[data-slot]')].map((i) => i.value);
+      grid.innerHTML = '';
       for (let i = 0; i < n; i++) {
-        const value = keep[i] ?? (initial[i] || '');
+        const cell = document.createElement('label');
+        cell.className = 'sdl__cell';
 
-        const row = document.createElement('div');
-        row.className = 'evt';
+        const lab = document.createElement('span');
+        lab.className = 'sdl__label';
+        lab.textContent = `Event ${i + 1}`;
 
-        const num = document.createElement('span');
-        num.className = 'evt__num';
-        num.textContent = String(i + 1);
-
-        const main = document.createElement('div');
-        main.className = 'evt__main';
-        const name = document.createElement('span');
-        name.className = 'evt__name';
-        name.textContent = `Event ${i + 1}`;
-        const hint = document.createElement('span');
-        hint.className = 'evt__hint';
-        main.append(name, hint);
-
-        const field = document.createElement('div');
-        field.className = 'evt__field';
         const input = document.createElement('input');
         input.type = 'date';
-        input.className = 'evt__date';
+        input.className = 'sdl__input';
         input.dataset.slot = String(i);
-        input.value = value;
+        input.value = keep[i] ?? (initial[i] || '');
         input.setAttribute('aria-label', `Date for event ${i + 1}`);
-
-        const clear = document.createElement('button');
-        clear.type = 'button';
-        clear.className = 'evt__clear';
-        clear.textContent = 'Clear';
-        clear.addEventListener('click', () => {
-          input.value = '';
-          sync();
-        });
-
-        field.append(input, clear);
-        row.append(num, main, field);
-        list.append(row);
-
         input.addEventListener('change', sync);
+
+        const note = document.createElement('span');
+        note.className = 'sdl__note';
+
+        cell.append(lab, input, note);
+        grid.append(cell);
       }
       sync();
     }
 
-    // Weekday hint, the "set / not set" look, and the summary line.
     function sync() {
-      const rows = [...list.querySelectorAll('.evt')];
-      const seen = new Map();
+      const cells = [...grid.querySelectorAll('.sdl__cell')];
+      const byDate = new Map();
       let filled = 0;
-      rows.forEach((row, i) => {
-        const input = row.querySelector('input[data-slot]');
-        const hint = row.querySelector('.evt__hint');
-        const clear = row.querySelector('.evt__clear');
-        const v = input.value;
-        row.classList.toggle('is-set', !!v);
-        clear.hidden = !v;
-        if (v) {
-          filled += 1;
-          const first = seen.get(v);
-          if (first !== undefined) {
-            row.classList.add('is-clash');
-            hint.textContent = `Same day as event ${first + 1}`;
-          } else {
-            seen.set(v, i);
-            row.classList.remove('is-clash');
-            hint.textContent = describe(v);
-          }
-        } else {
-          row.classList.remove('is-clash');
-          hint.textContent = 'No date yet';
-        }
-      });
-      // Re-mark the first of a clashing pair, which was set before its
-      // duplicate existed.
-      rows.forEach((row) => {
-        const v = row.querySelector('input[data-slot]').value;
-        if (!v) return;
-        const dupes = rows.filter(
-          (r) => r.querySelector('input[data-slot]').value === v,
-        );
-        if (dupes.length > 1) row.classList.add('is-clash');
+      for (const cell of cells) {
+        const v = cell.querySelector('input[data-slot]').value;
+        if (!v) continue;
+        filled += 1;
+        byDate.set(v, (byDate.get(v) || 0) + 1);
+      }
+      cells.forEach((cell) => {
+        const v = cell.querySelector('input[data-slot]').value;
+        const note = cell.querySelector('.sdl__note');
+        const clash = !!v && byDate.get(v) > 1;
+        cell.classList.toggle('is-set', !!v);
+        cell.classList.toggle('is-clash', clash);
+        note.textContent = clash ? 'Already used' : v ? weekday(v) : '';
       });
       const summary = document.getElementById(`${listId}_summary`);
       if (summary) {
-        summary.textContent =
-          `${filled} of ${rows.length} dated` +
-          (rows.some((r) => r.classList.contains('is-clash'))
-            ? ' · two events share a day'
-            : '');
+        const clashes = cells.filter((c) => c.classList.contains('is-clash')).length;
+        summary.textContent = clashes
+          ? 'Two events share a date'
+          : `${filled} of ${cells.length} scheduled`;
+        summary.classList.toggle('is-warn', clashes > 0);
       }
     }
+
+    const spacer = document.getElementById(`${listId}_spacer`);
+    document.getElementById(`${listId}_toggle`)?.addEventListener('click', () => {
+      spacer.hidden = !spacer.hidden;
+    });
 
     document.getElementById(`${listId}_fill`)?.addEventListener('click', () => {
       const from = document.getElementById(`${listId}_from`);
@@ -193,12 +153,12 @@ const {
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(from?.value || '');
       if (!m) return;
       const step = Math.max(1, Math.min(365, Number(every?.value) || 7));
-      const [y, mo, d] = [+m[1], +m[2], +m[3]];
-      list.querySelectorAll('input[data-slot]').forEach((input, k) => {
-        const dt = new Date(Date.UTC(y, mo - 1, d));
+      grid.querySelectorAll('input[data-slot]').forEach((input, k) => {
+        const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
         dt.setUTCDate(dt.getUTCDate() + step * k);
         input.value = dt.toISOString().slice(0, 10);
       });
+      spacer.hidden = true;
       sync();
     });
 
@@ -208,161 +168,141 @@ const {
 </script>
 
 <style>
-  .evts {
-    display: flex;
-    flex-direction: column;
-    margin: 14px 0 4px;
-    border: 1px solid #e3e9e5;
-    border-radius: 12px;
-    overflow: hidden;
-    background: #fff;
-  }
+  .sdl { margin: 18px 0 4px; }
 
-  /* The row. Three columns: number, name + weekday, the date control.
-     Named grid areas rather than a bare 2-up so the control keeps a
-     comfortable width instead of hugging the label. */
-  .evt {
+  /* Whitespace does the work. No container border, no dividers, no
+     per-row ornament — a set of date fields reads as a set on its own. */
+  .sdl__grid {
     display: grid;
-    grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 17rem);
-    align-items: center;
-    gap: 14px;
-    padding: 12px 16px;
-    border-top: 1px solid #eef2f0;
-    transition: background 120ms ease;
+    grid-template-columns: 1fr;
+    gap: 14px 20px;
   }
-  .evt:first-child { border-top: 0; }
-  .evt:hover { background: #fafcfb; }
-
-  .evt__num {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 999px;
-    background: var(--brand-green-pale, #e8f5ee);
-    color: var(--brand-green-dark, #0f3d25);
-    font-size: 0.8125rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
+  @media (min-width: 620px) {
+    .sdl__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  .evt.is-set .evt__num {
-    background: var(--brand-green, #1a5c38);
-    color: #fff;
+  @media (min-width: 1040px) {
+    .sdl__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
 
-  .evt__main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .evt__name {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--ink, #1a1a1a);
-  }
-  .evt__hint {
-    font-size: 0.78125rem;
-    color: var(--ink-hint, #9ca3af);
-  }
-  .evt.is-set .evt__hint { color: var(--ink-muted, #6b7280); }
-  .evt.is-clash .evt__hint { color: #a3261f; font-weight: 600; }
+  .sdl__cell { display: block; min-width: 0; }
 
-  .evt__field { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .sdl__label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--ink-muted, #6b7280);
+    margin-bottom: 5px;
+  }
 
-  /* The control itself. Native date inputs are small and ugly by
-     default; this gives them the same weight as every other input on
-     the site and room to breathe away from the label. */
-  .evt__date {
+  .sdl__input {
     font: inherit;
     font-size: 0.9375rem;
-    flex: 1 1 auto;
-    min-width: 0;
-    padding: 9px 12px;
-    border: 1px solid #c8d4cd;
-    border-radius: 9px;
-    background: #fff;
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
     color: var(--ink, #1a1a1a);
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    background: #fff;
+    border: 1px solid #dde4e0;
+    border-radius: 10px;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
   }
-  .evt__date:hover { border-color: #a9bcb2; }
-  .evt__date:focus-visible {
+  .sdl__input:hover { border-color: #c3cfc8; }
+  .sdl__input:focus-visible {
     outline: none;
     border-color: var(--brand-green, #1a5c38);
-    box-shadow: 0 0 0 3px rgba(26, 92, 56, 0.14);
+    box-shadow: 0 0 0 3px rgba(26, 92, 56, 0.12);
   }
-  .evt:not(.is-set) .evt__date { color: var(--ink-hint, #9ca3af); }
-  .evt.is-clash .evt__date { border-color: #c4453a; }
+  /* An empty field recedes; a set one reads as content. */
+  .sdl__cell:not(.is-set) .sdl__input { color: var(--ink-hint, #9ca3af); }
+  .sdl__cell.is-clash .sdl__input { border-color: #c4453a; }
+  .sdl__cell.is-clash .sdl__input:focus-visible {
+    box-shadow: 0 0 0 3px rgba(196, 69, 58, 0.15);
+  }
 
-  .evt__clear {
-    flex: 0 0 auto;
-    font: inherit;
+  /* One quiet line, and only once there is something to say. The fixed
+     height stops the grid reflowing as dates are filled in. */
+  .sdl__note {
+    display: block;
+    min-height: 1rem;
+    margin-top: 4px;
     font-size: 0.75rem;
-    padding: 4px 8px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--ink-muted, #6b7280);
-    cursor: pointer;
+    color: var(--ink-hint, #9ca3af);
   }
-  .evt__clear:hover { background: #eef3f0; color: var(--ink, #1a1a1a); }
+  .sdl__cell.is-clash .sdl__note { color: #c4453a; }
 
-  /* The cadence shortcut — deliberately quiet. It is a convenience for
-     a weekly league, not how a season is described. */
-  .evts__helper { margin: 10px 0 2px; font-size: 0.875rem; }
-  .evts__helper summary {
-    cursor: pointer;
-    color: var(--brand-green-dark, #0f3d25);
-    font-weight: 600;
-    padding: 4px 0;
-    width: fit-content;
+  .sdl__foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 16px;
   }
-  .evts__helperbody {
+  .sdl__count {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--ink-muted, #6b7280);
+    font-variant-numeric: tabular-nums;
+  }
+  .sdl__count.is-warn { color: #c4453a; font-weight: 600; }
+
+  .sdl__link {
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--brand-green, #1a5c38);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+  .sdl__link:hover { color: var(--brand-green-dark, #0f3d25); }
+
+  .sdl__spacer {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
     gap: 12px;
-    margin-top: 10px;
-    padding: 14px;
-    border: 1px solid #e3e9e5;
-    border-radius: 10px;
-    background: #fafcfb;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #eef2f0;
   }
-  .evts__hfield { display: flex; flex-direction: column; gap: 4px; }
-  .evts__hfield > span {
-    font-size: 0.78125rem;
+  .sdl__sfield { display: flex; flex-direction: column; gap: 5px; }
+  .sdl__sfield > span:first-child {
+    font-size: 0.75rem;
     color: var(--ink-muted, #6b7280);
   }
-  .evts__hfield input {
+  .sdl__sfield input {
     font: inherit;
     font-size: 0.9375rem;
-    padding: 8px 10px;
-    border: 1px solid #c8d4cd;
-    border-radius: 8px;
+    padding: 9px 12px;
+    border: 1px solid #dde4e0;
+    border-radius: 10px;
     background: #fff;
   }
-  .evts__hfield input[type='number'] { width: 7rem; }
-  .evts__fill {
+  .sdl__days { display: flex; align-items: center; gap: 8px; }
+  .sdl__days input { width: 5rem; }
+  .sdl__daysuffix { font-size: 0.875rem; color: var(--ink-muted, #6b7280); }
+
+  .sdl__apply {
     font: inherit;
     font-size: 0.875rem;
     font-weight: 600;
-    padding: 9px 16px;
+    padding: 10px 18px;
     border: 1px solid var(--brand-green, #1a5c38);
-    border-radius: 9px;
-    background: #fff;
-    color: var(--brand-green-dark, #0f3d25);
+    border-radius: 10px;
+    background: var(--brand-green, #1a5c38);
+    color: #fff;
     cursor: pointer;
   }
-  .evts__fill:hover { background: var(--brand-green-pale, #e8f5ee); }
-  .evts__note {
-    margin: 8px 0 0;
-    font-size: 0.78125rem;
-    color: var(--ink-muted, #6b7280);
-  }
+  .sdl__apply:hover { background: var(--brand-green-dark, #0f3d25); }
 
-  /* Narrow screens: the control drops under the name rather than being
-     squeezed into a column too small for a native date picker. */
-  @media (max-width: 560px) {
-    .evt {
-      grid-template-columns: 2rem minmax(0, 1fr);
-      row-gap: 8px;
-    }
-    .evt__field { grid-column: 1 / -1; }
+  .sdl__hint {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--ink-hint, #9ca3af);
   }
 </style>
