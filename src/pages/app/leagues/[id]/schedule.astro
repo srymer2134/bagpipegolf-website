@@ -4,6 +4,7 @@ import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { leagueDetail, rsvpLabel, type PortalDetail } from '../../../../lib/leaguePortal';
 import { dateLabel } from '../../../../lib/leaguePublic';
+import SeasonDateList from '../../../../components/SeasonDateList.astro';
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
@@ -88,28 +89,13 @@ if (existingDates.length === 0 && sched?.startDate) {
                        required value={sched?.eventCount ?? 8} />
               </label>
 
-              <div class="dates" id="dateList"></div>
-
-              <details class="helper">
-                <summary>Space them out for me</summary>
-                <div class="setupgrid">
-                  <label class="field">
-                    <span>Starting</span>
-                    <input type="date" id="spaceFrom" value={sched?.startDate ?? today} />
-                  </label>
-                  <label class="field">
-                    <span>Every&hellip; days</span>
-                    <input type="number" id="spaceEvery" min="1" max="365"
-                           value={sched?.intervalDays ?? 7} />
-                  </label>
-                </div>
-                <button type="button" class="btn btn--ghost btn--sm" id="spaceBtn">
-                  Fill the dates
-                </button>
-                <p class="small muted">
-                  Only fills the boxes. Change any of them afterwards.
-                </p>
-              </details>
+              <SeasonDateList
+                countInputId="evCount"
+                initial={existingDates}
+                spaceFrom={sched?.startDate ?? today}
+                spaceEvery={sched?.intervalDays ?? 7}
+              />
+              <p class="small muted" id="dateList_summary"></p>
 
               <button type="submit" id="schedBtn" class="btn btn--primary">
                 {sched ? 'Save schedule' : 'Create schedule'}
@@ -194,52 +180,10 @@ if (existingDates.length === 0 && sched?.startDate) {
     const btn = document.getElementById('schedBtn');
     const err = document.getElementById('schedErr');
 
-    // One date box per event, seeded from the dates already stored on
-    // `league_weeks` (the authority), falling back to the jsonb seed
-    // for a league that predates per-event dates.
-    const evCount = document.getElementById('evCount');
+    // The date rows, their weekday hints and the cadence shortcut all
+    // live in <SeasonDateList>, which owns everything inside #dateList
+    // and seeds itself from `existingDates`.
     const dateList = document.getElementById('dateList');
-    const spaceFrom = document.getElementById('spaceFrom');
-    const spaceEvery = document.getElementById('spaceEvery');
-    const spaceBtn = document.getElementById('spaceBtn');
-
-    function renderDates() {
-      const n = Math.max(1, Math.min(52, Number(evCount.value) || 0));
-      const keep = [...dateList.querySelectorAll('input[data-slot]')].map((i) => i.value);
-      dateList.innerHTML = '';
-      for (let i = 0; i < n; i++) {
-        const row = document.createElement('label');
-        row.className = 'field dates__row';
-        const span = document.createElement('span');
-        span.textContent = `Event ${i + 1}`;
-        const input = document.createElement('input');
-        input.type = 'date';
-        input.dataset.slot = String(i);
-        // An event already bridged to a played round is frozen by a DB
-        // trigger. We do not grey it out here — the portal does not
-        // fetch event_id — so the server reports it precisely instead
-        // of this page guessing and disabling the wrong row.
-        input.value = keep[i] || existingDates[i] || '';
-        row.append(span, input);
-        dateList.append(row);
-      }
-    }
-
-    function fillSpaced() {
-      const first = spaceFrom.value;
-      const every = Math.max(1, Math.min(365, Number(spaceEvery.value) || 7));
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(first)) return;
-      const [y, m, d] = first.split('-').map(Number);
-      dateList.querySelectorAll('input[data-slot]').forEach((input, k) => {
-        const dt = new Date(Date.UTC(y, m - 1, d));
-        dt.setUTCDate(dt.getUTCDate() + every * k);
-        input.value = dt.toISOString().slice(0, 10);
-      });
-    }
-
-    evCount.addEventListener('input', renderDates);
-    spaceBtn.addEventListener('click', fillSpaced);
-    renderDates();
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -284,13 +228,6 @@ if (existingDates.length === 0 && sched?.startDate) {
 </script>
 
 <style>
-  .dates { display: grid; gap: 6px; margin: 10px 0; }
-  .dates__row { display: grid; grid-template-columns: 5.5rem 1fr; align-items: center; gap: 10px; }
-  .dates__row span { font-size: 0.8125rem; color: var(--ink-muted, #4b5b54); }
-  .helper { margin: 6px 0 12px; font-size: 0.875rem; }
-  .helper summary { cursor: pointer; color: var(--brand-green-dark); }
-  .helper > div, .helper > button, .helper > p { margin-top: 8px; }
-  .btn--sm { padding: 6px 12px; font-size: 0.8125rem; }
 
   .card h3 { font-size: 1.0625rem; color: var(--brand-green-dark); margin: 8px 0 6px; }
   .lsec { margin-top: 28px; }
