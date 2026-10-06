@@ -5,19 +5,26 @@ import { createSupabaseClient } from '../../../../lib/supabase';
 import { leagueDetail, rsvpLabel, type PortalDetail } from '../../../../lib/leaguePortal';
 import { dateLabel } from '../../../../lib/leaguePublic';
 import SeasonDateList from '../../../../components/SeasonDateList.astro';
+import LeagueEventBoard from '../../../../components/LeagueEventBoard.astro';
 import { namesToList } from '../../../../lib/leagueEventNames';
+import {
+  buildEventRows, fetchBoundTournaments, fetchMyTournaments,
+  fetchSignupCounts, mixedFormatCaveat,
+  type BoundTournament, type LeagueEventRow,
+} from '../../../../lib/leagueEvents';
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
 
+const supabase = createSupabaseClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+  locals: Astro.locals as App.Locals,
+});
+
 let d: PortalDetail | null = null;
 let failed = false;
 try {
-  const supabase = createSupabaseClient({
-    request: Astro.request,
-    cookies: Astro.cookies,
-    locals: Astro.locals as App.Locals,
-  });
   if (id && user?.id) d = await leagueDetail(supabase, id, user.id);
 } catch (err) {
   console.error('[app/league/schedule] load failed', err);
@@ -49,6 +56,49 @@ if (existingDates.length === 0 && sched?.startDate) {
     dt.setUTCDate(dt.getUTCDate() + every * k);
     existingDates[k] = dt.toISOString().slice(0, 10);
   }
+}
+
+// ── The events themselves ───────────────────────────────────────
+//
+// An event IS a tournament. `schedule.bindings` has carried slot →
+// `tournaments.id` since the league model shipped and nothing on this
+// site read it, so a director could see week 4 and had no way to open
+// the tournament that is week 4. These two reads are that door.
+//
+// The caveat is the one place a mixed-format season needs a word of
+// warning, and it is a LABEL, never a block: a stroke-aggregate season
+// that mixes in a scramble adds a team score to a column of individual
+// ones. A match-play event mid-season needs no warning at all — it
+// still produces one gross score per player, and the season's points
+// model is what ranks the table either way.
+let boundTournaments = new Map<string, BoundTournament>();
+let myTournaments: Array<{ id: string; name: string; completed_at: string | null }> = [];
+let eventRows: LeagueEventRow[] = [];
+let caveat: string | null = null;
+if (d) {
+  const count = Math.max(
+    Number(sched?.eventCount) || 0,
+    all.length ? Math.max(...all.map((w) => w.slot_index)) + 1 : 0,
+  );
+  let signupCounts = new Map<number, { in: number; out: number }>();
+  [boundTournaments, myTournaments, signupCounts] = await Promise.all([
+    fetchBoundTournaments(supabase, sched?.bindings),
+    isDirector && user?.id
+      ? fetchMyTournaments(supabase, user.id)
+      : Promise.resolve([]),
+    fetchSignupCounts(supabase, d.league.id),
+  ]);
+  eventRows = buildEventRows({
+    count,
+    dates: existingDates,
+    names: sched?.names,
+    formats: sched?.formats,
+    bindings: sched?.bindings,
+    tournaments: boundTournaments,
+    viewerId: user?.id ?? null,
+    signups: signupCounts,
+  });
+  caveat = mixedFormatCaveat(d.league.points_model, sched?.formats);
 }
 ---
 
@@ -107,6 +157,16 @@ if (existingDates.length === 0 && sched?.startDate) {
               that has already been played cannot be moved.
             </p>
           </section>
+        )}
+
+        {eventRows.length > 0 && (
+          <LeagueEventBoard
+            leagueId={d.league.id}
+            rows={eventRows}
+            myTournaments={myTournaments}
+            isDirector={isDirector}
+            caveat={caveat}
+          />
         )}
 
         {upcoming.length > 0 && (

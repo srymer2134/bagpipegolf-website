@@ -6,6 +6,7 @@ import {
   leagueDetail, teamRows, standingsAvailability, myPlayerRow, type PortalDetail,
 } from '../../../../lib/leaguePortal';
 import { fmtPts, computedAgo } from '../../../../lib/leaguePublic';
+import { mixedFormatCaveat } from '../../../../lib/leagueEvents';
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
@@ -30,6 +31,12 @@ const avail = d ? standingsAvailability(d.league, d.snapshot) : 'ok';
 const myName = d && user?.id ? d.memberNames[user.id] : null;
 const me = d ? myPlayerRow(d.snapshot?.standings, myName) : null;
 const sortedPlayers = [...players].sort((a, b) => b.total - a.total);
+
+// The one caveat a mixed-format season needs, and the place the
+// decision doc puts it: "the standings display flags a caveat. The
+// math still runs, but the user sees a 'mixed format' warning."
+// Labelling only — nothing is recomputed or withheld.
+const caveat = d ? mixedFormatCaveat(d.league.points_model, d.schedule?.formats) : null;
 ---
 
 <BaseLayout title={d ? `${d.league.name} standings · Bagpipe Golf` : 'Standings · Bagpipe Golf'}>
@@ -46,6 +53,12 @@ const sortedPlayers = [...players].sort((a, b) => b.total - a.total);
       <>
         <p class="pagewrap__sub">{d.league.name}</p>
         <LeagueSubnav id={d.league.id} active="standings" />
+
+        {caveat && (
+          <div class="notice notice--caveat">
+            <strong>Mixed formats this season.</strong> {caveat}
+          </div>
+        )}
 
         {avail === 'model-not-supported' && (
           <div class="notice notice--warn">
@@ -157,6 +170,9 @@ const sortedPlayers = [...players].sort((a, b) => b.total - a.total);
   .tbl td { font-variant-numeric: tabular-nums; }
   .tbl tr.is-you { background: var(--brand-green-soft, #f0f7f2); }
   .notice { padding: 14px 16px; border-radius: 12px; margin: 16px 0; line-height: 1.5; font-size: 0.875rem; }
+  .notice--caveat {
+    background: #fdf6e8; border: 1px solid #e8d7ad; color: #6b4e11;
+  }
   .notice--warn { background: #fff6e6; border: 1px solid #d9a441; color: #6b4a06; }
   .notice--you { background: var(--brand-green-soft, #f0f7f2); border: 1px solid var(--brand-green, #2f7d44); }
   .small { font-size: 0.78125rem; }

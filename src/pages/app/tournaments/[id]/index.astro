@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import LeagueEventBanner from '../../../../components/LeagueEventBanner.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import {
   getPublicTournament,
@@ -10,6 +11,7 @@ import {
   type TournamentPlayer,
   type TournamentRound,
 } from '../../../../lib/tournamentQueries';
+import { leagueEventFor, type LeagueEventContext } from '../../../../lib/leagueEvents';
 
 // Tournament overview — the "at a glance" landing when someone
 // clicks a tournament card. Anon-readable (RLS grants SELECT to
@@ -51,6 +53,14 @@ try {
   }
 } catch (err: any) {
   loadError = err?.message ?? 'Could not load tournament.';
+}
+
+// The season this event belongs to, when the viewer is in that league.
+// Skipped on the kiosk view, which is a clubhouse TV with nobody
+// signed in and no use for navigation.
+let leagueEvent: LeagueEventContext | null = null;
+if (t && viewer?.id && !kiosk) {
+  leagueEvent = await leagueEventFor(supabase, viewer.id, id);
 }
 
 // Derived state — nothing renders when t is null.
@@ -191,6 +201,7 @@ const sortedPlayers = [...players].sort((a, b) => {
         </header>
 
         <TournamentSubnav id={id!} active="overview" />
+        <LeagueEventBanner ctx={leagueEvent} />
 
         {/* Quick actions */}
         <div class="actions">
