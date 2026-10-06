@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AppLinkBanner from '../components/AppLinkBanner.astro';
+import { ROUND_FORMAT_COUNT } from '../lib/roundFormats';
 
 // Content sourced from the Flutter repo's canonical
 // `docs/LEAGUE_MODE_DECISIONS.md` (2026-08-19). Keep in sync with the
@@ -48,7 +49,7 @@ interface PointsModel {
 const pointsModels: PointsModel[] = [
   {
     name: 'Position points',
-    body: 'Finish-place points: N for 1st, N-1 for 2nd, and so on. The default. Rewards consistency across the season.',
+    body: 'Finish-place points: N for 1st, N-1 for 2nd, and so on. The default. Rewards consistency across the season, and it\'s fully customizable.',
     when: 'When you want every week to count equally.',
   },
   {
@@ -139,8 +140,8 @@ const advanced: Advanced[] = [
     <section class="hero-band">
       <div class="hero-band__grid">
         <div class="hero-band__cell">
-          <span class="hero-band__num">6</span>
-          <span class="hero-band__label">Weekly formats</span>
+          <span class="hero-band__num">{ROUND_FORMAT_COUNT}</span>
+          <span class="hero-band__label">Formats</span>
         </div>
         <div class="hero-band__cell">
           <span class="hero-band__num">Auto</span>
@@ -180,10 +181,12 @@ const advanced: Advanced[] = [
 
     <section class="section">
       <div class="section-head">
-        <h2>Weekly format</h2>
+        <h2>Format</h2>
         <p class="section-sub">
-          Each week's slot picks its own format. Mix and match across the
-          season; standings still add up.
+          Each event picks its own format. Mix and match across the
+          season; standings still add up. These are the shapes a league
+          declares — the tournament bound to an event can play any of the
+          <a href="/tournaments">{ROUND_FORMAT_COUNT} tournament formats</a>.
         </p>
       </div>
       <div class="grid grid--3">
