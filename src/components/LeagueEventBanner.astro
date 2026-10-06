@@ -1,0 +1,83 @@
+---
+// "This tournament is week 4 of the Tuesday Night League."
+//
+// The other half of the league ↔ tournament bridge. The schedule page
+// now links INTO the tournament director pages; without this, a
+// director who followed that link has no way back and no sign that the
+// tournament they are editing is part of a season at all.
+//
+// It renders only when the viewer is in the league. There is no
+// `tournaments.league_id`, so the binding is only visible by reading
+// the leagues this account can see — which is the right boundary
+// anyway: a tournament host who is a stranger to the league should not
+// learn from this page which season has adopted their event.
+
+import { formatLabel, type LeagueEventContext } from '../lib/leagueEvents';
+
+interface Props {
+  ctx: LeagueEventContext | null;
+}
+
+const { ctx } = Astro.props;
+const format = ctx ? formatLabel(ctx.format) : null;
+---
+
+{ctx && (
+  <aside class="leb">
+    <div class="leb__text">
+      <p class="leb__eyebrow">League event</p>
+      <p class="leb__line">
+        <strong>{ctx.eventName}</strong> · event {ctx.slot + 1} of{' '}
+        <a href={`/app/leagues/${ctx.leagueId}`}>{ctx.leagueName}</a>
+        {format && <span class="leb__fmt">{format}</span>}
+      </p>
+      {ctx.isLeagueDirector && (
+        <p class="leb__note">
+          You run this league, so changes here feed its season standings.
+        </p>
+      )}
+    </div>
+    <div class="leb__links">
+      <a class="leb__btn" href={`/app/leagues/${ctx.leagueId}/schedule`}>Season schedule</a>
+      <a class="leb__btn" href={`/app/leagues/${ctx.leagueId}/standings`}>Standings</a>
+    </div>
+  </aside>
+)}
+
+<style>
+  .leb {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    align-items: center; justify-content: space-between;
+    margin: 0 0 22px; padding: 14px 18px;
+    border-radius: 16px;
+    background: #f4f8f5; border: 1px solid #dde7e1;
+  }
+  .leb__text { min-width: 0; }
+  .leb__eyebrow {
+    margin: 0 0 4px; font-size: 0.6875rem; font-weight: 700;
+    letter-spacing: .07em; text-transform: uppercase; color: #8a968f;
+  }
+  .leb__line {
+    margin: 0; font-size: 0.9375rem; line-height: 1.45;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  .leb__line strong { color: var(--brand-green-dark, #1f5b30); }
+  .leb__line a { color: var(--brand-green-dark, #1f5b30); font-weight: 600; }
+  .leb__fmt {
+    font-size: 0.6875rem; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: #4b5b54;
+    background: #e5ece8; border-radius: 999px; padding: 3px 9px;
+  }
+  .leb__note {
+    margin: 6px 0 0; font-size: 0.78125rem;
+    color: var(--ink-muted, #4b5b54);
+  }
+  .leb__links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .leb__btn {
+    font-size: 0.8125rem; font-weight: 600; padding: 8px 14px;
+    border-radius: 999px; text-decoration: none; white-space: nowrap;
+    border: 1px solid #cfdbd4; background: #fff;
+    color: var(--brand-green-dark, #1f5b30);
+  }
+  .leb__btn:hover { background: #eef3f0; border-color: #1a5c38; }
+</style>

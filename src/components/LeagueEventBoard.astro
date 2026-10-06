@@ -1,0 +1,380 @@
+---
+// The per-event director surface: one card per event in the season,
+// each one a door into the tournament that event actually is.
+//
+// WHY THIS EXISTS. `leagues.schedule.bindings` has mapped slot →
+// `tournaments.id` since the league model shipped, and this site typed
+// it and never read it. The tournament director pages (manage,
+// pairings, competitions, leaderboard, payouts) were already here, and
+// a league commissioner had no route to them for their own season's
+// events. A director could see that week 4 exists and could not open
+// week 4.
+//
+// TWO ROLES, ONE SURFACE. Both the league director and the tournament
+// director land here. What they get differs, and the difference is not
+// cosmetic — it is RLS. `tournaments` UPDATE is `user_id = auth.uid()`
+// while SELECT is public, so:
+//   • a viewer who OWNS the bound tournament gets Manage
+//   • everyone else gets the leaderboard, read-only
+// We never render a Manage link that would bounce the viewer to the
+// leaderboard with no explanation.
+//
+// Everything here is server-rendered. That is deliberate: this
+// component's predecessor built its rows in JS, and Astro's scoped
+// styles compile to `[data-astro-cid-…]` attributes that JS-created
+// elements never carry, so two redesigns shipped invisible. Rows come
+// from the server; the script only wires behaviour.
+
+import { formatHelp, formatLabel, WEEK_FORMATS, type LeagueEventRow } from '../lib/leagueEvents';
+import { dateLabel } from '../lib/leaguePublic';
+
+interface Props {
+  leagueId: string;
+  rows: LeagueEventRow[];
+  /** The viewer's own tournaments, for the attach picker. Director only. */
+  myTournaments: Array<{ id: string; name: string; completed_at: string | null }>;
+  isDirector: boolean;
+  /** The stroke-aggregate mixed-format note, when it applies. */
+  caveat: string | null;
+}
+
+const { leagueId, rows, myTournaments, isDirector, caveat } = Astro.props;
+
+const today = new Date().toISOString().slice(0, 10);
+---
+
+<section class="evb">
+  <div class="evb__head">
+    <h2 class="evb__h">Events</h2>
+    <p class="evb__sub">
+      {isDirector
+        ? 'Each event is a tournament. Attach one and you can run it from here — pairings, competitions, scoring, payouts.'
+        : 'Open an event to follow its leaderboard.'}
+    </p>
+  </div>
+
+  {caveat && (
+    <div class="evb__caveat">
+      <strong>Mixed formats.</strong> {caveat}
+    </div>
+  )}
+
+  <div class="evb__grid">
+    {rows.map((r) => (
+      <article
+        class:list={['evb__card', r.completed && 'is-done', r.date && r.date < today && 'is-past']}
+        data-slot={r.slot}
+      >
+        <header class="evb__cardhead">
+          <span class="evb__num">Event {r.slot + 1}</span>
+          <span class="evb__date">{r.date ? dateLabel(r.date) : 'Date not set'}</span>
+        </header>
+
+        <h3 class="evb__name">{r.name}</h3>
+
+        {r.rsvp && <p class="evb__rsvp">RSVPs: {r.rsvp}</p>}
+
+        {isDirector ? (
+          <label class="evb__field">
+            <span class="evb__label">Format</span>
+            <select class="evb__input" data-format={r.slot}>
+              <option value="">Not decided</option>
+              {WEEK_FORMATS.map((f) => (
+                <option value={f.wire} selected={r.format === f.wire}>{f.label}</option>
+              ))}
+            </select>
+            <span class="evb__help">
+              {formatHelp(r.format) ?? 'Set the format so players know what they are turning up for.'}
+            </span>
+          </label>
+        ) : (
+          <p class="evb__meta">
+            {formatLabel(r.format) ?? 'Format to be announced'}
+          </p>
+        )}
+
+        <div class="evb__tourney">
+          {r.tournament ? (
+            <>
+              <p class="evb__tname">
+                {r.tournament.name}
+                {r.completed && <span class="evb__chip">Completed</span>}
+              </p>
+              <div class="evb__actions">
+                {r.canManage ? (
+                  <>
+                    <a class="evb__btn evb__btn--go" href={`/app/tournaments/${r.tournament.id}/manage`}>
+                      Manage
+                    </a>
+                    <a class="evb__btn" href={`/app/tournaments/${r.tournament.id}/pairings`}>Pairings</a>
+                    <a class="evb__btn" href={`/app/tournaments/${r.tournament.id}/leaderboard`}>Leaderboard</a>
+                  </>
+                ) : (
+                  <>
+                    <a class="evb__btn evb__btn--go" href={`/app/tournaments/${r.tournament.id}/leaderboard`}>
+                      Leaderboard
+                    </a>
+                    {isDirector && (
+                      <span class="evb__note">
+                        Created by another member, so they run it.
+                      </span>
+                    )}
+                  </>
+                )}
+                {isDirector && (
+                  <button type="button" class="evb__btn evb__btn--quiet" data-detach={r.slot}>
+                    Detach
+                  </button>
+                )}
+              </div>
+              {r.canManage && r.rsvp && (
+                <p class="evb__help">
+                  Attaching does not fill the field. Add this week's players on the
+                  <a href={`/app/tournaments/${r.tournament.id}/manage`}> roster</a>.
+                </p>
+              )}
+            </>
+          ) : isDirector ? (
+            <>
+              <p class="evb__empty">No tournament attached yet.</p>
+              <div class="evb__attach">
+                <select class="evb__input evb__input--pick" data-pick={r.slot}>
+                  <option value="">Choose one of yours…</option>
+                  {myTournaments.map((t) => (
+                    <option value={t.id}>
+                      {t.name}{t.completed_at ? ' (completed)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" class="evb__btn evb__btn--go" data-attach={r.slot}>
+                  Attach
+                </button>
+              </div>
+              <p class="evb__help">
+                Nothing suitable? <a href="/app/tournaments/new">Create a tournament</a>, then come back and attach it.
+              </p>
+            </>
+          ) : (
+            <p class="evb__empty">Not set up yet.</p>
+          )}
+        </div>
+
+        <p class="evb__status" data-status={r.slot} hidden></p>
+      </article>
+    ))}
+  </div>
+</section>
+
+<script is:inline define:vars={{ leagueId }}>
+  (() => {
+    const board = document.querySelector('.evb');
+    if (!board) return;
+
+    const say = (slot, text, bad) => {
+      const el = board.querySelector(`[data-status="${slot}"]`);
+      if (!el) return;
+      el.textContent = text;
+      el.hidden = !text;
+      el.classList.toggle('is-bad', !!bad);
+    };
+
+    const save = async (slot, patch, busy) => {
+      say(slot, 'Saving…', false);
+      if (busy) busy.disabled = true;
+      try {
+        const res = await fetch(
+          `/api/leagues/${encodeURIComponent(leagueId)}/events`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ slot, ...patch }),
+          },
+        );
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          say(slot, body.error || `Could not save (${res.status}).`, true);
+          if (busy) busy.disabled = false;
+          return false;
+        }
+        return true;
+      } catch {
+        say(slot, 'Network error. Please try again.', true);
+        if (busy) busy.disabled = false;
+        return false;
+      }
+    };
+
+    // Format saves in place — no reload, because the card does not
+    // change shape.
+    board.querySelectorAll('select[data-format]').forEach((sel) => {
+      sel.addEventListener('change', async () => {
+        const slot = Number(sel.dataset.format);
+        const ok = await save(slot, { format: sel.value }, sel);
+        sel.disabled = false;
+        if (ok) say(slot, 'Format saved.', false);
+      });
+    });
+
+    // Attaching or detaching changes what the card shows, so reload.
+    board.querySelectorAll('button[data-attach]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const slot = Number(btn.dataset.attach);
+        const pick = board.querySelector(`select[data-pick="${slot}"]`);
+        const id = pick ? pick.value : '';
+        if (!id) {
+          say(slot, 'Pick a tournament first.', true);
+          return;
+        }
+        if (await save(slot, { tournamentId: id }, btn)) window.location.reload();
+      });
+    });
+
+    board.querySelectorAll('button[data-detach]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const slot = Number(btn.dataset.detach);
+        if (!window.confirm(
+          'Detach this tournament from the event? The tournament itself is '
+          + 'kept — only the link to this week is removed.',
+        )) return;
+        if (await save(slot, { tournamentId: null }, btn)) window.location.reload();
+      });
+    });
+  })();
+</script>
+
+<style>
+  .evb { margin: 32px 0 8px; }
+  .evb__head { margin-bottom: 14px; }
+  .evb__h {
+    font-size: 0.9375rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-muted, #4b5b54); margin: 0 0 6px;
+  }
+  .evb__sub {
+    margin: 0; font-size: 0.875rem; line-height: 1.5;
+    color: var(--ink-muted, #4b5b54); max-width: 62ch;
+  }
+
+  .evb__caveat {
+    margin: 14px 0 0; padding: 14px 16px; border-radius: 14px;
+    background: #fdf6e8; border: 1px solid #e8d7ad; color: #6b4e11;
+    font-size: 0.875rem; line-height: 1.55;
+  }
+  .evb__caveat strong { color: #5a400a; }
+
+  .evb__grid {
+    display: grid; gap: 16px; margin-top: 16px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .evb__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1100px) {
+    .evb__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  /* Same vocabulary as the season date rows: 16px radius, off-white
+     rest state, a soft inset so a card reads as a surface. */
+  .evb__card {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 18px; border-radius: 18px;
+    background: #fff; border: 1px solid #e2e9e5;
+    box-shadow: 0 1px 2px rgba(16, 40, 28, 0.04);
+  }
+  .evb__card.is-past { background: #fbfcfb; }
+  .evb__card.is-done { border-color: #cfdbd4; }
+
+  .evb__cardhead {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 10px;
+  }
+  .evb__num {
+    font-size: 0.6875rem; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; color: #9ca3af;
+  }
+  .evb__date {
+    font-size: 0.8125rem; color: var(--ink-muted, #4b5b54);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .evb__name {
+    margin: 0; font-size: 1.0625rem; font-weight: 650; line-height: 1.3;
+    color: var(--brand-green-dark, #1f5b30);
+  }
+
+  .evb__field { display: block; }
+  .evb__label {
+    display: block; font-size: 0.6875rem; font-weight: 700;
+    letter-spacing: .07em; text-transform: uppercase; color: #9ca3af;
+    margin-bottom: 6px;
+  }
+  .evb__input {
+    font: inherit; font-size: 0.9375rem; display: block; width: 100%;
+    padding: 11px 14px; color: #1a1a1a; background: #f7faf8;
+    border: 1px solid #e2e9e5; border-radius: 14px;
+    transition: background 160ms ease, border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+  .evb__input:hover { background: #fff; border-color: #cfdbd4; }
+  .evb__input:focus-visible, .evb__input:focus {
+    outline: none; background: #fff; border-color: #1a5c38;
+    box-shadow: 0 0 0 4px rgba(26, 92, 56, 0.1);
+  }
+  .evb__input:disabled { opacity: .6; }
+
+  .evb__help {
+    display: block; margin: 7px 0 0; font-size: 0.78125rem; line-height: 1.5;
+    color: var(--ink-muted, #4b5b54);
+  }
+  .evb__help a { color: var(--brand-green-dark, #1f5b30); }
+  .evb__meta { margin: 0; font-size: 0.875rem; color: var(--ink-muted, #4b5b54); }
+  .evb__rsvp {
+    margin: -4px 0 0; font-size: 0.8125rem;
+    color: var(--ink-muted, #4b5b54); font-variant-numeric: tabular-nums;
+  }
+
+  .evb__tourney {
+    margin-top: 2px; padding-top: 14px; border-top: 1px solid #eef2f0;
+  }
+  .evb__tname {
+    margin: 0 0 10px; font-size: 0.9375rem; font-weight: 600;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .evb__chip {
+    font-size: 0.6875rem; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: #4b5b54;
+    background: #eef2f0; border-radius: 999px; padding: 3px 9px;
+  }
+  .evb__empty {
+    margin: 0 0 10px; font-size: 0.875rem; color: var(--ink-muted, #4b5b54);
+  }
+
+  .evb__actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .evb__attach { display: flex; gap: 8px; align-items: center; }
+  .evb__attach .evb__input { flex: 1 1 auto; min-width: 0; }
+
+  .evb__btn {
+    font: inherit; font-size: 0.8125rem; font-weight: 600;
+    padding: 9px 14px; border-radius: 999px; cursor: pointer;
+    text-decoration: none; white-space: nowrap;
+    border: 1px solid #cfdbd4; background: #fff;
+    color: var(--brand-green-dark, #1f5b30);
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .evb__btn:hover { background: #f4f7f5; border-color: #1a5c38; }
+  .evb__btn--go {
+    background: var(--brand-green-dark, #1f5b30); border-color: transparent;
+    color: #fff;
+  }
+  .evb__btn--go:hover { background: #17492a; }
+  .evb__btn--quiet { border-color: transparent; color: #8a6a64; }
+  .evb__btn--quiet:hover { background: #fdecea; color: #7d241c; }
+  .evb__btn:disabled { opacity: .55; cursor: default; }
+
+  .evb__note { font-size: 0.78125rem; color: var(--ink-muted, #4b5b54); }
+
+  .evb__status {
+    margin: 2px 0 0; font-size: 0.78125rem;
+    color: var(--brand-green-dark, #1f5b30);
+  }
+  .evb__status.is-bad { color: #9a3b32; }
+</style>

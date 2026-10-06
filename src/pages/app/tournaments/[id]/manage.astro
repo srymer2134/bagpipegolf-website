@@ -29,8 +29,10 @@
 
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import LeagueEventBanner from '../../../../components/LeagueEventBanner.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { getPublicTournament, type TournamentPlayer } from '../../../../lib/tournamentQueries';
+import { leagueEventFor, type LeagueEventContext } from '../../../../lib/leagueEvents';
 
 const { id } = Astro.params;
 const user = Astro.locals.user;
@@ -62,6 +64,14 @@ try {
 // we mirror the mobile app's owner-only edit surface.
 if (tournament && tournament.user_id !== user.id) {
   return Astro.redirect(`/app/tournaments/${id}/leaderboard`, 302);
+}
+
+// Is this tournament a league event? Cheap, failure-tolerant, and
+// the only way back to the season from here — the league schedule
+// links in, so something has to link out.
+let leagueEvent: LeagueEventContext | null = null;
+if (tournament) {
+  leagueEvent = await leagueEventFor(supabase, user.id, id);
 }
 
 // Fetch the director's friends roster for the "Add from friends"
@@ -149,6 +159,7 @@ if (tournament) {
     </p>
 
     <TournamentSubnav id={id!} active="manage" />
+    <LeagueEventBanner ctx={leagueEvent} />
 
     {loadError && (
       <div class="errorbar" role="alert">⚠️ {loadError}</div>
