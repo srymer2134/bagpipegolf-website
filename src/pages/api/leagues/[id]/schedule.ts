@@ -1,6 +1,9 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import type { LeagueSchedule } from '../../../../lib/leaguePortal';
+import {
+  seedFromDates, validateSeasonDates, weekRowsFor,
+} from '../../../../lib/leagueSeasonDates';
 
 // POST /api/leagues/[id]/schedule
 //
@@ -30,6 +33,9 @@ export const POST: APIRoute = async (ctx) => {
     intervalDays?: number;
     eventCount?: number;
     clear?: boolean;
+    /** One `yyyy-MM-dd` per event, index = slot, '' where undecided.
+     *  These become `league_weeks` rows — the authority for a date. */
+    dates?: Array<string | null>;
   };
   try {
     body = await ctx.request.json();
@@ -79,28 +85,34 @@ export const POST: APIRoute = async (ctx) => {
     return json({ ok: true, cleared: true });
   }
 
-  const startDate = (body.startDate ?? '').trim();
-  const intervalDays = Number(body.intervalDays);
   const eventCount = Number(body.eventCount);
+  // Dates, not a cadence. `intervalDays` is no longer required or
+  // asked for — it is inferred for the jsonb seed and is only a hint.
+  // The dates themselves go to `league_weeks.week_of`, which that
+  // table's own comment names as the authority for slot → date.
+  const dates = body.dates ?? (body.startDate ? [body.startDate] : []);
+  const first = typeof dates[0] === 'string' ? dates[0].trim() : '';
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-    return json({ error: 'Pick a first event date.' }, 400);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(first)) {
+    return json({ error: 'Pick a date for the first event.' }, 400);
   }
   // Same bounds the app's stepper enforces (league_schedule_dialog.dart),
   // so a season created here can be edited there without surprise.
   if (!Number.isInteger(eventCount) || eventCount < 2 || eventCount > 52) {
     return json({ error: 'Between 2 and 52 events.' }, 400);
   }
-  if (!Number.isInteger(intervalDays) || intervalDays < 1 || intervalDays > 30) {
-    return json({ error: 'Between 1 and 30 days apart.' }, 400);
-  }
   if (eventCount > MAX_SLOTS) {
     return json({ error: 'Too many events.' }, 400);
   }
+  const dateProblems = validateSeasonDates(dates);
+  if (dateProblems.length) {
+    return json({ error: dateProblems[0].message, problems: dateProblems }, 400);
+  }
 
+  const seed = seedFromDates(dates, eventCount);
   const schedule: LeagueSchedule = {
-    startDate,
-    intervalDays,
+    startDate: seed?.startDate ?? first,
+    intervalDays: seed?.intervalDays ?? (Number(body.intervalDays) || 7),
     eventCount,
     bindings: prev?.bindings ?? {},
     formats: prev?.formats ?? {},
@@ -119,10 +131,37 @@ export const POST: APIRoute = async (ctx) => {
   }
   if (!data) return json({ error: 'Only the league director can set the schedule.' }, 403);
 
+  // The dates themselves. Upsert on (league_id, slot_index) so moving
+  // one event is one changed row and the rest are untouched. A week
+  // already bridged to a spine event is frozen by a DB trigger — that
+  // is deliberate: you cannot retroactively move a round that was
+  // played. We report it rather than pretending the save was clean.
+  let weeksSaved = 0;
+  let weeksError: string | null = null;
+  const rows = weekRowsFor(id, dates);
+  if (rows.length) {
+    const { error: wErr } = await supabase
+      .from('league_weeks')
+      .upsert(rows, { onConflict: 'league_id,slot_index' });
+    if (wErr) {
+      console.error('[api/leagues/schedule:weeks]', wErr);
+      weeksError = wErr.code === '23505'
+        ? 'Two events would share a date. The rest of the schedule was saved.'
+        : /immutable/i.test(wErr.message ?? '')
+          ? 'An event that has already been played cannot be moved. '
+            + 'The rest of the schedule was saved.'
+          : 'The dates could not be saved.';
+    } else {
+      weeksSaved = rows.length;
+    }
+  }
+
   // Tell the caller how many bindings survived, so a director who had
   // tournaments attached can see nothing was lost.
   return json({
     ok: true,
+    weeksSaved,
+    weeksError,
     eventCount,
     bindingsKept: Object.keys(schedule.bindings ?? {}).length,
   });
