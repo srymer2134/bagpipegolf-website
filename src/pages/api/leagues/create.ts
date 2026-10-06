@@ -3,6 +3,7 @@ import { createSupabaseClient } from '../../../lib/supabase';
 import {
   buildLeagueRow, validateCreateLeague, type CreateLeagueInput,
 } from '../../../lib/leagueCreate';
+import { weekRowsFor } from '../../../lib/leagueSeasonDates';
 
 // POST /api/leagues/create
 //
@@ -57,7 +58,35 @@ export const POST: APIRoute = async (ctx) => {
       return json({ error: 'Could not create the league.' }, 500);
     }
 
-    return json({ ok: true, id: data?.id, name: data?.name }, 201);
+    // The season's dates, as `league_weeks` rows — the authority for
+    // slot → date, per that table's own comment. Only dated slots get
+    // a row (`week_of` is NOT NULL), so an undecided event is simply
+    // added later.
+    //
+    // A failure here does NOT fail the request: the league exists, and
+    // telling the director "could not create the league" about a row
+    // they can add from the schedule page would be a lie. It is
+    // reported instead, so the page can say what happened.
+    let weeks = 0;
+    let weeksError: string | null = null;
+    if (input.scheduleEnabled && data?.id) {
+      const rows = weekRowsFor(data.id, input.dates ?? []);
+      if (rows.length) {
+        const { error: wErr } = await supabase.from('league_weeks').insert(rows);
+        if (wErr) {
+          console.error('[api/leagues/create:weeks]', wErr);
+          weeksError = wErr.code === '23505'
+            ? 'Two events share a date, so the schedule was not saved. '
+              + 'Set the dates on the schedule page.'
+            : 'The league was created, but its dates were not saved. '
+              + 'Set them on the schedule page.';
+        } else {
+          weeks = rows.length;
+        }
+      }
+    }
+
+    return json({ ok: true, id: data?.id, name: data?.name, weeks, weeksError }, 201);
   } catch (err) {
     console.error('[api/leagues/create] unexpected', err);
     return json({ error: 'Could not create the league.' }, 500);

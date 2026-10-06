@@ -59,6 +59,7 @@ export type SubScoringRule = 'regular_keeps_sub' | 'blind_default' | 'sub_takes_
 // this repo real CI; this file gives the preset one home.
 
 import rawConfig from './__generated__/league-config.json';
+import { seedFromDates, validateSeasonDates } from './leagueSeasonDates';
 
 export type LeagueConfigField = {
   name: string;
@@ -228,9 +229,16 @@ export type CreateLeagueInput = {
   template?: string | null;
   pointsModel?: PointsModel | null;
   startDate?: string | null;
+  /** Legacy seed. No longer asked for on the setup screen — it is
+   *  INFERRED from `dates` (see `seedFromDates`). Still accepted so an
+   *  older client keeps working. */
   intervalDays?: number | null;
   eventCount?: number | null;
   scheduleEnabled?: boolean;
+  /** One `yyyy-MM-dd` per event, index = slot, blanks allowed for
+   *  events whose date is not decided yet. These become
+   *  `league_weeks` rows, which is where a date actually lives. */
+  dates?: Array<string | null | undefined> | null;
 };
 
 export type CreateLeagueProblem = { field: string; message: string };
@@ -243,14 +251,22 @@ export function validateCreateLeague(input: CreateLeagueInput): CreateLeagueProb
   if (name.length > 120) out.push({ field: 'name', message: 'Keep the name under 120 characters.' });
 
   if (input.scheduleEnabled) {
-    if (!input.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) {
-      out.push({ field: 'startDate', message: 'Pick a first event date.' });
-    }
     const n = input.eventCount ?? 0;
     // Matches the app's stepper bounds (league_schedule_dialog.dart).
     if (n < 2 || n > 52) out.push({ field: 'eventCount', message: 'Between 2 and 52 events.' });
-    const iv = input.intervalDays ?? 0;
-    if (iv < 1 || iv > 30) out.push({ field: 'intervalDays', message: 'Between 1 and 30 days apart.' });
+
+    // Dates, not an interval. The first event needs a date so the
+    // season has a start; every other one may be blank and filled in
+    // later. `intervalDays` is no longer asked for or required — it is
+    // inferred for the seed and is only ever a hint.
+    const dates = input.dates ?? (input.startDate ? [input.startDate] : []);
+    const first = typeof dates[0] === 'string' ? dates[0].trim() : '';
+    if (!first || !/^\d{4}-\d{2}-\d{2}$/.test(first)) {
+      out.push({ field: 'dates', message: 'Pick a date for the first event.' });
+    }
+    for (const p of validateSeasonDates(dates)) {
+      out.push({ field: 'dates', message: p.message });
+    }
   }
 
   // The template's own configuration columns, checked against the DB's
@@ -318,9 +334,18 @@ export function buildLeagueRow(
     // `LeagueSchedule` — the three seed fields plus the two slot-keyed
     // maps the app writes. Empty maps rather than omitted keys, so a
     // round-trip through the app's Freezed model is byte-identical.
+    // The seed. `league_weeks.week_of` is the authority for a date —
+    // the table's own comment has said so since 20261013 — so this
+    // jsonb exists to keep every existing reader working, not to
+    // decide when anything is played. The interval is INFERRED from
+    // the dates the director picked rather than demanded from them.
+    const seed = seedFromDates(
+      input.dates ?? (input.startDate ? [input.startDate] : []),
+      eventCount,
+    );
     row.schedule = {
-      startDate: input.startDate,
-      intervalDays: input.intervalDays ?? t.intervalDays,
+      startDate: seed?.startDate ?? input.startDate,
+      intervalDays: seed?.intervalDays ?? input.intervalDays ?? t.intervalDays,
       eventCount,
       bindings: {},
       formats,

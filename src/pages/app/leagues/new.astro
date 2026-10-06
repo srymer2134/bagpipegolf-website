@@ -152,23 +152,38 @@ const PRESET_ROWS = mc
         </label>
         <div id="schedFields">
           <label class="field">
-            <span>First event</span>
-            <input type="date" name="startDate" value={today} />
+            <span>Events this season</span>
+            <input type="number" name="eventCount" id="evCount" min="2" max="52" value="6" />
           </label>
-          <div class="row2">
-            <label class="field">
-              <span>Events</span>
-              <input type="number" name="eventCount" min="2" max="52" value="6" />
-            </label>
-            <label class="field">
-              <span>Days apart</span>
-              <input type="number" name="intervalDays" min="1" max="30" value="30" />
-            </label>
-          </div>
+
+          <div class="dates" id="dateList"></div>
+
           <p class="hint">
-            A starting point, not a commitment — dates are editable per event
-            once the season exists.
+            Set the dates you know and leave the rest blank — you can add them
+            later, and any date can be changed right up until that event has
+            been played.
           </p>
+
+          <details class="helper">
+            <summary>Space them out for me</summary>
+            <div class="row2">
+              <label class="field">
+                <span>Starting</span>
+                <input type="date" id="spaceFrom" value={today} />
+              </label>
+              <label class="field">
+                <span>Every&hellip; days</span>
+                <input type="number" id="spaceEvery" min="1" max="365" value="7" />
+              </label>
+            </div>
+            <button type="button" class="btn btn--ghost btn--sm" id="spaceBtn">
+              Fill the dates
+            </button>
+            <p class="hint">
+              A shortcut for a league that really does meet on a fixed cadence.
+              It only fills the boxes — change any of them afterwards.
+            </p>
+          </details>
         </div>
       </fieldset>
 
@@ -198,13 +213,63 @@ const PRESET_ROWS = mc
     // Picking a template moves the cadence fields to its defaults — but
     // only the ones the person hasn't already edited themselves.
     const touched = new Set();
-    ['eventCount', 'intervalDays'].forEach((n) => {
-      form.elements[n].addEventListener('input', () => touched.add(n));
-    });
+    const evCount = document.getElementById('evCount');
+    const dateList = document.getElementById('dateList');
+    const spaceFrom = document.getElementById('spaceFrom');
+    const spaceEvery = document.getElementById('spaceEvery');
+    const spaceBtn = document.getElementById('spaceBtn');
+
+    evCount.addEventListener('input', () => touched.add('eventCount'));
+
+    // One date box per event, values preserved when the count changes.
+    function renderDates() {
+      const n = Math.max(1, Math.min(52, Number(evCount.value) || 0));
+      const keep = [...dateList.querySelectorAll('input[data-slot]')].map((i) => i.value);
+      dateList.innerHTML = '';
+      for (let i = 0; i < n; i++) {
+        const row = document.createElement('label');
+        row.className = 'field dates__row';
+        const span = document.createElement('span');
+        span.textContent = `Event ${i + 1}`;
+        const input = document.createElement('input');
+        input.type = 'date';
+        input.dataset.slot = String(i);
+        input.value = keep[i] || '';
+        row.append(span, input);
+        dateList.append(row);
+      }
+    }
+
+    // The cadence shortcut. This is the ONLY place an interval appears
+    // now: a league that meets every Tuesday can fill the boxes in one
+    // click, and everything else just picks dates. Sam, 2026-10-05 —
+    // interval must not drive the setup screen.
+    function fillSpaced() {
+      const first = spaceFrom.value;
+      const every = Math.max(1, Math.min(365, Number(spaceEvery.value) || 7));
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(first)) return;
+      const [y, m, d] = first.split('-').map(Number);
+      dateList.querySelectorAll('input[data-slot]').forEach((input, k) => {
+        const dt = new Date(Date.UTC(y, m - 1, d));
+        dt.setUTCDate(dt.getUTCDate() + every * k);
+        input.value = dt.toISOString().slice(0, 10);
+      });
+    }
+
+    evCount.addEventListener('input', renderDates);
+    spaceBtn.addEventListener('click', fillSpaced);
+    renderDates();
+
+    // Picking a template suggests how many events — never a cadence.
     form.querySelectorAll('input[name="template"]').forEach((r) => {
       r.addEventListener('change', () => {
-        if (!touched.has('intervalDays')) form.elements.intervalDays.value = r.dataset.interval;
-        if (!touched.has('eventCount')) form.elements.eventCount.value = r.dataset.events;
+        if (!touched.has('eventCount')) {
+          evCount.value = r.dataset.events;
+          renderDates();
+        }
+        // A weekly template pre-loads the shortcut's spacing, but does
+        // not apply it — the director still decides.
+        if (spaceEvery && r.dataset.interval) spaceEvery.value = r.dataset.interval;
       });
     });
 
@@ -221,9 +286,11 @@ const PRESET_ROWS = mc
         description: String(fd.get('description') || ''),
         template: String(fd.get('template') || ''),
         scheduleEnabled: schedOn.checked,
-        startDate: String(fd.get('startDate') || ''),
         eventCount: Number(fd.get('eventCount') || 0),
-        intervalDays: Number(fd.get('intervalDays') || 0),
+        // One entry per event, index = slot, '' where the director has
+        // not decided. The server infers the seed interval from these
+        // and writes `league_weeks` rows for the dated ones.
+        dates: [...dateList.querySelectorAll('input[data-slot]')].map((i) => i.value),
       };
 
       try {
@@ -238,6 +305,18 @@ const PRESET_ROWS = mc
           err.hidden = false;
           btn.disabled = false;
           btn.textContent = label;
+          return;
+        }
+        if (body.weeksError) {
+          // The league exists; only its dates did not land. Say so
+          // rather than navigating away as if nothing happened.
+          err.textContent = body.weeksError;
+          err.hidden = false;
+          btn.textContent = 'Open the league';
+          btn.disabled = false;
+          btn.onclick = () => {
+            window.location.href = `/app/leagues/${encodeURIComponent(body.id)}/schedule`;
+          };
           return;
         }
         window.location.href = `/app/leagues/${encodeURIComponent(body.id)}`;
@@ -281,6 +360,13 @@ const PRESET_ROWS = mc
   .field input:focus-visible { outline: 2px solid var(--brand-green, #2f7d44); outline-offset: 1px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .check { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 0.875rem; }
+  .dates { display: grid; gap: 6px; margin: 10px 0 4px; }
+  .dates__row { display: grid; grid-template-columns: 5.5rem 1fr; align-items: center; gap: 10px; }
+  .dates__row span { font-size: 0.8125rem; color: var(--ink-muted, #4b5b54); }
+  .helper { margin: 6px 0 0; font-size: 0.875rem; }
+  .helper summary { cursor: pointer; color: var(--brand-green-dark); }
+  .helper > div, .helper > button, .helper > p { margin-top: 8px; }
+  .btn--sm { padding: 6px 12px; font-size: 0.8125rem; }
   .hint { font-size: 0.78125rem; color: var(--ink-muted, #4b5b54); margin: 6px 0 0; line-height: 1.5; }
 
   /* The Match Play preset disclosure. Collapsed by default: a director
