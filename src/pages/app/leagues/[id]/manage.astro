@@ -6,6 +6,7 @@ import {
   type RosterRow,
   type RosterWithHandicap,
 } from '../../../../lib/leagueRoster';
+import { formatDuesLine } from '../../../../lib/leagueDues';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
@@ -45,7 +46,7 @@ try {
       const [cfgRes, rosRes] = await Promise.all([
         supabase
           .from('leagues')
-          .select('points_model, week_format, team_size, holes_per_week, handicap_basis, allowance_pct, sub_scoring_rule, sub_handicap_rule, absent_rule, bye_rule, attendance_points, flight_count, playoff_size, default_tee, default_first_tee, tee_interval_minutes, timezone, reminder_time, join_code')
+          .select('points_model, week_format, team_size, holes_per_week, handicap_basis, allowance_pct, sub_scoring_rule, sub_handicap_rule, absent_rule, bye_rule, attendance_points, flight_count, playoff_size, default_tee, default_first_tee, tee_interval_minutes, timezone, reminder_time, join_code, dues_cents, dues_due_date')
           .eq('id', id)
           .maybeSingle(),
         supabase
@@ -87,6 +88,13 @@ const setupKeys = [
   'absent_rule', 'bye_rule', 'attendance_points', 'flight_count', 'playoff_size',
 ];
 const dayKeys = ['default_tee', 'default_first_tee', 'tee_interval_minutes', 'timezone', 'reminder_time'];
+// Season dues get their own formatted row rather than joining
+// `setupKeys`: the column is an integer of CENTS, so the generic
+// String() renderer would print "4500". Null when the league charges
+// none, which drops the row entirely instead of showing "$0".
+const duesLine = config
+  ? formatDuesLine(config.dues_cents, config.dues_due_date)
+  : null;
 ---
 
 <BaseLayout title={d ? `Manage ${d.league.name} · Bagpipe Golf` : 'Manage league · Bagpipe Golf'}>
@@ -117,11 +125,20 @@ const dayKeys = ['default_tee', 'default_first_tee', 'tee_interval_minutes', 'ti
             <span class="chip">Season setup</span>
             <h3>{config ? 'Current configuration' : 'Not available'}</h3>
             {config && (
-              <dl class="kv">
-                {setupKeys.filter((k) => config![k] !== null && config![k] !== undefined).map((k) => (
-                  <div><dt>{label(k)}</dt><dd>{String(config![k])}</dd></div>
-                ))}
-              </dl>
+              <>
+                <dl class="kv">
+                  {setupKeys.filter((k) => config![k] !== null && config![k] !== undefined).map((k) => (
+                    <div><dt>{label(k)}</dt><dd>{String(config![k])}</dd></div>
+                  ))}
+                  {duesLine && <div><dt>season dues</dt><dd>{duesLine}</dd></div>}
+                </dl>
+                {!duesLine && (
+                  <p class="small muted">
+                    No season dues set. The commissioner sets them in the app
+                    under League&nbsp;&rsaquo;&nbsp;Season&nbsp;dues.
+                  </p>
+                )}
+              </>
             )}
           </article>
 

@@ -91,6 +91,33 @@ const APPLE_APP_SITE_ASSOCIATION = {
             '/': '/join/*',
             comment: 'Invite deep-link — JoinDispatcherScreen (bet + tourney + league)',
           },
+          // Stripe checkout return. A player pays on Stripe's hosted
+          // page in the system browser (plan K5/F6 — no in-app
+          // PaymentSheet in v1), and Stripe sends them back to one of
+          // these two paths; iOS hands the tap to the app instead of
+          // Safari so they land back where they started.
+          //
+          // ⚠️ ORDER. These are listed BEFORE the app has routes for
+          // them, on purpose: iOS fetches this file at install and
+          // update time, so the association has to exist by the time
+          // the build that handles `/pay/*` ships. Until it does, a
+          // hand-typed bagpipegolf.com/pay/success opens the app to
+          // GoRouter's default unknown-route screen — nothing links
+          // there, and no such page exists on the site yet.
+          // **Do not publish a /pay/* URL anywhere until the app adds
+          // the routes** (SAM_STRIPE_CONNECT_BUILD A4) and this site
+          // adds the landing pages (W4).
+          //
+          // No `?` key, so the match ignores the query string —
+          // Stripe appends its own session id.
+          {
+            '/': '/pay/success',
+            comment: 'Stripe checkout return — app re-reads payment status from the API',
+          },
+          {
+            '/': '/pay/cancel',
+            comment: 'Stripe checkout cancelled — app returns the player to the event',
+          },
         ],
       },
     ],
