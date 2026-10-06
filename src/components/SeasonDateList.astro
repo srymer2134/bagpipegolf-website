@@ -1,0 +1,368 @@
+---
+// A season as a list of dates — one row per event.
+//
+// Shared by /app/leagues/new and /app/leagues/[id]/schedule so the two
+// cannot drift. It was duplicated in both for about an hour and the
+// first version collided with each page's own `.field` rule, which
+// silently won on `display` and jammed the label against the input.
+// Everything here is namespaced `evt*` for that reason, and the styles
+// are scoped to this component.
+//
+// DOM CONTRACT, relied on by both pages' submit handlers:
+//   • the list container has id={listId}
+//   • every date input is `input[data-slot]`, in slot order
+// So a page reads its dates with:
+//   [...document.querySelectorAll('#<listId> input[data-slot]')]
+//     .map((i) => i.value)
+
+interface Props {
+  /** Container id — what the page's submit handler queries. */
+  listId?: string;
+  /** Id of the number input holding the event count. */
+  countInputId: string;
+  /** Existing dates by slot, `yyyy-MM-dd`; '' where undecided. */
+  initial?: string[];
+  /** Default "starting" date for the spacing shortcut. */
+  spaceFrom: string;
+  /** Default cadence for the shortcut. Never applied on its own. */
+  spaceEvery?: number;
+}
+
+const {
+  listId = 'dateList',
+  countInputId,
+  initial = [],
+  spaceFrom,
+  spaceEvery = 7,
+} = Astro.props;
+---
+
+<div class="evts" id={listId} data-count-input={countInputId}></div>
+
+<details class="evts__helper">
+  <summary>Space them out for me</summary>
+  <div class="evts__helperbody">
+    <label class="evts__hfield">
+      <span>Starting</span>
+      <input type="date" id={`${listId}_from`} value={spaceFrom} />
+    </label>
+    <label class="evts__hfield">
+      <span>Every … days</span>
+      <input type="number" id={`${listId}_every`} min="1" max="365" value={spaceEvery} />
+    </label>
+    <button type="button" class="evts__fill" id={`${listId}_fill`}>
+      Fill the dates
+    </button>
+  </div>
+  <p class="evts__note">
+    A shortcut for a league that really does meet on a fixed cadence. It only
+    fills the boxes — change any of them afterwards.
+  </p>
+</details>
+
+<script is:inline define:vars={{ listId, countInputId, initial }}>
+  (() => {
+    const list = document.getElementById(listId);
+    const count = document.getElementById(countInputId);
+    if (!list || !count) return;
+
+    const WEEKDAYS = [
+      'Sunday', 'Monday', 'Tuesday', 'Wednesday',
+      'Thursday', 'Friday', 'Saturday',
+    ];
+    const MONTHS = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+
+    // Parsed in parts on purpose. new Date('2026-04-15') is UTC
+    // midnight, which renders as the 14th in every US timezone.
+    function describe(iso) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+      if (!m) return '';
+      const [y, mo, d] = [+m[1], +m[2], +m[3]];
+      const wd = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+      return `${WEEKDAYS[wd]}, ${MONTHS[mo - 1]} ${d}`;
+    }
+
+    function values() {
+      return [...list.querySelectorAll('input[data-slot]')].map((i) => i.value);
+    }
+
+    function render() {
+      const n = Math.max(1, Math.min(52, Number(count.value) || 0));
+      const keep = values();
+      list.innerHTML = '';
+      for (let i = 0; i < n; i++) {
+        const value = keep[i] ?? (initial[i] || '');
+
+        const row = document.createElement('div');
+        row.className = 'evt';
+
+        const num = document.createElement('span');
+        num.className = 'evt__num';
+        num.textContent = String(i + 1);
+
+        const main = document.createElement('div');
+        main.className = 'evt__main';
+        const name = document.createElement('span');
+        name.className = 'evt__name';
+        name.textContent = `Event ${i + 1}`;
+        const hint = document.createElement('span');
+        hint.className = 'evt__hint';
+        main.append(name, hint);
+
+        const field = document.createElement('div');
+        field.className = 'evt__field';
+        const input = document.createElement('input');
+        input.type = 'date';
+        input.className = 'evt__date';
+        input.dataset.slot = String(i);
+        input.value = value;
+        input.setAttribute('aria-label', `Date for event ${i + 1}`);
+
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'evt__clear';
+        clear.textContent = 'Clear';
+        clear.addEventListener('click', () => {
+          input.value = '';
+          sync();
+        });
+
+        field.append(input, clear);
+        row.append(num, main, field);
+        list.append(row);
+
+        input.addEventListener('change', sync);
+      }
+      sync();
+    }
+
+    // Weekday hint, the "set / not set" look, and the summary line.
+    function sync() {
+      const rows = [...list.querySelectorAll('.evt')];
+      const seen = new Map();
+      let filled = 0;
+      rows.forEach((row, i) => {
+        const input = row.querySelector('input[data-slot]');
+        const hint = row.querySelector('.evt__hint');
+        const clear = row.querySelector('.evt__clear');
+        const v = input.value;
+        row.classList.toggle('is-set', !!v);
+        clear.hidden = !v;
+        if (v) {
+          filled += 1;
+          const first = seen.get(v);
+          if (first !== undefined) {
+            row.classList.add('is-clash');
+            hint.textContent = `Same day as event ${first + 1}`;
+          } else {
+            seen.set(v, i);
+            row.classList.remove('is-clash');
+            hint.textContent = describe(v);
+          }
+        } else {
+          row.classList.remove('is-clash');
+          hint.textContent = 'No date yet';
+        }
+      });
+      // Re-mark the first of a clashing pair, which was set before its
+      // duplicate existed.
+      rows.forEach((row) => {
+        const v = row.querySelector('input[data-slot]').value;
+        if (!v) return;
+        const dupes = rows.filter(
+          (r) => r.querySelector('input[data-slot]').value === v,
+        );
+        if (dupes.length > 1) row.classList.add('is-clash');
+      });
+      const summary = document.getElementById(`${listId}_summary`);
+      if (summary) {
+        summary.textContent =
+          `${filled} of ${rows.length} dated` +
+          (rows.some((r) => r.classList.contains('is-clash'))
+            ? ' · two events share a day'
+            : '');
+      }
+    }
+
+    document.getElementById(`${listId}_fill`)?.addEventListener('click', () => {
+      const from = document.getElementById(`${listId}_from`);
+      const every = document.getElementById(`${listId}_every`);
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(from?.value || '');
+      if (!m) return;
+      const step = Math.max(1, Math.min(365, Number(every?.value) || 7));
+      const [y, mo, d] = [+m[1], +m[2], +m[3]];
+      list.querySelectorAll('input[data-slot]').forEach((input, k) => {
+        const dt = new Date(Date.UTC(y, mo - 1, d));
+        dt.setUTCDate(dt.getUTCDate() + step * k);
+        input.value = dt.toISOString().slice(0, 10);
+      });
+      sync();
+    });
+
+    count.addEventListener('input', render);
+    render();
+  })();
+</script>
+
+<style>
+  .evts {
+    display: flex;
+    flex-direction: column;
+    margin: 14px 0 4px;
+    border: 1px solid #e3e9e5;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  /* The row. Three columns: number, name + weekday, the date control.
+     Named grid areas rather than a bare 2-up so the control keeps a
+     comfortable width instead of hugging the label. */
+  .evt {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 17rem);
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    border-top: 1px solid #eef2f0;
+    transition: background 120ms ease;
+  }
+  .evt:first-child { border-top: 0; }
+  .evt:hover { background: #fafcfb; }
+
+  .evt__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    background: var(--brand-green-pale, #e8f5ee);
+    color: var(--brand-green-dark, #0f3d25);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .evt.is-set .evt__num {
+    background: var(--brand-green, #1a5c38);
+    color: #fff;
+  }
+
+  .evt__main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .evt__name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--ink, #1a1a1a);
+  }
+  .evt__hint {
+    font-size: 0.78125rem;
+    color: var(--ink-hint, #9ca3af);
+  }
+  .evt.is-set .evt__hint { color: var(--ink-muted, #6b7280); }
+  .evt.is-clash .evt__hint { color: #a3261f; font-weight: 600; }
+
+  .evt__field { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+  /* The control itself. Native date inputs are small and ugly by
+     default; this gives them the same weight as every other input on
+     the site and room to breathe away from the label. */
+  .evt__date {
+    font: inherit;
+    font-size: 0.9375rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid #c8d4cd;
+    border-radius: 9px;
+    background: #fff;
+    color: var(--ink, #1a1a1a);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .evt__date:hover { border-color: #a9bcb2; }
+  .evt__date:focus-visible {
+    outline: none;
+    border-color: var(--brand-green, #1a5c38);
+    box-shadow: 0 0 0 3px rgba(26, 92, 56, 0.14);
+  }
+  .evt:not(.is-set) .evt__date { color: var(--ink-hint, #9ca3af); }
+  .evt.is-clash .evt__date { border-color: #c4453a; }
+
+  .evt__clear {
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-muted, #6b7280);
+    cursor: pointer;
+  }
+  .evt__clear:hover { background: #eef3f0; color: var(--ink, #1a1a1a); }
+
+  /* The cadence shortcut — deliberately quiet. It is a convenience for
+     a weekly league, not how a season is described. */
+  .evts__helper { margin: 10px 0 2px; font-size: 0.875rem; }
+  .evts__helper summary {
+    cursor: pointer;
+    color: var(--brand-green-dark, #0f3d25);
+    font-weight: 600;
+    padding: 4px 0;
+    width: fit-content;
+  }
+  .evts__helperbody {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    margin-top: 10px;
+    padding: 14px;
+    border: 1px solid #e3e9e5;
+    border-radius: 10px;
+    background: #fafcfb;
+  }
+  .evts__hfield { display: flex; flex-direction: column; gap: 4px; }
+  .evts__hfield > span {
+    font-size: 0.78125rem;
+    color: var(--ink-muted, #6b7280);
+  }
+  .evts__hfield input {
+    font: inherit;
+    font-size: 0.9375rem;
+    padding: 8px 10px;
+    border: 1px solid #c8d4cd;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .evts__hfield input[type='number'] { width: 7rem; }
+  .evts__fill {
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 9px 16px;
+    border: 1px solid var(--brand-green, #1a5c38);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--brand-green-dark, #0f3d25);
+    cursor: pointer;
+  }
+  .evts__fill:hover { background: var(--brand-green-pale, #e8f5ee); }
+  .evts__note {
+    margin: 8px 0 0;
+    font-size: 0.78125rem;
+    color: var(--ink-muted, #6b7280);
+  }
+
+  /* Narrow screens: the control drops under the name rather than being
+     squeezed into a column too small for a native date picker. */
+  @media (max-width: 560px) {
+    .evt {
+      grid-template-columns: 2rem minmax(0, 1fr);
+      row-gap: 8px;
+    }
+    .evt__field { grid-column: 1 / -1; }
+  }
+</style>
