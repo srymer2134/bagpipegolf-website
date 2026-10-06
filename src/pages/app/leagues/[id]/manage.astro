@@ -7,6 +7,11 @@ import {
   type RosterWithHandicap,
 } from '../../../../lib/leagueRoster';
 import { formatDuesLine } from '../../../../lib/leagueDues';
+import {
+  groupedConfigFields, inputKindFor, numberStepFor, suggestionsFor,
+  defaultDisplay, parseIntList,
+} from '../../../../lib/leagueConfigForm';
+import { LEAGUE_CONFIG_FIELDS } from '../../../../lib/leagueCreate';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
@@ -46,7 +51,14 @@ try {
       const [cfgRes, rosRes] = await Promise.all([
         supabase
           .from('leagues')
-          .select('points_model, week_format, team_size, holes_per_week, handicap_basis, allowance_pct, sub_scoring_rule, sub_handicap_rule, absent_rule, bye_rule, attendance_points, flight_count, playoff_size, default_tee, default_first_tee, tee_interval_minutes, timezone, reminder_time, join_code, dues_cents, dues_due_date')
+          .select(
+            // Every generated config column, plus the few this page
+            // shows but does not edit. Hand-listing the config half is
+            // what let it drift before — it now comes from the schema.
+            [...LEAGUE_CONFIG_FIELDS.map((f) => f.name),
+             'points_model', 'sub_scoring_rule', 'flight_count',
+             'playoff_size', 'join_code'].join(', '),
+          )
           .eq('id', id)
           .maybeSingle(),
         supabase
@@ -82,12 +94,22 @@ if (d && d.league.role !== 'commissioner') {
 
 const active = roster.filter((r) => !r.status || r.status === 'active');
 const label = (k: string) => k.replace(/_/g, ' ');
-const setupKeys = [
-  'points_model', 'week_format', 'team_size', 'holes_per_week',
-  'handicap_basis', 'allowance_pct', 'sub_scoring_rule', 'sub_handicap_rule',
-  'absent_rule', 'bye_rule', 'attendance_points', 'flight_count', 'playoff_size',
-];
-const dayKeys = ['default_tee', 'default_first_tee', 'tee_interval_minutes', 'timezone', 'reminder_time'];
+
+// The settings form, built entirely from the generated schema. A new
+// column on `leagues` appears here by being regenerated — see
+// lib/leagueConfigForm.ts, whose test fails if any generated field is
+// left out of a group.
+const groups = groupedConfigFields();
+
+/** The current value, in the shape the control expects. */
+function fieldValue(name: string, kind: string): string {
+  const raw = config?.[name];
+  if (raw === null || raw === undefined) return '';
+  if (kind === 'intlist') return parseIntList(raw).join(', ');
+  // A Postgres `time` comes back as HH:MM:SS; <input type=time> wants HH:MM.
+  if (kind === 'time') return String(raw).slice(0, 5);
+  return String(raw);
+}
 // Season dues get their own formatted row rather than joining
 // `setupKeys`: the column is an integer of CENTS, so the generic
 // String() renderer would print "4500". Null when the league charges
@@ -113,51 +135,80 @@ const duesLine = config
         <LeagueSubnav id={d.league.id} active="manage" />
 
         <div class="notice">
-          <strong>This page reads; the app writes.</strong> Season setup,
-          roster, pairings, subs and flighting are edited in the Bagpipe Golf
-          app. Putting a second editor here would mean two paths into league
-          configuration with different validation, so the portal deliberately
-          shows what's set rather than letting you set it.
+          <strong>Season settings are editable here.</strong> Every field
+          below is generated from the database's own column definitions and
+          rules, so this form and the app are the same definition rendered
+          twice — not two opinions. Saving writes only what you changed, and
+          the league's rules are re-checked on the server before anything
+          lands. Pairings, substitutes and anything mid-round stay in the
+          app, where an offline outbox protects them.
         </div>
 
+        <form id="cfgForm" class="cfg">
+          {groups.map((g) => (
+            <fieldset class="card cfg__g">
+              <legend class="chip">{g.title}</legend>
+              <p class="small muted">{g.blurb}</p>
+              {g.key === 'dues' && duesLine && (
+                <p class="small">Currently <strong>{duesLine}</strong>.</p>
+              )}
+              {g.fields.map((fld) => {
+                const kind = inputKindFor(fld);
+                const val = fieldValue(fld.name, kind);
+                const opts = suggestionsFor(fld);
+                const def = defaultDisplay(fld);
+                return (
+                  <div class="cfg__row">
+                    <label class="cfg__lab" for={`f_${fld.name}`}>{label(fld.name)}</label>
+                    <div class="cfg__in">
+                      {kind === 'select' ? (
+                        <select id={`f_${fld.name}`} data-col={fld.name}>
+                          {!fld.notNull && <option value="">—</option>}
+                          {opts.map((o) => (
+                            <option value={o} selected={String(val) === o}>{o}</option>
+                          ))}
+                        </select>
+                      ) : kind === 'checkbox' ? (
+                        <input type="checkbox" id={`f_${fld.name}`} data-col={fld.name}
+                               checked={val === 'true'} />
+                      ) : kind === 'number' ? (
+                        <input type="number" id={`f_${fld.name}`} data-col={fld.name}
+                               step={numberStepFor(fld)} value={val} />
+                      ) : kind === 'time' ? (
+                        <input type="time" id={`f_${fld.name}`} data-col={fld.name} value={val} />
+                      ) : kind === 'date' ? (
+                        <input type="date" id={`f_${fld.name}`} data-col={fld.name} value={val} />
+                      ) : kind === 'intlist' ? (
+                        <input type="text" id={`f_${fld.name}`} data-col={fld.name}
+                               value={val} placeholder="e.g. 3, 7, 12" inputmode="numeric" />
+                      ) : (
+                        <>
+                          <input type="text" id={`f_${fld.name}`} data-col={fld.name}
+                                 value={val} list={opts.length ? `l_${fld.name}` : undefined} />
+                          {opts.length > 0 && (
+                            <datalist id={`l_${fld.name}`}>
+                              {opts.map((o) => <option value={o}></option>)}
+                            </datalist>
+                          )}
+                        </>
+                      )}
+                      <span class="cfg__hint">
+                        {fld.type}{fld.notNull ? ' · required' : ' · may be blank'}
+                        {def !== null && def !== '' ? ` · default ${def}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </fieldset>
+          ))}
+          <div class="cfg__bar">
+            <button type="submit" id="cfgBtn" class="btn btn--primary">Save settings</button>
+            <span id="cfgMsg" class="small muted"></span>
+          </div>
+        </form>
+
         <section class="grid grid--2">
-          <article class="card">
-            <span class="chip">Season setup</span>
-            <h3>{config ? 'Current configuration' : 'Not available'}</h3>
-            {config && (
-              <>
-                <dl class="kv">
-                  {setupKeys.filter((k) => config![k] !== null && config![k] !== undefined).map((k) => (
-                    <div><dt>{label(k)}</dt><dd>{String(config![k])}</dd></div>
-                  ))}
-                  {duesLine && <div><dt>season dues</dt><dd>{duesLine}</dd></div>}
-                </dl>
-                {!duesLine && (
-                  <p class="small muted">
-                    No season dues set. The commissioner sets them in the app
-                    under League&nbsp;&rsaquo;&nbsp;Season&nbsp;dues.
-                  </p>
-                )}
-              </>
-            )}
-          </article>
-
-          <article class="card">
-            <span class="chip">Day defaults</span>
-            <h3>Tee times &amp; reminders</h3>
-            {config && (
-              <dl class="kv">
-                {dayKeys.filter((k) => config![k] !== null && config![k] !== undefined).map((k) => (
-                  <div><dt>{label(k)}</dt><dd>{String(config![k])}</dd></div>
-                ))}
-              </dl>
-            )}
-            <p class="small muted">
-              Reminders only send once <code>JOB_SECRET</code> is set on the
-              API — §40.
-            </p>
-          </article>
-
           <article class="card">
             <span class="chip">Roster</span>
             <h3>{active.length} active {active.length === 1 ? 'member' : 'members'}</h3>
@@ -202,18 +253,71 @@ const duesLine = config
         </section>
 
         <section class="lsec">
-          <h2 class="lsec__h">Edited in the app</h2>
+          <h2 class="lsec__h">Still edited in the app</h2>
           <p class="small muted">
-            Pairings and substitutes · flighting · weekly matchups · the pot ·
-            messaging the league. Each of these writes through the app's
-            validation, and several are mid-round surfaces that have to work
-            offline.
+            Pairings and substitutes · weekly matchups · recording scores ·
+            messaging the league. These are mid-round or on-course surfaces,
+            and the app has an offline outbox that a browser tab does not —
+            the dividing line the parity plan calls "the desk, not the tee
+            box".
           </p>
         </section>
       </>
     )}
   </main>
 </BaseLayout>
+
+<script is:inline define:vars={{ leagueId: d?.league?.id ?? '' }}>
+  (() => {
+    const form = document.getElementById('cfgForm');
+    if (!form || !leagueId) return;
+    const btn = document.getElementById('cfgBtn');
+    const msg = document.getElementById('cfgMsg');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      // Send every field; the SERVER diffs against the current row.
+      // Diffing here would mean the browser deciding what changed,
+      // which is the thing a stale tab gets wrong.
+      const payload = {};
+      for (const el of form.querySelectorAll('[data-col]')) {
+        payload[el.dataset.col] =
+          el.type === 'checkbox' ? el.checked : el.value;
+      }
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      msg.textContent = '';
+      msg.className = 'small muted';
+      try {
+        const res = await fetch(
+          `/api/leagues/${encodeURIComponent(leagueId)}/config`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          },
+        );
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          msg.textContent = out.error || 'Could not save.';
+          msg.className = 'small cfg__err';
+          return;
+        }
+        const n = (out.changed || []).length;
+        msg.textContent = n === 0
+          ? 'No changes.'
+          : `Saved ${n} setting${n === 1 ? '' : 's'}.`;
+      } catch {
+        msg.textContent = 'Could not reach the server.';
+        msg.className = 'small cfg__err';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+  })();
+</script>
 
 <style>
   .card h3 { font-size: 1.0625rem; color: var(--brand-green-dark); margin: 8px 0 6px; }
@@ -235,6 +339,29 @@ const duesLine = config
     padding: 14px 16px; border-radius: 12px; margin: 16px 0; line-height: 1.5;
     font-size: 0.875rem; background: #f4f7f5; border: 1px solid #e3e9e5;
   }
+  .cfg { display: grid; gap: 14px; margin: 16px 0; }
+  .cfg__g { border: 1px solid #e3e9e5; }
+  .cfg__g legend { padding: 0 6px; }
+  .cfg__row {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 10px; align-items: start; padding: 6px 0;
+    border-top: 1px solid #f0f4f2;
+  }
+  .cfg__lab {
+    font-size: 0.84375rem; text-transform: capitalize;
+    color: var(--ink-muted, #4b5b54); padding-top: 6px;
+  }
+  .cfg__in { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .cfg__in input[type="text"], .cfg__in input[type="number"],
+  .cfg__in input[type="time"], .cfg__in input[type="date"], .cfg__in select {
+    width: 100%; padding: 6px 8px; font-size: 0.875rem;
+    border: 1px solid #cfdad4; border-radius: 8px; background: #fff;
+  }
+  .cfg__in input[type="checkbox"] { width: 18px; height: 18px; margin: 6px 0; }
+  .cfg__hint { font-size: 0.6875rem; color: var(--ink-muted, #4b5b54); }
+  .cfg__bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .cfg__err { color: #a3261f; }
+  @media (max-width: 560px) { .cfg__row { grid-template-columns: 1fr; } }
   .small { font-size: 0.78125rem; }
   .muted { color: var(--ink-muted, #4b5b54); }
   code { background: #eef3f0; padding: .1em .35em; border-radius: 3px; }

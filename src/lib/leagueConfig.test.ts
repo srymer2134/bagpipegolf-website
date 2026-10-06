@@ -35,6 +35,7 @@ import {
   LEAGUE_CONFIG_FIELDS,
   LEAGUE_CONFIG_RULES,
   LEAGUE_CONFIG_SOURCE,
+  LEAGUE_CONFIG_SOURCES,
   RULE_CHECKS,
   WEB_LEAGUE_TEMPLATES,
   buildLeagueRow,
@@ -296,12 +297,44 @@ describe('schedule formats are seeded per slot, like the app', () => {
 describe('the generated file is the generated shape', () => {
   // Catches a hand-edited, truncated or stale copy — the failure the
   // whole single-source design exists to prevent.
-  it('names the migration it was parsed from', () => {
+  it('names the migrations it was parsed from', () => {
     expect(LEAGUE_CONFIG_SOURCE).toMatch(/20261013_league_weekly_matchup_tables\.sql$/);
+    expect(LEAGUE_CONFIG_SOURCES).toHaveLength(4);
+    expect(LEAGUE_CONFIG_SOURCES.join(' ')).toMatch(/20261025_league_season_dues/);
   });
 
-  it('carries all 23 configuration columns', () => {
-    expect(LEAGUE_CONFIG_FIELDS).toHaveLength(23);
+  it('carries all 34 configuration columns, not just the first migration\'s 23', () => {
+    // Was 23 until 2026-10-05. The generator read ONE migration, so
+    // nine columns that landed on `leagues` afterwards were invisible
+    // to this file — a settings form built from it would have silently
+    // omitted the weekly pot, the reminder time and the season dues.
+    expect(LEAGUE_CONFIG_FIELDS).toHaveLength(34);
+    for (const name of [
+      'pot_skins', 'pot_skins_entry', 'pot_skins_carryover',
+      'pot_ctp_entry', 'pot_ld_entry', 'pot_ctp_holes', 'pot_ld_holes',
+      'reminder_time', 'timezone',
+      'dues_cents', 'dues_due_date',
+    ]) {
+      expect(leagueConfigField(name), `${name} missing`).toBeDefined();
+    }
+  });
+
+  it('carries the array and date shapes the old parse could not express', () => {
+    expect(leagueConfigField('pot_ctp_holes')!.type).toBe('smallint[]');
+    expect(leagueConfigField('pot_skins_entry')!.type).toBe('numeric(6,2)');
+    const due = leagueConfigField('dues_due_date')!;
+    expect(due.type).toBe('date');
+    expect(due.notNull).toBe(false);
+    expect(due.default).toBeNull();
+  });
+
+  it('clientPatchable is the app matchColumns allow-list, NOT a permission', () => {
+    // dues_* are written by the app every day through their own typed
+    // updateLeague arguments, and RLS lets a league owner update any
+    // column on their own row. A form must not read `false` here as
+    // "read-only".
+    expect(leagueConfigField('pot_skins')!.clientPatchable).toBe(true);
+    expect(leagueConfigField('dues_cents')!.clientPatchable).toBe(false);
   });
 
   it('carries types, defaults and nullability, not just names', () => {

@@ -1,8 +1,14 @@
 {
- "_comment": "GENERATED. Do not hand-edit. Columns, defaults, allowed values and cross-field rules are parsed from supabase/migrations/20261013_league_weekly_matchup_tables.sql; templates come from kLeagueTemplates. Regenerate with: REGEN=1 flutter test test/parity/league_config_schema.json, verify the diff, then copy to bagpipegolf-website/src/lib/__generated__/league-config.json",
- "version": 1,
+ "_comment": "GENERATED. Do not hand-edit. Columns, defaults, allowed values and cross-field rules are parsed from the migrations in \"sources\"; templates come from kLeagueTemplates. Regenerate with: REGEN=1 flutter test test/parity/league_config_schema.json, verify the diff, then copy to bagpipegolf-website/src/lib/__generated__/league-config.json. clientPatchable = the column is in the app's matchColumns allow-list; it is NOT a permission — a league owner may update any of these columns under RLS.",
+ "version": 2,
  "source": "supabase/migrations/20261013_league_weekly_matchup_tables.sql",
- "columnCount": 23,
+ "sources": [
+  "supabase/migrations/20261013_league_weekly_matchup_tables.sql",
+  "supabase/migrations/20261017_league_week_pot.sql",
+  "supabase/migrations/20261019_league_reminder_time.sql",
+  "supabase/migrations/20261025_league_season_dues.sql"
+ ],
+ "columnCount": 34,
  "fields": [
   {
    "name": "team_size",
@@ -235,6 +241,109 @@
    "allowed": null,
    "allowedFrom": null,
    "clientPatchable": true
+  },
+  {
+   "name": "pot_skins",
+   "type": "text",
+   "notNull": true,
+   "default": "'off'",
+   "allowed": [
+    "off",
+    "gross",
+    "net"
+   ],
+   "allowedFrom": "leagues_pot_skins_chk",
+   "clientPatchable": true
+  },
+  {
+   "name": "pot_skins_entry",
+   "type": "numeric(6,2)",
+   "notNull": true,
+   "default": "0",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "pot_skins_carryover",
+   "type": "boolean",
+   "notNull": true,
+   "default": "true",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "pot_ctp_entry",
+   "type": "numeric(6,2)",
+   "notNull": true,
+   "default": "0",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "pot_ld_entry",
+   "type": "numeric(6,2)",
+   "notNull": true,
+   "default": "0",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "pot_ctp_holes",
+   "type": "smallint[]",
+   "notNull": true,
+   "default": "'{}'",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "pot_ld_holes",
+   "type": "smallint[]",
+   "notNull": true,
+   "default": "'{}'",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "reminder_time",
+   "type": "time",
+   "notNull": true,
+   "default": "'09:00'",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "timezone",
+   "type": "text",
+   "notNull": true,
+   "default": "'America/Denver'",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": true
+  },
+  {
+   "name": "dues_cents",
+   "type": "integer",
+   "notNull": true,
+   "default": "0",
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": false
+  },
+  {
+   "name": "dues_due_date",
+   "type": "date",
+   "notNull": false,
+   "default": null,
+   "allowed": null,
+   "allowedFrom": null,
+   "clientPatchable": false
   }
  ],
  "rules": [

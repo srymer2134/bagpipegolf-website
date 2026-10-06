@@ -39,7 +39,8 @@ export type SubScoringRule = 'regular_keeps_sub' | 'blind_default' | 'sub_takes_
 //
 // 🚨 WHAT IS AND IS NOT GUARDED. The Flutter test guards that ITS copy
 // matches the migration. `leagueConfig.test.ts` guards that this copy
-// is well-formed, complete (23 columns), and that every cross-field
+// is well-formed, complete (34 columns across four migrations), and
+// that every cross-field
 // rule in it has an implementation here. **Nothing automatically
 // checks that this copy is as FRESH as the Flutter one** — the repos
 // are separate and neither CI can see the other. So the copy step is
@@ -95,6 +96,10 @@ export const LEAGUE_CONFIG_FIELDS = rawConfig.fields as LeagueConfigField[];
 export const LEAGUE_CONFIG_RULES = rawConfig.rules as LeagueConfigRule[];
 export const GENERATED_TEMPLATES = rawConfig.templates as GeneratedTemplate[];
 export const LEAGUE_CONFIG_SOURCE = rawConfig.source as string;
+/** Every migration the schema was parsed from. Four as of 2026-10-05:
+ *  the 20261013 block plus the weekly pot, the reminder time and the
+ *  season dues, which the single-file generator had been missing. */
+export const LEAGUE_CONFIG_SOURCES = rawConfig.sources as string[];
 
 /// A field's definition by column name, for a form that renders itself.
 export function leagueConfigField(name: string): LeagueConfigField | undefined {
