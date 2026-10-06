@@ -46,7 +46,7 @@ const GROUP_DEFS: Array<{ key: string; title: string; blurb: string; names: stri
   {
     key: 'scoring',
     title: 'Scoring',
-    blurb: 'How a week turns into points.',
+    blurb: 'How an event turns into points.',
     names: [
       'week_format', 'points_per_hole', 'tie_hole_points', 'points_per_match',
       'team_points', 'team_points_basis', 'attendance_points',
@@ -54,8 +54,8 @@ const GROUP_DEFS: Array<{ key: string; title: string; blurb: string; names: stri
   },
   {
     key: 'handicaps',
-    title: 'Teams & handicaps',
-    blurb: 'Team size, and how strokes are allocated.',
+    title: 'Handicaps',
+    blurb: 'How strokes are allocated, and what a substitute plays off.',
     names: [
       'team_size', 'handicap_basis', 'allowance_pct', 'max_strokes_given',
       'sub_handicap_rule', 'sub_league_max',
@@ -73,13 +73,13 @@ const GROUP_DEFS: Array<{ key: string; title: string; blurb: string; names: stri
   {
     key: 'season',
     title: 'Season shape',
-    blurb: 'Holes per week, and where the season splits.',
+    blurb: 'Holes per event, and where the season splits.',
     names: ['holes_per_week', 'half_split_slot'],
   },
   {
     key: 'day',
-    title: 'Course, tee times & reminders',
-    blurb: 'The defaults a week inherits.',
+    title: 'Course & tee times',
+    blurb: 'The defaults a new event inherits.',
     names: [
       'default_course_id', 'default_tee', 'default_first_tee',
       'tee_interval_minutes', 'reminder_time', 'timezone',
@@ -87,8 +87,8 @@ const GROUP_DEFS: Array<{ key: string; title: string; blurb: string; names: stri
   },
   {
     key: 'pot',
-    title: 'Weekly pot',
-    blurb: 'Entries are collected in person — never by card.',
+    title: 'Pot',
+    blurb: 'Skins and contests. Entries are collected in person, never by card.',
     names: [
       'pot_skins', 'pot_skins_entry', 'pot_skins_carryover',
       'pot_ctp_entry', 'pot_ld_entry', 'pot_ctp_holes', 'pot_ld_holes',

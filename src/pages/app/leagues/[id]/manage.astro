@@ -6,11 +6,14 @@ import {
   type RosterRow,
   type RosterWithHandicap,
 } from '../../../../lib/leagueRoster';
-import { formatDuesLine } from '../../../../lib/leagueDues';
 import {
   groupedConfigFields, inputKindFor, numberStepFor, suggestionsFor,
-  defaultDisplay, parseIntList,
+  parseIntList,
 } from '../../../../lib/leagueConfigForm';
+import {
+  FIELD_COPY, appliesTo, centsToInput, fieldLabel, sectionEmptyReason,
+  valueHelp, valueLabel, CENTS_FIELDS,
+} from '../../../../lib/leagueFieldLanguage';
 import { LEAGUE_CONFIG_FIELDS } from '../../../../lib/leagueCreate';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
@@ -93,7 +96,6 @@ if (d && d.league.role !== 'commissioner') {
 }
 
 const active = roster.filter((r) => !r.status || r.status === 'active');
-const label = (k: string) => k.replace(/_/g, ' ');
 
 // The settings form, built entirely from the generated schema. A new
 // column on `leagues` appears here by being regenerated — see
@@ -104,19 +106,24 @@ const groups = groupedConfigFields();
 /** The current value, in the shape the control expects. */
 function fieldValue(name: string, kind: string): string {
   const raw = config?.[name];
+  // Money is stored in cents and typed in dollars.
+  if (CENTS_FIELDS.has(name)) return centsToInput(raw);
   if (raw === null || raw === undefined) return '';
   if (kind === 'intlist') return parseIntList(raw).join(', ');
   // A Postgres `time` comes back as HH:MM:SS; <input type=time> wants HH:MM.
   if (kind === 'time') return String(raw).slice(0, 5);
   return String(raw);
 }
-// Season dues get their own formatted row rather than joining
-// `setupKeys`: the column is an integer of CENTS, so the generic
-// String() renderer would print "4500". Null when the league charges
-// none, which drops the row entirely instead of showing "$0".
-const duesLine = config
-  ? formatDuesLine(config.dues_cents, config.dues_due_date)
-  : null;
+
+// Most of these columns arrived with the weekly-matchup migration and
+// describe a MATCH. A position or stroke-aggregate league has no
+// opponent, so showing them is worse than useless — a director assumes
+// a setting they can see does something. Hiding is display only;
+// nothing is cleared.
+const snapshot = (config ?? {}) as Record<string, unknown>;
+const visibleGroups = groups
+  .map((g) => ({ ...g, fields: g.fields.filter((f) => appliesTo(f.name, snapshot)) }))
+  .filter((g) => g.fields.length > 0 || sectionEmptyReason(g.key, snapshot));
 ---
 
 <BaseLayout title={d ? `Manage ${d.league.name} · Bagpipe Golf` : 'Manage league · Bagpipe Golf'}>
@@ -145,57 +152,68 @@ const duesLine = config
         </div>
 
         <form id="cfgForm" class="cfg">
-          {groups.map((g) => (
+          {visibleGroups.map((g) => (
             <fieldset class="card cfg__g">
               <legend class="chip">{g.title}</legend>
               <p class="small muted">{g.blurb}</p>
-              {g.key === 'dues' && duesLine && (
-                <p class="small">Currently <strong>{duesLine}</strong>.</p>
+              {sectionEmptyReason(g.key, snapshot) && (
+                <p class="cfg__na">{sectionEmptyReason(g.key, snapshot)}</p>
               )}
               {g.fields.map((fld) => {
                 const kind = inputKindFor(fld);
                 const val = fieldValue(fld.name, kind);
                 const opts = suggestionsFor(fld);
-                const def = defaultDisplay(fld);
+                const copy = FIELD_COPY[fld.name];
+                const chosenHelp = kind === 'select' ? valueHelp(fld.name, val) : undefined;
+                const isCents = CENTS_FIELDS.has(fld.name);
                 return (
                   <div class="cfg__row">
-                    <label class="cfg__lab" for={`f_${fld.name}`}>{label(fld.name)}</label>
+                    <label class="cfg__lab" for={`f_${fld.name}`}>{fieldLabel(fld.name)}</label>
                     <div class="cfg__in">
-                      {kind === 'select' ? (
-                        <select id={`f_${fld.name}`} data-col={fld.name}>
-                          {!fld.notNull && <option value="">—</option>}
-                          {opts.map((o) => (
-                            <option value={o} selected={String(val) === o}>{o}</option>
-                          ))}
-                        </select>
-                      ) : kind === 'checkbox' ? (
-                        <input type="checkbox" id={`f_${fld.name}`} data-col={fld.name}
-                               checked={val === 'true'} />
-                      ) : kind === 'number' ? (
-                        <input type="number" id={`f_${fld.name}`} data-col={fld.name}
-                               step={numberStepFor(fld)} value={val} />
-                      ) : kind === 'time' ? (
-                        <input type="time" id={`f_${fld.name}`} data-col={fld.name} value={val} />
-                      ) : kind === 'date' ? (
-                        <input type="date" id={`f_${fld.name}`} data-col={fld.name} value={val} />
-                      ) : kind === 'intlist' ? (
-                        <input type="text" id={`f_${fld.name}`} data-col={fld.name}
-                               value={val} placeholder="e.g. 3, 7, 12" inputmode="numeric" />
-                      ) : (
-                        <>
+                      <div class="cfg__ctl">
+                        {copy?.prefix && <span class="cfg__affix">{copy.prefix}</span>}
+                        {kind === 'select' ? (
+                          <select id={`f_${fld.name}`} data-col={fld.name}>
+                            {!fld.notNull && <option value="">Not set</option>}
+                            {opts.map((o) => (
+                              <option value={o} selected={String(val) === o}>
+                                {valueLabel(fld.name, o)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : kind === 'checkbox' ? (
+                          <input type="checkbox" id={`f_${fld.name}`} data-col={fld.name}
+                                 checked={val === 'true'} />
+                        ) : kind === 'number' ? (
+                          <input type="number" id={`f_${fld.name}`} data-col={fld.name}
+                                 data-cents={isCents ? 'true' : undefined}
+                                 step={isCents ? '0.01' : numberStepFor(fld)} value={val}
+                                 inputmode="decimal" />
+                        ) : kind === 'time' ? (
+                          <input type="time" id={`f_${fld.name}`} data-col={fld.name} value={val} />
+                        ) : kind === 'date' ? (
+                          <input type="date" id={`f_${fld.name}`} data-col={fld.name} value={val} />
+                        ) : kind === 'intlist' ? (
                           <input type="text" id={`f_${fld.name}`} data-col={fld.name}
-                                 value={val} list={opts.length ? `l_${fld.name}` : undefined} />
-                          {opts.length > 0 && (
-                            <datalist id={`l_${fld.name}`}>
-                              {opts.map((o) => <option value={o}></option>)}
-                            </datalist>
-                          )}
-                        </>
+                                 value={val} placeholder="3, 7, 12" inputmode="numeric" />
+                        ) : (
+                          <>
+                            <input type="text" id={`f_${fld.name}`} data-col={fld.name}
+                                   value={val} list={opts.length ? `l_${fld.name}` : undefined} />
+                            {opts.length > 0 && (
+                              <datalist id={`l_${fld.name}`}>
+                                {opts.map((o) => (
+                                  <option value={o} label={valueLabel(fld.name, o)}></option>
+                                ))}
+                              </datalist>
+                            )}
+                          </>
+                        )}
+                        {copy?.suffix && <span class="cfg__affix">{copy.suffix}</span>}
+                      </div>
+                      {(chosenHelp || copy?.help) && (
+                        <span class="cfg__hint">{chosenHelp ?? copy?.help}</span>
                       )}
-                      <span class="cfg__hint">
-                        {fld.type}{fld.notNull ? ' · required' : ' · may be blank'}
-                        {def !== null && def !== '' ? ` · default ${def}` : ''}
-                      </span>
                     </div>
                   </div>
                 );
@@ -281,8 +299,17 @@ const duesLine = config
       // which is the thing a stale tab gets wrong.
       const payload = {};
       for (const el of form.querySelectorAll('[data-col]')) {
-        payload[el.dataset.col] =
-          el.type === 'checkbox' ? el.checked : el.value;
+        if (el.type === 'checkbox') {
+          payload[el.dataset.col] = el.checked;
+        } else if (el.dataset.cents === 'true') {
+          // Typed in dollars, stored in cents. Rounded, not truncated:
+          // 45.55 * 100 is 4554.999… in binary floating point.
+          const s = String(el.value).replace(/[^0-9.]/g, '');
+          payload[el.dataset.col] =
+            s === '' ? 0 : Math.max(0, Math.round(Number(s) * 100));
+        } else {
+          payload[el.dataset.col] = el.value;
+        }
       }
       const label = btn.textContent;
       btn.disabled = true;
@@ -358,7 +385,13 @@ const duesLine = config
     border: 1px solid #cfdad4; border-radius: 8px; background: #fff;
   }
   .cfg__in input[type="checkbox"] { width: 18px; height: 18px; margin: 6px 0; }
-  .cfg__hint { font-size: 0.6875rem; color: var(--ink-muted, #4b5b54); }
+  .cfg__ctl { display: flex; align-items: center; gap: 8px; }
+  .cfg__affix { font-size: 0.875rem; color: var(--ink-muted, #4b5b54); flex: 0 0 auto; }
+  .cfg__hint { font-size: 0.75rem; color: var(--ink-muted, #4b5b54); line-height: 1.45; }
+  .cfg__na {
+    margin: 4px 0 0; font-size: 0.8125rem; line-height: 1.5;
+    color: var(--ink-muted, #4b5b54);
+  }
   .cfg__bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .cfg__err { color: #a3261f; }
   @media (max-width: 560px) { .cfg__row { grid-template-columns: 1fr; } }
