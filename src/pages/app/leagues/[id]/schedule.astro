@@ -95,7 +95,6 @@ if (existingDates.length === 0 && sched?.startDate) {
                 spaceFrom={sched?.startDate ?? today}
                 spaceEvery={sched?.intervalDays ?? 7}
               />
-              <p class="small muted" id="dateList_summary"></p>
 
               <button type="submit" id="schedBtn" class="btn btn--primary">
                 {sched ? 'Save schedule' : 'Create schedule'}
