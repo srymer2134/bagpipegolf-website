@@ -67,6 +67,12 @@ export type LeagueSchedule = {
   eventCount: number;
   bindings?: Record<string, string>;
   formats?: Record<string, string>;
+  /** Slot → the commissioner's name for that event ("Opening
+   *  Scramble"). Absent or '' means the event is just "Event N".
+   *  Same schemaless, slot-keyed home as `bindings` and `formats`,
+   *  so no DDL — see the Flutter `LeagueSchedule` model, which must
+   *  carry this too or the app drops it on its next schedule write. */
+  names?: Record<string, string>;
 };
 
 /**

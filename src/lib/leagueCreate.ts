@@ -60,6 +60,7 @@ export type SubScoringRule = 'regular_keeps_sub' | 'blind_default' | 'sub_takes_
 
 import rawConfig from './__generated__/league-config.json';
 import { seedFromDates, validateSeasonDates } from './leagueSeasonDates';
+import { namesToMap } from './leagueEventNames';
 
 export type LeagueConfigField = {
   name: string;
@@ -239,6 +240,8 @@ export type CreateLeagueInput = {
    *  events whose date is not decided yet. These become
    *  `league_weeks` rows, which is where a date actually lives. */
   dates?: Array<string | null | undefined> | null;
+  /** The commissioner's name per event, '' where unnamed. */
+  names?: Array<string | null | undefined> | null;
 };
 
 export type CreateLeagueProblem = { field: string; message: string };
@@ -349,6 +352,7 @@ export function buildLeagueRow(
       eventCount,
       bindings: {},
       formats,
+      names: namesToMap(input.names ?? []),
     };
   }
   return row;

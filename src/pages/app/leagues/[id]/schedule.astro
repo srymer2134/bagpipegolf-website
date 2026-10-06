@@ -5,6 +5,7 @@ import { createSupabaseClient } from '../../../../lib/supabase';
 import { leagueDetail, rsvpLabel, type PortalDetail } from '../../../../lib/leaguePortal';
 import { dateLabel } from '../../../../lib/leaguePublic';
 import SeasonDateList from '../../../../components/SeasonDateList.astro';
+import { namesToList } from '../../../../lib/leagueEventNames';
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
@@ -92,6 +93,7 @@ if (existingDates.length === 0 && sched?.startDate) {
               <SeasonDateList
                 countInputId="evCount"
                 initial={existingDates}
+                initialNames={namesToList(sched?.names, sched?.eventCount ?? existingDates.length)}
                 spaceFrom={sched?.startDate ?? today}
                 spaceEvery={sched?.intervalDays ?? 7}
               />
@@ -198,6 +200,7 @@ if (existingDates.length === 0 && sched?.startDate) {
           body: JSON.stringify({
             eventCount: Number(fd.get('eventCount') || 0),
             dates: [...dateList.querySelectorAll('input[data-slot]')].map((i) => i.value),
+            names: [...dateList.querySelectorAll('input[data-name]')].map((i) => i.value),
           }),
         });
         const body = await res.json().catch(() => ({}));

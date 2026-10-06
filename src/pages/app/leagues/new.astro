@@ -229,6 +229,7 @@ const PRESET_ROWS = mc
         // not decided. The server infers the seed interval from these
         // and writes `league_weeks` rows for the dated ones.
         dates: [...dateList.querySelectorAll('input[data-slot]')].map((i) => i.value),
+        names: [...dateList.querySelectorAll('input[data-name]')].map((i) => i.value),
       };
 
       try {

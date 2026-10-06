@@ -4,6 +4,7 @@ import type { LeagueSchedule } from '../../../../lib/leaguePortal';
 import {
   seedFromDates, validateSeasonDates, weekRowsFor,
 } from '../../../../lib/leagueSeasonDates';
+import { namesToMap } from '../../../../lib/leagueEventNames';
 
 // POST /api/leagues/[id]/schedule
 //
@@ -36,6 +37,8 @@ export const POST: APIRoute = async (ctx) => {
     /** One `yyyy-MM-dd` per event, index = slot, '' where undecided.
      *  These become `league_weeks` rows — the authority for a date. */
     dates?: Array<string | null>;
+    /** The commissioner's name per event, '' where unnamed. */
+    names?: Array<string | null>;
   };
   try {
     body = await ctx.request.json();
@@ -116,6 +119,9 @@ export const POST: APIRoute = async (ctx) => {
     eventCount,
     bindings: prev?.bindings ?? {},
     formats: prev?.formats ?? {},
+    // Absent `names` in the body means "this client does not manage
+    // names" — keep what is stored rather than wiping it.
+    names: body.names ? namesToMap(body.names) : (prev?.names ?? {}),
   };
 
   const { data, error } = await supabase

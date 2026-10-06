@@ -1,21 +1,22 @@
 ---
-// A season as a list of dates — one field per event.
+// A season: one row per event — its name, and when it is played.
 //
 // Shared by /app/leagues/new and /app/leagues/[id]/schedule so the two
 // calendar surfaces cannot drift.
 //
-// DESIGN NOTE, 2026-10-06. The first version put a numbered chip, a
-// divider, a hover tint and a per-row Clear button on every line
-// inside a bordered container. Sam: "way worse… make it more modern."
-// He was right — that was chrome, not design. Eight date pickers do
-// not need eight badges. This version removes all of it and lets a
-// grid and whitespace do the work: a label, a field, and one quiet
-// line once a date is chosen. Nothing else.
+// ⚠️ THE STYLES BELOW ARE `is:global` ON PURPOSE. Astro scopes a
+// component's `<style>` by rewriting every selector to
+// `.foo[data-astro-cid-HASH]` and stamping that attribute onto
+// elements **it** renders. These rows are built at runtime with
+// `document.createElement`, so they never carry the attribute and
+// every scoped rule missed them completely. Two redesigns shipped
+// looking identical to the unstyled original because of it. Everything
+// here is namespaced `sdl*`, which is what makes going global safe.
 //
 // DOM CONTRACT, relied on by both pages' submit handlers:
 //   • the grid container has id={listId}
-//   • every date input is `input[data-slot]`, in slot order
-// So a page reads its dates with:
+//   • date inputs are `input[data-slot]`, name inputs `input[data-name]`
+//   • both in slot order
 //   [...document.querySelectorAll('#<listId> input[data-slot]')]
 //     .map((i) => i.value)
 
@@ -26,6 +27,8 @@ interface Props {
   countInputId: string;
   /** Existing dates by slot, `yyyy-MM-dd`; '' where undecided. */
   initial?: string[];
+  /** Existing event names by slot; '' falls back to "Event N". */
+  initialNames?: string[];
   /** Default "starting" date for the spacing shortcut. */
   spaceFrom: string;
   /** Default cadence for the shortcut. Never applied on its own. */
@@ -36,13 +39,19 @@ const {
   listId = 'dateList',
   countInputId,
   initial = [],
+  initialNames = [],
   spaceFrom,
   spaceEvery = 7,
 } = Astro.props;
 ---
 
 <div class="sdl">
-  <div class="sdl__grid" id={listId} data-count-input={countInputId}></div>
+  <div class="sdl__head">
+    <span class="sdl__h sdl__h--name">Event</span>
+    <span class="sdl__h sdl__h--date">Date</span>
+  </div>
+
+  <div class="sdl__rows" id={listId} data-count-input={countInputId}></div>
 
   <div class="sdl__foot">
     <p class="sdl__count" id={`${listId}_summary`}></p>
@@ -64,18 +73,18 @@ const {
       </span>
     </label>
     <button type="button" class="sdl__apply" id={`${listId}_fill`}>Apply</button>
-    <p class="sdl__hint">Fills the fields above. Change any of them after.</p>
+    <p class="sdl__hint">Fills the dates above. Change any of them after.</p>
   </div>
 </div>
 
-<script is:inline define:vars={{ listId, initial }}>
+<script is:inline define:vars={{ listId, initial, initialNames }}>
   (() => {
-    const grid = document.getElementById(listId);
-    if (!grid) return;
-    const count = document.getElementById(grid.dataset.countInput);
+    const rows = document.getElementById(listId);
+    if (!rows) return;
+    const count = document.getElementById(rows.dataset.countInput);
     if (!count) return;
 
-    const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     // Parsed in parts on purpose: new Date('2026-04-15') is UTC
     // midnight, which renders as the 14th in every US timezone.
@@ -87,57 +96,68 @@ const {
 
     function render() {
       const n = Math.max(1, Math.min(52, Number(count.value) || 0));
-      const keep = [...grid.querySelectorAll('input[data-slot]')].map((i) => i.value);
-      grid.innerHTML = '';
+      const keepD = [...rows.querySelectorAll('input[data-slot]')].map((i) => i.value);
+      const keepN = [...rows.querySelectorAll('input[data-name]')].map((i) => i.value);
+      rows.innerHTML = '';
       for (let i = 0; i < n; i++) {
-        const cell = document.createElement('label');
-        cell.className = 'sdl__cell';
+        const row = document.createElement('div');
+        row.className = 'sdl__row';
 
-        const lab = document.createElement('span');
-        lab.className = 'sdl__label';
-        lab.textContent = `Event ${i + 1}`;
+        const nameWrap = document.createElement('div');
+        nameWrap.className = 'sdl__cell sdl__cell--name';
+        const name = document.createElement('input');
+        name.type = 'text';
+        name.className = 'sdl__input sdl__input--name';
+        name.dataset.name = String(i);
+        name.value = keepN[i] ?? (initialNames[i] || '');
+        name.placeholder = `Event ${i + 1}`;
+        name.maxLength = 60;
+        name.setAttribute('aria-label', `Name for event ${i + 1}`);
+        nameWrap.append(name);
 
-        const input = document.createElement('input');
-        input.type = 'date';
-        input.className = 'sdl__input';
-        input.dataset.slot = String(i);
-        input.value = keep[i] ?? (initial[i] || '');
-        input.setAttribute('aria-label', `Date for event ${i + 1}`);
-        input.addEventListener('change', sync);
-
+        const dateWrap = document.createElement('div');
+        dateWrap.className = 'sdl__cell sdl__cell--date';
+        const date = document.createElement('input');
+        date.type = 'date';
+        date.className = 'sdl__input sdl__input--date';
+        date.dataset.slot = String(i);
+        date.value = keepD[i] ?? (initial[i] || '');
+        date.setAttribute('aria-label', `Date for event ${i + 1}`);
+        date.addEventListener('change', sync);
         const note = document.createElement('span');
         note.className = 'sdl__note';
+        dateWrap.append(date, note);
 
-        cell.append(lab, input, note);
-        grid.append(cell);
+        row.append(nameWrap, dateWrap);
+        rows.append(row);
       }
       sync();
     }
 
     function sync() {
-      const cells = [...grid.querySelectorAll('.sdl__cell')];
-      const byDate = new Map();
+      const all = [...rows.querySelectorAll('.sdl__row')];
+      const seen = new Map();
       let filled = 0;
-      for (const cell of cells) {
-        const v = cell.querySelector('input[data-slot]').value;
+      for (const row of all) {
+        const v = row.querySelector('input[data-slot]').value;
         if (!v) continue;
         filled += 1;
-        byDate.set(v, (byDate.get(v) || 0) + 1);
+        seen.set(v, (seen.get(v) || 0) + 1);
       }
-      cells.forEach((cell) => {
-        const v = cell.querySelector('input[data-slot]').value;
-        const note = cell.querySelector('.sdl__note');
-        const clash = !!v && byDate.get(v) > 1;
-        cell.classList.toggle('is-set', !!v);
-        cell.classList.toggle('is-clash', clash);
+      all.forEach((row) => {
+        const v = row.querySelector('input[data-slot]').value;
+        const note = row.querySelector('.sdl__note');
+        const clash = !!v && seen.get(v) > 1;
+        row.classList.toggle('is-set', !!v);
+        row.classList.toggle('is-clash', clash);
         note.textContent = clash ? 'Already used' : v ? weekday(v) : '';
       });
       const summary = document.getElementById(`${listId}_summary`);
       if (summary) {
-        const clashes = cells.filter((c) => c.classList.contains('is-clash')).length;
+        const clashes = all.filter((r) => r.classList.contains('is-clash')).length;
         summary.textContent = clashes
           ? 'Two events share a date'
-          : `${filled} of ${cells.length} scheduled`;
+          : `${filled} of ${all.length} scheduled`;
         summary.classList.toggle('is-warn', clashes > 0);
       }
     }
@@ -153,7 +173,7 @@ const {
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(from?.value || '');
       if (!m) return;
       const step = Math.max(1, Math.min(365, Number(every?.value) || 7));
-      grid.querySelectorAll('input[data-slot]').forEach((input, k) => {
+      rows.querySelectorAll('input[data-slot]').forEach((input, k) => {
         const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
         dt.setUTCDate(dt.getUTCDate() + step * k);
         input.value = dt.toISOString().slice(0, 10);
@@ -167,80 +187,126 @@ const {
   })();
 </script>
 
-<style>
-  .sdl { margin: 18px 0 4px; }
+<style is:global>
+  /* See the ⚠️ note at the top of this file for why these are global.
+     Every selector is `sdl*`-namespaced. */
 
-  /* Whitespace does the work. No container border, no dividers, no
-     per-row ornament — a set of date fields reads as a set on its own. */
-  .sdl__grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px 20px;
+  .sdl { margin: 20px 0 4px; }
+
+  /* Column headers, so the two fields read as a table of events rather
+     than a stack of anonymous boxes. Hidden on narrow screens where
+     the row stacks and the placeholder carries the meaning. */
+  .sdl__head {
+    display: none;
+    gap: 24px;
+    padding: 0 2px 8px;
   }
-  @media (min-width: 620px) {
-    .sdl__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sdl__h {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #9ca3af;
   }
-  @media (min-width: 1040px) {
-    .sdl__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  .sdl__rows { display: flex; flex-direction: column; gap: 12px; }
+
+  .sdl__row { display: grid; grid-template-columns: 1fr; gap: 10px; }
+
+  @media (min-width: 680px) {
+    /* The breathing room Sam asked for: the name field and the date
+       field are separate columns with a 24px gutter, not two controls
+       touching. The date column is wide enough for a native picker
+       plus its calendar icon without squeezing. */
+    .sdl__head,
+    .sdl__row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 15rem;
+      gap: 24px;
+      align-items: start;
+    }
   }
 
   .sdl__cell { display: block; min-width: 0; }
 
-  .sdl__label {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--ink-muted, #6b7280);
-    margin-bottom: 5px;
-  }
-
+  /* The control. Soft, rounded and roomy — a 14px radius reads organic
+     without tipping into a pill, and the off-white rest state makes a
+     field feel like a place to type rather than an outlined box. */
   .sdl__input {
     font: inherit;
     font-size: 0.9375rem;
     display: block;
     width: 100%;
-    padding: 10px 12px;
-    color: var(--ink, #1a1a1a);
+    padding: 13px 16px;
+    color: #1a1a1a;
+    background: #f7faf8;
+    border: 1px solid #e2e9e5;
+    border-radius: 14px;
+    box-shadow: inset 0 1px 2px rgba(16, 40, 28, 0.025);
+    transition: background 160ms ease, border-color 160ms ease,
+      box-shadow 160ms ease;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .sdl__input::placeholder { color: #a9b4ae; }
+  .sdl__input:hover {
     background: #fff;
-    border: 1px solid #dde4e0;
-    border-radius: 10px;
-    transition: border-color 140ms ease, box-shadow 140ms ease;
+    border-color: #cfdbd4;
   }
-  .sdl__input:hover { border-color: #c3cfc8; }
-  .sdl__input:focus-visible {
+  .sdl__input:focus-visible,
+  .sdl__input:focus {
     outline: none;
-    border-color: var(--brand-green, #1a5c38);
-    box-shadow: 0 0 0 3px rgba(26, 92, 56, 0.12);
-  }
-  /* An empty field recedes; a set one reads as content. */
-  .sdl__cell:not(.is-set) .sdl__input { color: var(--ink-hint, #9ca3af); }
-  .sdl__cell.is-clash .sdl__input { border-color: #c4453a; }
-  .sdl__cell.is-clash .sdl__input:focus-visible {
-    box-shadow: 0 0 0 3px rgba(196, 69, 58, 0.15);
+    background: #fff;
+    border-color: #1a5c38;
+    box-shadow: 0 0 0 4px rgba(26, 92, 56, 0.1);
   }
 
-  /* One quiet line, and only once there is something to say. The fixed
-     height stops the grid reflowing as dates are filled in. */
+  /* The name leads, so it carries a little more weight. */
+  .sdl__input--name { font-weight: 600; }
+
+  /* Native date inputs size themselves to their text and refuse to
+     fill; min-height keeps the two controls the same height, and the
+     indicator gets room so it is not jammed against the digits. */
+  .sdl__input--date {
+    min-height: 48px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sdl__input--date::-webkit-calendar-picker-indicator {
+    margin-left: 8px;
+    opacity: 0.45;
+    cursor: pointer;
+    transition: opacity 140ms ease;
+  }
+  .sdl__input--date:hover::-webkit-calendar-picker-indicator { opacity: 0.8; }
+  .sdl__row:not(.is-set) .sdl__input--date { color: #9ca3af; }
+
+  .sdl__row.is-clash .sdl__input--date { border-color: #c4453a; background: #fdf6f5; }
+  .sdl__row.is-clash .sdl__input--date:focus {
+    box-shadow: 0 0 0 4px rgba(196, 69, 58, 0.12);
+  }
+
+  /* One quiet line. Reserved height so filling dates in never makes
+     the list jump. */
   .sdl__note {
     display: block;
-    min-height: 1rem;
-    margin-top: 4px;
+    min-height: 1.05rem;
+    margin: 5px 0 0 2px;
     font-size: 0.75rem;
-    color: var(--ink-hint, #9ca3af);
+    color: #9ca3af;
   }
-  .sdl__cell.is-clash .sdl__note { color: #c4453a; }
+  .sdl__row.is-clash .sdl__note { color: #c4453a; font-weight: 600; }
 
   .sdl__foot {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 16px;
-    margin-top: 16px;
+    margin-top: 18px;
   }
   .sdl__count {
     margin: 0;
     font-size: 0.8125rem;
-    color: var(--ink-muted, #6b7280);
+    color: #6b7280;
     font-variant-numeric: tabular-nums;
   }
   .sdl__count.is-warn { color: #c4453a; font-weight: 600; }
@@ -252,57 +318,66 @@ const {
     padding: 0;
     border: 0;
     background: none;
-    color: var(--brand-green, #1a5c38);
+    color: #1a5c38;
     cursor: pointer;
     text-decoration: underline;
     text-underline-offset: 3px;
     text-decoration-thickness: 1px;
   }
-  .sdl__link:hover { color: var(--brand-green-dark, #0f3d25); }
+  .sdl__link:hover { color: #0f3d25; }
 
   .sdl__spacer {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 12px;
+    gap: 14px;
     margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid #eef2f0;
+    padding: 16px;
+    border-radius: 14px;
+    background: #f7faf8;
+    border: 1px solid #e2e9e5;
   }
-  .sdl__sfield { display: flex; flex-direction: column; gap: 5px; }
+  .sdl__sfield { display: flex; flex-direction: column; gap: 6px; }
   .sdl__sfield > span:first-child {
     font-size: 0.75rem;
-    color: var(--ink-muted, #6b7280);
+    font-weight: 600;
+    color: #6b7280;
   }
   .sdl__sfield input {
     font: inherit;
     font-size: 0.9375rem;
-    padding: 9px 12px;
-    border: 1px solid #dde4e0;
-    border-radius: 10px;
+    padding: 11px 14px;
+    border: 1px solid #e2e9e5;
+    border-radius: 12px;
     background: #fff;
   }
+  .sdl__sfield input:focus-visible {
+    outline: none;
+    border-color: #1a5c38;
+    box-shadow: 0 0 0 4px rgba(26, 92, 56, 0.1);
+  }
   .sdl__days { display: flex; align-items: center; gap: 8px; }
-  .sdl__days input { width: 5rem; }
-  .sdl__daysuffix { font-size: 0.875rem; color: var(--ink-muted, #6b7280); }
+  .sdl__days input { width: 5.5rem; }
+  .sdl__daysuffix { font-size: 0.875rem; color: #6b7280; }
 
   .sdl__apply {
     font: inherit;
     font-size: 0.875rem;
     font-weight: 600;
-    padding: 10px 18px;
-    border: 1px solid var(--brand-green, #1a5c38);
-    border-radius: 10px;
-    background: var(--brand-green, #1a5c38);
+    padding: 12px 22px;
+    border: 0;
+    border-radius: 12px;
+    background: #1a5c38;
     color: #fff;
     cursor: pointer;
+    transition: background 140ms ease;
   }
-  .sdl__apply:hover { background: var(--brand-green-dark, #0f3d25); }
+  .sdl__apply:hover { background: #0f3d25; }
 
   .sdl__hint {
     flex-basis: 100%;
     margin: 0;
     font-size: 0.75rem;
-    color: var(--ink-hint, #9ca3af);
+    color: #9ca3af;
   }
 </style>
