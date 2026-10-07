@@ -77,10 +77,11 @@ const WIRE_TO_SLUG: Record<string, string> = {
   round_robin: 'round-robin',
   firs: 'firs',
   girs: 'girs',
-  // ⚠️ THE CROSSOVER. Do not "simplify" either of these two lines, and
-  //    read `RENAME_ALIASES` below before changing them.
-  sandies: 'bunkers',
-  bunkers: 'bunker-hunt',
+  // ⚠️ These two crossed over on 2026-10-06/07 and the wrong pairing
+  //    sends a game to another game's rules. Read LEGACY_ALIASES below
+  //    before touching either line.
+  bunkers: 'bunkers',
+  bunker_hunt: 'bunker-hunt',
   modified_stableford: 'modified-stableford',
   deuces: 'deuces',
   wolf_hammer: 'wolf-hammer',
@@ -88,94 +89,74 @@ const WIRE_TO_SLUG: Record<string, string> = {
 };
 
 /**
- * A rename is in flight, and for a while both vocabularies are in the
- * data at once.
+ * Wire values an older client still writes, and the game they mean.
  *
- * Sam is freeing the value `sandies` for a new game he has not built
- * yet, which means two renames that CHAIN — the new name of the first
- * is the old name of the second:
+ * ── The settled vocabulary, as of 2026-10-07 ────────────────────
  *
- *     flat per-hole penalty   `sandies`  ->  `bunkers`
- *     bimodal holder/count    `bunkers`  ->  `bunker_hunt`
+ *     'bunkers'      the flat per-hole bunker penalty  (label "Bunkers")
+ *     'bunker_hunt'  the bimodal holder/count game     (label "Bunker Hunt")
+ *     'sandies'      LEGACY — the same game as 'bunkers'
  *
- * So the bare value `bunkers` is ambiguous on its own, and which game
- * it means depends on whether the data has been migrated. `sandies`
- * and `bunker_hunt` are unambiguous in either era.
+ * Those two crossed over. `'bunkers'` was Bunker Hunt's value until
+ * 2026-10-06; the flat penalty game stored `'sandies'` while being
+ * labelled "Bunkers" for months. `fairwayiq-flutter` #1396 and #1399
+ * moved both so the stored value matches the label.
  *
- * TRUE while the rows still predate the migration, which is TODAY on
- * every environment: verified 2026-10-06, five bets and six
- * `bagpipe.games` rows hold `sandies`, and NOTHING holds `bunkers`.
- * So `bunkers` can only mean Bunker Hunt right now.
+ * ── 🔒 `'sandies'` IS PERMANENT ─────────────────────────────────
  *
- * FALSE once `20261030_rename_sandies_to_bunkers.sql` has run and the
- * client builds write the new vocabulary. Flipping this line is the
- * website's entire part of the rename. Both states are covered by
- * tests, so the flip cannot silently swap the two games' rules pages,
- * which is the one failure worth guarding here.
+ * Five live bets and six `bagpipe.games` rows still hold it, and they
+ * are real Bunkers games. **No migration ever ran.** Two were written
+ * and both abandoned: Sam asked whether clearing `sandies` would remove
+ * what was associated with Bunkers, it would have, so the rows were
+ * left alone and the new game took `sand_save` instead.
+ *
+ * So this alias is the only thing resolving those five bets. It does
+ * not expire.
+ *
+ * ── The residual ambiguity, stated rather than hidden ───────────
+ *
+ * A `'bunkers'` row written by App Store build 341 meant Bunker Hunt,
+ * and nothing in the value distinguishes it from one written since.
+ * Bounded by Bunker Hunt never having been played — 0 bets, 0 spine
+ * games on dev and prod, verified 2026-10-06 — so in practice no such
+ * row exists. Resolved in favour of today.
+ *
+ * There is no era switch any more. There was one while a migration was
+ * pending; it is gone with the migration, and `gameTypes.test.ts` keeps
+ * both the live and the legacy spelling asserted instead.
  */
-export const BUNKERS_IS_BUNKER_HUNT = true;
+export const LEGACY_ALIASES: Record<string, string> = {
+  sandies: 'bunkers',
+};
 
-/**
- * Values that are not this era's canonical spelling but still appear in
- * data or in a client of a different vintage. Kept apart from
- * `WIRE_TO_SLUG` so that map stays exactly one value per game, which is
- * what its tests assert.
- */
-export const RENAME_ALIASES: Record<string, string> = BUNKERS_IS_BUNKER_HUNT
-  // Pre-migration: the new spelling may already arrive from a newer
-  // client build, before the rows it would be written into are rewritten.
-  ? { bunker_hunt: 'bunker-hunt' }
-  // Post-migration: `sandies` survives in any row not yet rewritten and
-  // in any client that predates the rename.
-  : { sandies: 'bunkers' };
+/** Reserved for the Sandies game, which does not exist yet. Mirrors
+ *  `GameTypeValue.reservedWireValues` in the Flutter client — the
+ *  traditional sandie, a par save FROM a bunker. `sandies` itself is
+ *  permanently unavailable, hence the different name. */
+export const RESERVED_WIRES: ReadonlySet<string> = new Set(['sand_save']);
 
 /** `low_ball_high_ball` → `lowBallHighBall`, matching Dart's `.name`. */
 export function snakeToCamel(wire: string): string {
   return wire.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 }
 
-/** Both spellings the app writes, resolved to a slug. */
+/** Every spelling that resolves, live plus legacy. */
 const LOOKUP: Record<string, string> = (() => {
   const out: Record<string, string> = {};
-  for (const [wire, slug] of Object.entries(WIRE_TO_SLUG)) {
-    out[wire] = slug;
-    out[snakeToCamel(wire)] = slug;
-    out[wire.toLowerCase()] = slug;
-  }
-  // The chained rename: whichever spellings are not canonical this era.
-  for (const [wire, slug] of Object.entries(RENAME_ALIASES)) {
+  for (const [wire, slug] of Object.entries({
+    ...WIRE_TO_SLUG,
+    ...LEGACY_ALIASES,
+  })) {
     out[wire] = slug;
     out[snakeToCamel(wire)] = slug;
   }
   return out;
 })();
 
-/**
- * Slug for a wire value in a given era. Pure and parameterised so the
- * POST-migration behaviour is tested today, rather than discovered on
- * the day someone flips `BUNKERS_IS_BUNKER_HUNT`.
- */
-export function slugForWireInEra(
-  raw: string,
-  bunkersIsBunkerHunt: boolean,
-): string | null {
+/** Slug for a wire value, live or legacy. Null when unknown. */
+export function slugForWire(raw: string): string | null {
   const wire = String(raw ?? '').trim();
-  const canon: Record<string, string> = { ...WIRE_TO_SLUG };
-  if (!bunkersIsBunkerHunt) {
-    // After the migration the chain has moved on by one.
-    canon.bunkers = 'bunkers';
-    canon.bunker_hunt = 'bunker-hunt';
-    delete canon.sandies;
-  }
-  const aliases: Record<string, string> = bunkersIsBunkerHunt
-    ? { bunker_hunt: 'bunker-hunt' }
-    : { sandies: 'bunkers' };
-  const all: Record<string, string> = {};
-  for (const [w, slug] of Object.entries({ ...canon, ...aliases })) {
-    all[w] = slug;
-    all[snakeToCamel(w)] = slug;
-  }
-  return all[wire] ?? all[wire.toLowerCase()] ?? null;
+  return LOOKUP[wire] ?? LOOKUP[wire.toLowerCase()] ?? null;
 }
 
 export const GAME_TYPE_COUNT = Object.keys(WIRE_TO_SLUG).length;
@@ -206,7 +187,7 @@ export type ResolvedGameType = {
  */
 export function resolveGameType(raw: string): ResolvedGameType {
   const wire = String(raw ?? '').trim();
-  const slug = LOOKUP[wire] ?? LOOKUP[wire.toLowerCase()] ?? null;
+  const slug = slugForWire(wire);
   const game: SideGame | undefined = slug ? sideGameBySlug(slug) : undefined;
   return {
     wire,
