@@ -148,38 +148,36 @@ describe('W7 — onboarding expectations are stated before the host starts', () 
 });
 
 describe('/pay/* return pages', () => {
-  it('success NEVER claims a payment succeeded on its own', async () => {
-    // Landing on /pay/success means Stripe sent the browser back,
-    // nothing more — and the URL is forgeable by typing it. The page
-    // must ask the server.
-    const fs = await import('node:fs/promises');
-    const page = await fs.readFile('src/pages/pay/success.astro', 'utf8');
-    expect(page).toContain('/api/payments?scope=');
-    expect(page).toMatch(/NEVER MARKS ANYTHING PAID/);
-  });
-
-  it('a slow webhook is not reported as a failure', async () => {
-    // The load-bearing half: telling a paying player it failed is how
-    // they pay twice.
-    const fs = await import('node:fs/promises');
-    const page = await fs.readFile('src/pages/pay/success.astro', 'utf8');
-    expect(page).toContain('no need to pay again');
-    expect(page).not.toMatch(/payment failed/i);
-  });
-
-  it('cancel is not an error, and does not poll', async () => {
-    const fs = await import('node:fs/promises');
-    const page = await fs.readFile('src/pages/pay/cancel.astro', 'utf8');
-    expect(page).toMatch(/Nothing was charged/);
-    expect(page).not.toContain('/api/payments');
-  });
+  // HOTFIX 2026-10-07: payments are not live, so both pages are NEUTRAL.
+  // The polling success page (and its tests) return with #145, behind
+  // PAYMENTS_ENABLED.
+  const pages = ['src/pages/pay/success.astro', 'src/pages/pay/cancel.astro'];
 
   it('both pages exist at the paths the AASA already publishes', async () => {
     // `wellKnown.ts` has published /pay/success and /pay/cancel since
-    // 2026-10-05. These are the pages that make those URLs real.
+    // 2026-10-05. A 404 here, straight after a card form, looks like the
+    // payment vanished.
     const fs = await import('node:fs/promises');
-    for (const p of ['src/pages/pay/success.astro', 'src/pages/pay/cancel.astro']) {
+    for (const p of pages) {
       await expect(fs.access(p)).resolves.toBeUndefined();
+    }
+  });
+
+  it('neither page makes any claim about money while payments are not live', async () => {
+    const fs = await import('node:fs/promises');
+    for (const p of pages) {
+      // Markup only: the header comment quotes the old wording on purpose.
+      const page = (await fs.readFile(p, 'utf8')).split('---').slice(2).join('---');
+      expect(page).not.toMatch(/pay again|paid|confirm|charged|processing|received/i);
+      expect(page).toMatch(/Returning you to Bagpipe/);
+    }
+  });
+
+  it('neither page polls an API that does not exist yet', async () => {
+    const fs = await import('node:fs/promises');
+    for (const p of pages) {
+      const page = await fs.readFile(p, 'utf8');
+      expect(page).not.toMatch(/fetch\(|<script/);
     }
   });
 });
