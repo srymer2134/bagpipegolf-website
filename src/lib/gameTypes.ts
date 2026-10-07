@@ -82,6 +82,10 @@ const WIRE_TO_SLUG: Record<string, string> = {
   //    before touching either line.
   bunkers: 'bunkers',
   bunker_hunt: 'bunker-hunt',
+  // The 34th game, 2026-10-07. `sand_save` and NOT `sandies`, which
+  // belongs to `bunkers`' history — see LEGACY_ALIASES. The page slug
+  // is `sandies` because that is what a reader calls the game.
+  sand_save: 'sandies',
   modified_stableford: 'modified-stableford',
   deuces: 'deuces',
   wolf_hammer: 'wolf-hammer',
@@ -129,11 +133,13 @@ export const LEGACY_ALIASES: Record<string, string> = {
   sandies: 'bunkers',
 };
 
-/** Reserved for the Sandies game, which does not exist yet. Mirrors
- *  `GameTypeValue.reservedWireValues` in the Flutter client — the
- *  traditional sandie, a par save FROM a bunker. `sandies` itself is
- *  permanently unavailable, hence the different name. */
-export const RESERVED_WIRES: ReadonlySet<string> = new Set(['sand_save']);
+/** Wire values spoken for by a game that does not exist yet. Mirrors
+ *  `GameTypeValue.reservedWireValues` in the Flutter client.
+ *
+ *  **Empty since 2026-10-07: `sand_save` was spent on the Sandies game,
+ *  which is what it was reserved for.** Kept so the next reservation
+ *  has a home and the tests that guard it keep their shape. */
+export const RESERVED_WIRES: ReadonlySet<string> = new Set<string>();
 
 /** `low_ball_high_ball` → `lowBallHighBall`, matching Dart's `.name`. */
 export function snakeToCamel(wire: string): string {

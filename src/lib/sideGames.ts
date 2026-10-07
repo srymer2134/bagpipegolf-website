@@ -573,6 +573,63 @@ export const sideGames: SideGame[] = [
     related: ['low-ball-high-ball', 'vegas', 'scotch'],
   },
   {
+    slug: 'sandies',
+    name: 'Sandies',
+    aka: ['sand saves', 'up and down'],
+    players: '2\u20136',
+    summary:
+      'Par or better on a hole where you were in a bunker. The classic sandie: get up and down out of the sand and everyone pays you for it.',
+    rules: [
+      'You have to have been in a bunker on the hole. No bunker, no sandie, however good the score.',
+      'Par or better on that hole and you have saved it. The unit comes to you from every other player.',
+      'Gross par, not net. A sandie is a sandie — net would let a high handicap \u201csave\u201d with a bogey.',
+      'Bogey or worse out of the sand and nothing happens. You are not punished for it in this game.',
+      'Two players can both save on the same hole. Each collects from everyone else, so in a twosome they cancel out.',
+      'It reads the same per-hole bunker toggle Bunkers uses, plus the score you already entered. There is nothing extra to tap.',
+      'A hole only counts once both are in, so a bunker toggled before the score is entered is not a free sandie.',
+      'Zero-sum.',
+    ],
+    example: {
+      setup: '$2 a unit, four players \u2014 A, B, C and D.',
+      play: [
+        'A is bunkered on 4 and makes par. That is a sandie.',
+        'A is bunkered again on 11 and makes bogey. Nothing.',
+        'C is bunkered on 15 and makes birdie. That is a sandie too.',
+      ],
+      result:
+        'Hole 4: A +$6, B, C and D \u2212$2 each. Hole 15: C +$6, A, B and D \u2212$2 each. Across the round A is +$4, C is +$4, B and D are \u2212$4 each.',
+    },
+    variations: [
+      'Run it alongside Bunkers and the two cancel on a successful escape: Bunkers charges you for finding the sand, Sandies pays you for getting out. A bunker you fail to save from costs you once, which is the point.',
+      'Some groups only count greenside bunkers and let fairway sand go. Decide before the round \u2014 the app counts whatever you toggle.',
+      'A stricter version requires the save to come from a single shot out of the sand. That is a conversation, not a setting.',
+    ],
+    inApp: [
+      'Add Sandies at setup. There is no mode to pick and no extra row on the live screen.',
+      'Tap the bunker toggle for any player who found sand on a hole, the same toggle Bunkers and Bunker Hunt use.',
+      'Enter the score as usual. The sandie resolves itself once both are in.',
+    ],
+    faq: [
+      {
+        q: 'How is this different from Bunkers?',
+        a: 'They are opposites. Bunkers charges you a unit for every hole you find sand, full stop. Sandies pays you a unit for every hole you find sand and still make par or better. Run both and a good escape costs you nothing.',
+      },
+      {
+        q: 'Is it net or gross?',
+        a: 'Gross. The traditional sandie is about the shot, not the handicap, and on a net basis a 24 handicap would collect for a bogey.',
+      },
+      {
+        q: 'Do I need to record anything extra?',
+        a: 'No. It reads the bunker toggle you are already tapping for Bunkers, plus the score. If you are not tracking bunkers at all, nothing will score.',
+      },
+      {
+        q: 'What if two of us save on the same hole?',
+        a: 'Both collect from everyone else. In a foursome that is a net wash between the two savers and a loss for the other two; in a twosome the two savers simply cancel.',
+      },
+    ],
+    related: ['bunkers', 'bunker-hunt', 'dots'],
+  },
+  {
     slug: 'bunkers',
     name: 'Bunkers',
     aka: ['sandies', 'sand bet', 'bunker bet'],

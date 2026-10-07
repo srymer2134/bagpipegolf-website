@@ -192,11 +192,26 @@ describe('the settled bunker vocabulary', () => {
       .toBe(resolveGameType('bunkers').slug);
   });
 
-  it('sand_save is reserved and resolves to nothing yet', () => {
-    // The Sandies game is not built. Resolving its name to some other
-    // game is the exact bug the reservation guards against.
-    expect(RESERVED_WIRES.has('sand_save')).toBe(true);
-    expect(slugForWire('sand_save')).toBeNull();
+  it('sand_save now resolves to Sandies, and the reservation is spent', () => {
+    // It was reserved earlier the same day and spent when the game was
+    // built. Recorded rather than deleted so the spend is deliberate.
+    expect(RESERVED_WIRES.size).toBe(0);
+    expect(resolveGameType('sand_save').label).toBe('Sandies');
+    expect(resolveGameType('sand_save').href).toBe('/side-games/sandies');
+  });
+
+  it('and Sandies did NOT take the sandies wire value', () => {
+    // The reason the reservation existed: `sandies` belongs to the flat
+    // penalty game's history and five live bets parse through it.
+    expect(resolveGameType('sandies').label).toBe('Bunkers');
+    expect(gameTypeWires()).not.toContain('sandies');
+  });
+
+  it('the three sand games are three distinct pages', () => {
+    const slugs = ['bunkers', 'bunker_hunt', 'sand_save']
+      .map((w) => slugForWire(w));
+    expect(new Set(slugs).size).toBe(3);
+    expect(slugs).toEqual(['bunkers', 'bunker-hunt', 'sandies']);
   });
 
   it('no reserved value is already claimed', () => {
