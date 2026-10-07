@@ -1,0 +1,7 @@
+# bagpipegolf.com
+User-agent: *
+Disallow: /app/
+Disallow: /api/
+Disallow: /pay/
+
+Sitemap: https://bagpipegolf.com/sitemap-index.xml
