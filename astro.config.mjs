@@ -5,6 +5,7 @@ import cloudflare from "@astrojs/cloudflare";
 import sentry from "@sentry/astro";
 import sitemap from "@astrojs/sitemap";
 import { sideGames } from "./src/lib/sideGames.ts";
+import { canonicalUrl } from "./src/lib/canonical.ts";
 
 // Paths that must never appear in the sitemap: signed-in surfaces, API
 // routes, Stripe return pages, auth forms, and per-event/per-league
@@ -50,13 +51,10 @@ export default defineConfig({
         (g) => `https://bagpipegolf.com/side-games/${g.slug}`,
       ),
       filter: (page) => !NOT_IN_SITEMAP.test(page),
-      // Every internal link on the site is slash-less (`href="/faq"`), and
-      // both forms serve 200, so list the form the site itself links to.
-      // The root stays `https://bagpipegolf.com/`.
-      serialize: (item) => ({
-        ...item,
-        url: item.url.replace(/(?<=\.com\/.+)\/$/, ''),
-      }),
+      // Same rule as every page's <link rel="canonical"> and og:url
+      // (src/lib/canonical.ts), so the sitemap never lists a URL the page
+      // itself says is not canonical.
+      serialize: (item) => ({ ...item, url: canonicalUrl(item.url) }),
     }),
     sentry({
       // Client DSN is a public value (embedded in the browser bundle).
