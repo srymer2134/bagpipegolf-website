@@ -1,0 +1,8 @@
+{
+  "http": 409,
+  "body": {
+    "error": "This league can't take card payments yet.",
+    "code": "merchant_not_ready",
+    "onboarding_url": "https://connect.stripe.com/setup/s/acct_fixture/fixture"
+  }
+}

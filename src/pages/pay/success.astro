@@ -1,34 +1,154 @@
 ---
-// Stripe Checkout return — the SUCCESS url.
+// Stripe Checkout return — the SUCCESS url (W4, plan step 4.3).
 //
-// HOTFIX 2026-10-07: NEUTRAL UNTIL PAYMENTS ARE LIVE.
+// 🚨 THIS PAGE NEVER MARKS ANYTHING PAID. Landing here means only that
+// Stripe sent the browser back. The row is flipped by the webhook
+// (`PAYMENTS_API_CONTRACT_V1.md` §0 rule 2), and this URL is trivially
+// forgeable by typing it — so the page asks the SERVER and reports what
+// it says, for the ONE row whose id is the `payment_id` it was given
+// (`pollOutcome` in lib/payments.ts — it is never handed the URL's
+// other params, so it cannot read a status out of them).
 //
-// The #144 version of this page polled `/api/payments`, a route that does
-// not exist yet (404), and after ten seconds told the visitor "Your payment
-// is still being confirmed … there's no need to pay again". No payment
-// can have been made — Stripe is not wired — so that was a money claim
-// nobody had earned, on a published universal link.
+// WHY IT EXISTS AT ALL, given the app handles `/pay/success` as a
+// universal link (published in wellKnown.ts since 2026-10-05). Three
+// cases land here instead of in the app:
 //
-// The path must still RENDER, not 404: `wellKnown.ts` publishes
-// /pay/success and /pay/cancel, and an iOS install whose universal link
-// does not fire falls back to Safari here. So it says only where to go.
+//   1. the player paid on a laptop
+//   2. the universal link did not fire (Android, until §32's SHA-256
+//      fingerprint lands, and iOS when the user has "open in app"
+//      switched off)
+//   3. someone shared or typed the URL
 //
-// The real, polling page arrives with bagpipegolf-website #145 (W4),
-// behind PAYMENTS_ENABLED. Until then this page makes NO statement about
-// money, and the query string is left as-is for the app's link handler.
+// FLAG OFF (production today): a NEUTRAL page — "Returning you to
+// Bagpipe…" — with no payment claim and no polling. It still renders,
+// rather than 404ing, because the path is already a published
+// universal link: an install whose link falls back to Safari must not
+// land on "Not found", but with no payments live there is nothing
+// true to say about money either.
+//
+// The query string (`payment_id`, `scope`, `id`) is left exactly as
+// Stripe sent it — the app's universal-link handler reads the same
+// three.
+//
+// The honest middle state is the whole design. A slow webhook is
+// NORMAL, and a page that says "failed" because it has not landed yet
+// makes a paying player pay twice.
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { eventPath, readReturnParams } from '../../lib/payments';
+import { fixtureParam, modeFor } from '../../lib/paymentsServer';
+
+const mode = modeFor(Astro.locals as App.Locals);
+const enabled = mode !== 'off';
+const params = readReturnParams(Astro.url.searchParams);
+const back = params.scope && params.id ? eventPath(params.scope, params.id) : '/app';
+const fixture = fixtureParam(mode, Astro.url);
 ---
 
 <BaseLayout
-  title="Bagpipe Golf"
+  title={enabled ? 'Payment · Bagpipe Golf' : 'Bagpipe Golf'}
   ogTitle="Bagpipe Golf"
   description="Returning you to Bagpipe Golf."
 >
-  <main class="pagewrap">
-    <h1 class="pagewrap__title">Returning you to Bagpipe…</h1>
-    <p class="pagewrap__sub">
-      If the Bagpipe Golf app didn’t open, open it from your home
-      screen, or <a href="/app">continue on the web</a>.
-    </p>
-  </main>
+  {enabled ? (
+    <main class="pagewrap" id="pay-root" data-pay-poll="1" data-fixture={fixture ?? undefined}>
+      <p class="pagewrap__eyebrow">Payment</p>
+
+      <h1 class="pagewrap__title" id="pay-title">Processing…</h1>
+      <p class="pagewrap__sub" id="pay-body">
+        Confirming with Stripe. This usually takes a second or two.
+      </p>
+
+      <p class="pagewrap__sub">
+        <a href={back}>Back to your event</a>
+      </p>
+    </main>
+  ) : (
+    <main class="pagewrap">
+      <h1 class="pagewrap__title">Returning you to Bagpipe…</h1>
+      <p class="pagewrap__sub">
+        If the Bagpipe Golf app didn’t open, open it from your home
+        screen, or <a href="/app">continue on the web</a>.
+      </p>
+    </main>
+  )}
 </BaseLayout>
+
+<script>
+  // Poll OUR api (/api/payments?scope=&id=) for the row's status. The
+  // page reports the server's answer and nothing else.
+  import { pollOutcome, readReturnParams } from '../../lib/payments';
+
+  const root = document.getElementById('pay-root');
+  if (root && root.dataset.payPoll === '1') {
+    const titleEl = document.getElementById('pay-title');
+    const bodyEl = document.getElementById('pay-body');
+    const { paymentId, scope, id } = readReturnParams(new URLSearchParams(window.location.search));
+    const fixture = root.dataset.fixture;
+
+    // Same ten-second window the app's return screen uses, so the two
+    // surfaces give up at the same point and tell the player the same
+    // thing.
+    const WINDOW_MS = 10_000;
+    const INTERVAL_MS = 900;
+
+    const settle = (title: string, body: string) => {
+      if (titleEl) titleEl.textContent = title;
+      if (bodyEl) bodyEl.textContent = body;
+    };
+
+    // NOT an error. The money may well have moved; we just have not
+    // been told yet. "No need to pay again" is the load-bearing half.
+    const stillProcessing = () =>
+      settle(
+        'Still processing',
+        'Your payment is still being confirmed — it’ll show on your ' +
+          'roster as soon as it lands. There’s no need to pay again.',
+      );
+
+    const poll = async () => {
+      if (!scope || !id || !paymentId) {
+        // Nothing specific to ask about — a shared or hand-typed link.
+        // Say something true rather than spin forever.
+        settle(
+          'Thanks',
+          'If you completed a payment, it’ll show on your roster once ' +
+            'Stripe confirms it. There’s no need to pay again.',
+        );
+        return;
+      }
+      const q =
+        `/api/payments?scope=${encodeURIComponent(scope)}&id=${encodeURIComponent(id)}` +
+        (fixture ? `&fixture=${encodeURIComponent(fixture)}` : '');
+      const deadline = Date.now() + WINDOW_MS;
+      while (Date.now() < deadline) {
+        try {
+          const res = await fetch(q, { headers: { accept: 'application/json' }, credentials: 'same-origin' });
+          // A non-ok response is not a failed payment — the endpoint
+          // may not be deployed yet. Keep asking until the window
+          // closes, then say the honest thing.
+          if (res.ok) {
+            const outcome = pollOutcome(await res.json(), paymentId);
+            if (outcome === 'paid') {
+              settle('You’re paid', 'Stripe confirmed it. Your entry is updated.');
+              return;
+            }
+            if (outcome === 'failed') {
+              settle(
+                'Your card didn’t go through',
+                'Stripe declined it, so nothing was taken. You can try ' +
+                  'again from your event page.',
+              );
+              return;
+            }
+          }
+        } catch {
+          // Same for a network error.
+        }
+        await new Promise((r) => setTimeout(r, INTERVAL_MS));
+      }
+      stillProcessing();
+    };
+
+    void poll();
+  }
+</script>

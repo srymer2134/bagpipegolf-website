@@ -12,6 +12,10 @@ import {
   type TournamentRound,
 } from '../../../../lib/tournamentQueries';
 import { leagueEventFor, type LeagueEventContext } from '../../../../lib/leagueEvents';
+import PayButton from '../../../../components/payments/PayButton.astro';
+import { checkoutNotice, payNoticeCode, settledRowFor } from '../../../../lib/payments';
+import { fixtureParam, listPayments, modeFor } from '../../../../lib/paymentsServer';
+import { withQuery } from '../../../../lib/paymentsRoutes';
 
 // Tournament overview — the "at a glance" landing when someone
 // clicks a tournament card. Anon-readable (RLS grants SELECT to
@@ -78,6 +82,24 @@ const canOfferJoin =
 const showClosedNotice =
   Boolean(t) && !completed && !kiosk && !viewerIsHost && !viewerOnRoster && registrationClosed;
 const joinNext = `/app/tournaments/${id}`;
+
+// W3 — "Pay entry fee". Nothing below runs unless PAYMENTS_ENABLED:
+// with the flag off `pay` stays null and no Pay control renders. Only
+// for a signed-in player in the field (not the host, not kiosk, not a
+// finished event). No amount is shown: there is no entry-fee column
+// yet (`entry_fees` is plan 2.1), and Stripe's page shows the total —
+// the server derives it either way.
+const payMode = modeFor(Astro.locals as App.Locals);
+let pay: { paid: boolean; action: string; notice: ReturnType<typeof checkoutNotice> } | null = null;
+if (payMode !== 'off' && t && id && viewerOnRoster && !viewerIsHost && !kiosk && !completed) {
+  const list = await listPayments({ locals: Astro.locals as App.Locals }, payMode, 'tournament', id,
+    payMode === 'fixtures' ? url.searchParams.get('payments') : null);
+  pay = {
+    paid: list.ok ? settledRowFor(list.data.payments, 'entry_fee') !== null : false,
+    action: withQuery('/api/payments/checkout-session', { fixture: fixtureParam(payMode, url) }),
+    notice: checkoutNotice(payNoticeCode(url.searchParams.get('pay')), 'tournament'),
+  };
+}
 const scored = t ? hasAnyScores(t) : false;
 const state: 'upcoming' | 'active' | 'completed' = completed
   ? 'completed'
@@ -202,6 +224,17 @@ const sortedPlayers = [...players].sort((a, b) => {
 
         <TournamentSubnav id={id!} active="overview" />
         <LeagueEventBanner ctx={leagueEvent} />
+
+        {pay && (
+          <PayButton
+            scope="tournament"
+            id={id!}
+            amountLabel={null}
+            paid={pay.paid}
+            notice={pay.notice}
+            action={pay.action}
+          />
+        )}
 
         {/* Quick actions */}
         <div class="actions">

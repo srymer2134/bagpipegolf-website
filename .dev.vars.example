@@ -11,3 +11,11 @@ SUPABASE_ANON_KEY=your-anon-publishable-key
 # keep the prod dashboard's signal-to-noise ratio meaningful.
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development
+
+# Card payments (Stripe Connect W1–W4). Leave PAYMENTS_ENABLED unset to
+# match production (nothing payment-shaped renders). For local work on
+# the pages with no API: set both to 1, run `npm run dev`, and pick a
+# state with `?fixture=<name>` (names = src/lib/__fixtures__/payments/).
+# PAYMENTS_FIXTURES is ignored by any built Worker.
+PAYMENTS_ENABLED=
+PAYMENTS_FIXTURES=

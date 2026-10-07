@@ -1,0 +1,7 @@
+{
+  "http": 503,
+  "body": {
+    "error": "Card payments aren't available for this league.",
+    "code": "payments_disabled"
+  }
+}

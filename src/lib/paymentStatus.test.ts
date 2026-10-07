@@ -163,21 +163,24 @@ describe('/pay/* return pages', () => {
     }
   });
 
-  it('neither page makes any claim about money while payments are not live', async () => {
+  it('with the flag off, nothing polls and nothing claims', async () => {
+    // Since #145 the pages are flag-gated (PAYMENTS_ENABLED). The neutral
+    // flag-off text is covered in payments.test.ts; this pins the other
+    // half — the poller's <script> ships on every render, so the ONLY
+    // thing keeping it quiet in production is that its trigger element
+    // exists solely in the flag-on branch.
     const fs = await import('node:fs/promises');
-    for (const p of pages) {
-      // Markup only: the header comment quotes the old wording on purpose.
-      const page = (await fs.readFile(p, 'utf8')).split('---').slice(2).join('---');
-      expect(page).not.toMatch(/pay again|paid|confirm|charged|processing|received/i);
-      expect(page).toMatch(/Returning you to Bagpipe/);
-    }
-  });
+    const page = await fs.readFile('src/pages/pay/success.astro', 'utf8');
+    const split = page.indexOf(') : (');
+    expect(split).toBeGreaterThan(-1);
+    const flagOn = page.slice(0, split);
+    const flagOff = page.slice(split, page.indexOf('</BaseLayout>'));
+    expect(flagOn).toContain('data-pay-poll="1"');
+    expect(flagOff).not.toContain('data-pay-poll');
+    expect(flagOff).not.toContain('id="pay-root"');
+    expect(page).toMatch(/if \(root && root\.dataset\.payPoll === '1'\)/);
 
-  it('neither page polls an API that does not exist yet', async () => {
-    const fs = await import('node:fs/promises');
-    for (const p of pages) {
-      const page = await fs.readFile(p, 'utf8');
-      expect(page).not.toMatch(/fetch\(|<script/);
-    }
+    const cancel = await fs.readFile('src/pages/pay/cancel.astro', 'utf8');
+    expect(cancel).not.toMatch(/fetch\(/);
   });
 });

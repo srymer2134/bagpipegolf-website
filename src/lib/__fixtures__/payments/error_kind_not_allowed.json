@@ -1,0 +1,7 @@
+{
+  "http": 400,
+  "body": {
+    "error": "That can't be paid by card.",
+    "code": "kind_not_allowed"
+  }
+}

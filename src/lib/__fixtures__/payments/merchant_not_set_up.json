@@ -1,0 +1,7 @@
+{
+  "http": 404,
+  "body": {
+    "error": "No Stripe account connected for this league.",
+    "code": "merchant_not_ready"
+  }
+}

@@ -19,6 +19,7 @@ import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { leagueDetail, visibilityLabel, type PortalDetail } from '../../../../lib/leaguePortal';
+import { modeFor } from '../../../../lib/paymentsServer';
 
 // `/app/leagues/[id]/manage` — the director's read-only view.
 //
@@ -95,6 +96,24 @@ if (d && d.league.role !== 'commissioner') {
   return Astro.redirect(`/app/leagues/${id}`, 302);
 }
 
+// W1 entry point. Only with PAYMENTS_ENABLED, and only for the
+// league's OWNER (F5: one login from Bagpipe) — not every commissioner.
+let leagueOwnerId: string | null = null;
+if (modeFor(Astro.locals as App.Locals) !== 'off' && d && id) {
+  try {
+    const supabase = createSupabaseClient({
+      request: Astro.request,
+      cookies: Astro.cookies,
+      locals: Astro.locals as App.Locals,
+    });
+    const { data } = await supabase.from('leagues').select('user_id').eq('id', id).maybeSingle();
+    leagueOwnerId = (data as { user_id?: string | null } | null)?.user_id ?? null;
+  } catch (err) {
+    console.error('[app/league/manage] owner read failed', err);
+  }
+}
+const showPaymentsLink = Boolean(user?.id && leagueOwnerId === user.id);
+
 const active = roster.filter((r) => !r.status || r.status === 'active');
 
 // The settings form, built entirely from the generated schema. A new
@@ -140,6 +159,12 @@ const visibleGroups = groups
       <>
         <p class="pagewrap__sub">{d.league.name}</p>
         <LeagueSubnav id={d.league.id} active="manage" />
+
+        {showPaymentsLink && (
+          <p class="pagewrap__sub">
+            <a class="btn btn--ghost" href={`/app/leagues/${d.league.id}/payments`}>Set up card payments</a>
+          </p>
+        )}
 
         <div class="notice">
           <strong>Season settings are editable here.</strong> Every field

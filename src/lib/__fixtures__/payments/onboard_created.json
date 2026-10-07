@@ -1,0 +1,10 @@
+{
+  "http": 201,
+  "body": {
+    "merchant_account_id": "7c1e0b9a-2d3f-4e5a-8b6c-1d2e3f4a5b6c",
+    "onboarding_url": "https://connect.stripe.com/setup/s/acct_fixture/fixture",
+    "charges_enabled": false,
+    "payouts_enabled": false,
+    "expires_at": "2026-10-07T18:04:00Z"
+  }
+}

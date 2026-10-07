@@ -1,34 +1,53 @@
 ---
-// Stripe Checkout return — the CANCEL url.
+// Stripe Checkout return — the CANCEL url (W4).
 //
-// HOTFIX 2026-10-07: NEUTRAL UNTIL PAYMENTS ARE LIVE.
+// Cancelling is NOT a failure. The player chose it, nothing was
+// charged, the row stays `pending`, and Pay still works. Showing an
+// error here would tell someone they broke something by changing their
+// mind.
 //
-// Same text as /pay/success (see that file). The #144 version of the success page polled `/api/payments`, a route that does
-// not exist yet (404), and after ten seconds told the visitor "Your payment
-// is still being confirmed … there's no need to pay again". No payment
-// can have been made — Stripe is not wired — so that was a money claim
-// nobody had earned, on a published universal link.
+// No polling: there is nothing to wait for.
 //
-// The path must still RENDER, not 404: `wellKnown.ts` publishes
-// /pay/success and /pay/cancel, and an iOS install whose universal link
-// does not fire falls back to Safari here. So it says only where to go.
+// FLAG OFF (production today): the same neutral "Returning you to
+// Bagpipe…" page as /pay/success, for the same reason — the path is a
+// published universal link, so it renders rather than 404s, but says
+// nothing about money while no payments are live.
 //
-// The real, polling page arrives with bagpipegolf-website #145 (W4),
-// behind PAYMENTS_ENABLED. Until then this page makes NO statement about
-// money, and the query string is left as-is for the app's link handler.
+// The query string is left exactly as Stripe sent it; the app's
+// universal-link handler reads `payment_id`, `scope` and `id`.
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { eventPath, readReturnParams } from '../../lib/payments';
+import { modeFor } from '../../lib/paymentsServer';
+
+const enabled = modeFor(Astro.locals as App.Locals) !== 'off';
+const params = readReturnParams(Astro.url.searchParams);
+const back = params.scope && params.id ? eventPath(params.scope, params.id) : '/app';
 ---
 
 <BaseLayout
-  title="Bagpipe Golf"
+  title={enabled ? 'Payment cancelled · Bagpipe Golf' : 'Bagpipe Golf'}
   ogTitle="Bagpipe Golf"
   description="Returning you to Bagpipe Golf."
 >
-  <main class="pagewrap">
-    <h1 class="pagewrap__title">Returning you to Bagpipe…</h1>
-    <p class="pagewrap__sub">
-      If the Bagpipe Golf app didn’t open, open it from your home
-      screen, or <a href="/app">continue on the web</a>.
-    </p>
-  </main>
+  {enabled ? (
+    <main class="pagewrap">
+      <p class="pagewrap__eyebrow">Payment</p>
+      <h1 class="pagewrap__title">Payment cancelled</h1>
+      <p class="pagewrap__sub">
+        Nothing was charged — you can pay any time. Your spot is still
+        there.
+      </p>
+      <p class="pagewrap__sub">
+        <a href={back}>Back to your event</a>
+      </p>
+    </main>
+  ) : (
+    <main class="pagewrap">
+      <h1 class="pagewrap__title">Returning you to Bagpipe…</h1>
+      <p class="pagewrap__sub">
+        If the Bagpipe Golf app didn’t open, open it from your home
+        screen, or <a href="/app">continue on the web</a>.
+      </p>
+    </main>
+  )}
 </BaseLayout>

@@ -1,0 +1,171 @@
+---
+// W1 / W2 — the owner's "Set up card payments" panel. Used by
+// /app/leagues/[id]/payments, /app/tournaments/[id]/payments and
+// /app/payments/return.
+//
+// The button is a POST form. The Account Link is minted by the POST
+// handler (`/api/merchants/onboard`), never while this renders —
+// Stripe's links are single-use and a link-preview bot that fetched a
+// page carrying one would burn it.
+//
+// The status shown is whatever GET /api/merchants/{scope}/{id} said
+// (contract §2.2) — "Ready" means `charges_enabled`, never "the owner
+// came back from Stripe".
+import { setupNotice, type MerchantView, type PaymentScope } from '../../lib/payments';
+
+interface Props {
+  scope: PaymentScope;
+  id: string;
+  name: string;
+  view: MerchantView | null;
+  /** The status read failed (not the 404 "never onboarded" — a real
+   *  failure, e.g. the API isn't deployed yet). */
+  loadFailed?: boolean;
+  /** `?setup=<code>` from a failed POST. */
+  setupCode?: string | null;
+  /** `/api/merchants/onboard`, plus `?fixture=` in dev fixture mode. */
+  action: string;
+}
+
+const { scope, id, name, view, loadFailed = false, setupCode = null, action } = Astro.props;
+const noun = scope === 'league' ? 'league' : 'tournament';
+const charges = scope === 'league' ? 'season dues' : 'entry fees';
+const notice = setupNotice(setupCode);
+const state = view?.state ?? null;
+---
+
+<section class="card pset" id="payments">
+  <div class="pset__head">
+    <span class="chip">Card payments</span>
+    {view && (
+      <span class:list={['pset__status', `pset__status--${view.state}`]}>{view.label}</span>
+    )}
+  </div>
+
+  {notice && (
+    <div class="pset__notice" role="alert">
+      <strong>{notice.title}</strong> {notice.body}
+    </div>
+  )}
+
+  {loadFailed && (
+    <p class="pset__p">
+      We couldn’t check this {noun}’s Stripe status just now. Try again
+      in a moment.
+    </p>
+  )}
+
+  {state === 'ready' && (
+    <>
+      <h3 class="pset__h">{name} can take card payments.</h3>
+      <p class="pset__p">
+        Players see a <strong>Pay</strong> button for {charges}. Payments
+        land in the {noun}’s own Stripe account, and the roster updates
+        when Stripe confirms each one.
+      </p>
+      {view?.needsAttention && (
+        <>
+          <p class="pset__p">
+            Stripe still wants a few details. Card payments keep working
+            for now, but finish them before Stripe’s deadline or payouts
+            can pause.
+          </p>
+          <form method="post" action={action}>
+            <input type="hidden" name="scope" value={scope} />
+            <input type="hidden" name="id" value={id} />
+            <button type="submit" class="btn btn--ghost">Finish in Stripe</button>
+          </form>
+        </>
+      )}
+    </>
+  )}
+
+  {state === 'finishing' && (
+    <>
+      <h3 class="pset__h">Setup isn’t finished yet.</h3>
+      <p class="pset__p">
+        Stripe hasn’t switched on card payments for {name}. If you’ve
+        already sent everything, Stripe may still be verifying — that
+        can take a day or two. Otherwise pick up where you left off.
+      </p>
+      <form method="post" action={action}>
+        <input type="hidden" name="scope" value={scope} />
+        <input type="hidden" name="id" value={id} />
+        <button type="submit" class="btn btn--primary">Continue setup</button>
+      </form>
+    </>
+  )}
+
+  {state === 'not_set_up' && (
+    <>
+      <h3 class="pset__h">Collect {charges} by card.</h3>
+
+      <!-- W7 ONBOARDING COPY — PENDING CASEY'S REVIEW (humans-only
+           editorial pass, same as the Phase 0b marketing pages).
+           Sources: SAM_STRIPE_CONNECT_BUILD W7; plan §2.3 S9 (refunds
+           cost the league Stripe's fee) and S11 (authenticator-app
+           2FA); F5 (one login FROM BAGPIPE — Stripe lets the owner
+           invite others, and nothing we build can stop that); K4
+           (entry fees and dues only). Do not promise anything here the
+           webhook has not confirmed. -->
+      <div class="pset__copy" id="before-you-start">
+        <p class="pset__p"><strong>Before you start</strong> — it takes a few minutes, and it goes better with these to hand:</p>
+        <ul class="pset__list">
+          <li>
+            <strong>Stripe verifies who you are, and a bank account.</strong>
+            Have the account for payouts, an EIN (or your SSN if the
+            {noun} isn’t a legal entity), and a photo ID. Stripe can
+            take a day or two to finish verifying — you can keep
+            running the {noun} meanwhile; only card payments wait.
+          </li>
+          <li>
+            <strong>Have your phone ready.</strong> Stripe will make you
+            set up its login with an <strong>authenticator app</strong>
+            before you can finish.
+          </li>
+          <li>
+            <strong>The {noun} is the merchant.</strong> Payments go to
+            its own Stripe account and pay out to its bank. Bagpipe
+            never holds your players’ money.
+          </li>
+          <li>
+            <strong>{charges.charAt(0).toUpperCase() + charges.slice(1)} only.</strong>
+            Card collection is for entry fees and season dues. Weekly
+            pots, closest-to-the-pin and long-drive entries, Calcuttas
+            and Side Games are never collected by card.
+          </li>
+          <li>
+            <strong>Refunds cost the {noun} Stripe’s processing fee.</strong>
+            Stripe keeps its fee on a payment even when you refund it.
+          </li>
+          <li>
+            <strong>One login from Bagpipe.</strong> Only you can open
+            this {noun}’s payments from Bagpipe. Inside Stripe you can
+            invite others — a treasurer, say — yourself.
+          </li>
+        </ul>
+      </div>
+
+      <form method="post" action={action}>
+        <input type="hidden" name="scope" value={scope} />
+        <input type="hidden" name="id" value={id} />
+        <button type="submit" class="btn btn--primary">Set up card payments</button>
+      </form>
+      <p class="pset__fine">You’ll leave Bagpipe for Stripe’s own pages, then come back here.</p>
+    </>
+  )}
+</section>
+
+<style>
+  .pset { margin: 0 0 20px; }
+  .pset__head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .pset__status { font-weight: 700; font-size: 0.8125rem; padding: 3px 10px; border-radius: 999px; background: #eef2ef; color: var(--ink-muted, #4b5b54); }
+  .pset__status--ready { background: #e4f3ea; color: var(--brand-green-dark, #1f5133); }
+  .pset__status--finishing { background: #fff4dc; color: #7a5600; }
+  .pset__h { font-size: 1.0625rem; color: var(--brand-green-dark, #1f5133); margin: 8px 0 6px; }
+  .pset__p { margin: 0 0 10px; color: var(--ink-muted, #4b5b54); font-size: 0.9375rem; }
+  .pset__list { margin: 0 0 16px; padding-left: 20px; color: var(--ink-muted, #4b5b54); font-size: 0.9375rem; }
+  .pset__list li { margin-bottom: 8px; }
+  .pset__fine { margin: 8px 0 0; color: var(--ink-muted, #4b5b54); font-size: 0.8125rem; }
+  .pset__notice { background: #fff4dc; border: 1px solid #f0d58a; border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; font-size: 0.875rem; }
+</style>

@@ -1,0 +1,14 @@
+{
+  "http": 200,
+  "body": {
+    "merchant_account_id": "7c1e0b9a-2d3f-4e5a-8b6c-1d2e3f4a5b6c",
+    "charges_enabled": true,
+    "payouts_enabled": false,
+    "details_submitted": true,
+    "controller_fees_payer": "account",
+    "requirements_due": [
+      "external_account"
+    ],
+    "livemode": false
+  }
+}

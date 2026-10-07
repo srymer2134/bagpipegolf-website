@@ -48,7 +48,7 @@ type RailwayCallInit = {
  *     response body appropriately)
  */
 export async function callRailway<T = unknown>(
-  ctx: APIContext,
+  ctx: HasLocals,
   init: RailwayCallInit,
 ): Promise<T> {
   const session = (ctx.locals as App.Locals).session;
@@ -87,7 +87,8 @@ export async function callRailwayPublic<T = unknown>(
  * The only thing the transport needs. Declared structurally so both an
  * `APIContext` (an /api/* route) and the `Astro` global (a page's
  * frontmatter) satisfy it — the pre-login previews are fetched from
- * page frontmatter, which is not an APIContext.
+ * page frontmatter, which is not an APIContext, and so are the
+ * payments pages' merchant-status reads.
  */
 type HasLocals = { locals: APIContext['locals'] };
 
