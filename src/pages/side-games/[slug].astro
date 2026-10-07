@@ -1,12 +1,16 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { sideGameBySlug, sideGames } from '../../lib/sideGames';
+import { RENAMED_SIDE_GAME_SLUGS, sideGameBySlug, sideGames } from '../../lib/sideGames';
 
 // One page per side game — rules, worked money example, variations, what
 // the scorekeeper taps in the app, FAQ, related games. See
 // src/lib/sideGames.ts for the content and the GTM rationale.
 
 const slug = (Astro.params.slug ?? '').toLowerCase();
+const movedTo = RENAMED_SIDE_GAME_SLUGS[slug];
+if (movedTo) {
+  return Astro.redirect(`/side-games/${movedTo}`, 301);
+}
 const game = sideGameBySlug(slug);
 if (!game) {
   return new Response(null, { status: 404, statusText: 'Not found' });

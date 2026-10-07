@@ -81,7 +81,7 @@ describe('both spellings the app writes resolve', () => {
     expect(resolveGameType('matchPlay').label).toBe('Match Play');
     expect(resolveGameType('bingoBangoBongo').label).toBe('Bingo Bango Bongo');
     expect(resolveGameType('lowBallHighBall').label).toBe('Low Ball / High Ball');
-    expect(resolveGameType('sixSixSix').label).toBe('Six-Six-Six');
+    expect(resolveGameType('sixSixSix').label).toBe('Sixes');
     expect(resolveGameType('acesDeuces').label).toBe('Aces & Deuces');
     expect(resolveGameType('lostBalls').label).toBe('Lost Balls');
     expect(resolveGameType('wolfHammer').label).toBe('Wolf Hammer');
@@ -219,5 +219,25 @@ describe('the settled bunker vocabulary', () => {
       expect(gameTypeWires()).not.toContain(reserved);
       expect(LEGACY_ALIASES[reserved]).toBeUndefined();
     }
+  });
+});
+
+describe('Sixes rename (2026-10-07)', () => {
+  it('every renamed slug points at a game that exists, and no live game still uses an old slug', async () => {
+    const { RENAMED_SIDE_GAME_SLUGS, sideGameBySlug, sideGames } = await import('./sideGames');
+    for (const [from, to] of Object.entries(RENAMED_SIDE_GAME_SLUGS)) {
+      expect(sideGameBySlug(to), `${from} → ${to}`).toBeDefined();
+      expect(sideGames.some((g) => g.slug === from)).toBe(false);
+    }
+  });
+  it('no game lists another game by an old slug in `related`', async () => {
+    const { RENAMED_SIDE_GAME_SLUGS, sideGames } = await import('./sideGames');
+    const old = new Set(Object.keys(RENAMED_SIDE_GAME_SLUGS));
+    for (const g of sideGames) for (const r of g.related) expect(old.has(r), `${g.slug} → ${r}`).toBe(false);
+  });
+  it('"sixes" is not an alias of any OTHER game', async () => {
+    const { sideGames } = await import('./sideGames');
+    const owners = sideGames.filter((g) => g.slug === 'sixes' || g.aka.includes('sixes')).map((g) => g.slug);
+    expect(owners).toEqual(['sixes']);
   });
 });
