@@ -1,29 +1,34 @@
 ---
 // Stripe Checkout return — the CANCEL url.
 //
-// Cancelling is NOT a failure. The player chose it, nothing was
-// charged, the row stays `pending`, and Pay still works. Showing an
-// error here would tell someone they broke something by changing their
-// mind.
+// HOTFIX 2026-10-07: NEUTRAL UNTIL PAYMENTS ARE LIVE.
 //
-// No polling: there is nothing to wait for.
+// Same text as /pay/success (see that file). The #144 version of the success page polled `/api/payments`, a route that does
+// not exist yet (404), and after ten seconds told the visitor "Your payment
+// is still being confirmed … there's no need to pay again". No payment
+// can have been made — Stripe is not wired — so that was a money claim
+// nobody had earned, on a published universal link.
+//
+// The path must still RENDER, not 404: `wellKnown.ts` publishes
+// /pay/success and /pay/cancel, and an iOS install whose universal link
+// does not fire falls back to Safari here. So it says only where to go.
+//
+// The real, polling page arrives with bagpipegolf-website #145 (W4),
+// behind PAYMENTS_ENABLED. Until then this page makes NO statement about
+// money, and the query string is left as-is for the app's link handler.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout
-  title="Payment cancelled · Bagpipe Golf"
+  title="Bagpipe Golf"
   ogTitle="Bagpipe Golf"
-  description="Your Bagpipe Golf payment was cancelled. Nothing was charged."
+  description="Returning you to Bagpipe Golf."
 >
   <main class="pagewrap">
-    <p class="pagewrap__eyebrow">Payment</p>
-    <h1 class="pagewrap__title">Payment cancelled</h1>
+    <h1 class="pagewrap__title">Returning you to Bagpipe…</h1>
     <p class="pagewrap__sub">
-      Nothing was charged. You can pay whenever you’re ready — your
-      spot is still there.
-    </p>
-    <p class="pagewrap__sub">
-      <a href="/app">Back to your events</a>
+      If the Bagpipe Golf app didn’t open, open it from your home
+      screen, or <a href="/app">continue on the web</a>.
     </p>
   </main>
 </BaseLayout>
