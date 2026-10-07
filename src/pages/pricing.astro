@@ -24,6 +24,79 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <p>Run a tournament or league for any field size.</p>
       </article>
     </section>
+
+    <!-- W6 — fee disclosure for hosts who collect money through us.
+         Written now, deliberately WITHOUT a platform-fee number: F2 is
+         half-decided (players never see a fee as a line item; the
+         percentage is still held), and `application_fee_bps` defaults
+         to 0 so nothing is charged until it lands. Stating a number we
+         have not agreed would be worse than stating none, and the page
+         is more useful than silence — a host deciding whether to
+         collect through us needs to know Stripe's cut exists. -->
+    <section class="feeblock" id="collecting-money">
+      <h2 class="feeblock__h">Collecting entry fees and dues</h2>
+      <p class="feeblock__p">
+        Optional, and off unless you turn it on. If you'd rather keep
+        taking cash, Venmo or cheques, the roster has a
+        <strong>Mark paid in cash</strong> button and nothing here
+        applies to you.
+      </p>
+      <p class="feeblock__p">
+        When you do collect by card, the money goes to
+        <strong>your own Stripe account</strong>, not ours — you connect
+        it once, Stripe verifies you, and payouts land in your bank on
+        Stripe's schedule. We never hold your players' money.
+      </p>
+      <ul class="feeblock__list">
+        <li>
+          <strong>Stripe's processing fee</strong> comes out of each
+          payment. Stripe sets it and publishes it at
+          <a href="https://stripe.com/pricing" rel="noopener">stripe.com/pricing</a>
+          — it's their price, not ours, and it's the same whether you
+          use us or not.
+        </li>
+        <li>
+          <strong>Our platform fee is not switched on.</strong> When it
+          is, we'll state it here before it applies to anyone, and your
+          players will still see one total at checkout — never a
+          line-item for us.
+        </li>
+        <li>
+          <strong>Refunds are yours to issue</strong>, from our roster
+          or from your own Stripe dashboard. Either way the roster
+          updates.
+        </li>
+      </ul>
+    </section>
+
+    <!-- W7 — what connecting actually asks of a host, said BEFORE they
+         start. Stripe's onboarding asks for a bank account, a tax id
+         and a photo id; a host who meets that cold, three screens in,
+         abandons it and tells us the feature is broken. -->
+    <section class="feeblock" id="connecting-stripe">
+      <h2 class="feeblock__h">Before you connect Stripe</h2>
+      <p class="feeblock__p">
+        Stripe — not us — has to verify who you are before it will move
+        money for you. Worth having to hand:
+      </p>
+      <ul class="feeblock__list">
+        <li><strong>A bank account</strong> for payouts.</li>
+        <li>
+          <strong>A tax ID</strong> — an EIN if the league is a legal
+          entity, otherwise your SSN.
+        </li>
+        <li><strong>A photo ID</strong>, and your date of birth and address.</li>
+      </ul>
+      <p class="feeblock__p">
+        It takes a few minutes, and Stripe may take a day or two to
+        finish verifying. You can set up your league and open sign-ups
+        before it completes — only card payments wait.
+      </p>
+      <p class="feeblock__p">
+        One person per league holds the Stripe login. Pick whoever keeps
+        the books.
+      </p>
+    </section>
   </main>
 </BaseLayout>
 
@@ -37,4 +110,27 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     margin: 6px 0 4px;
   }
   .card p { margin: 0; color: var(--ink-muted); font-size: 0.9375rem; }
+  .feeblock { margin-top: 48px; }
+  .feeblock__h {
+    font-size: 1.375rem;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 10px;
+  }
+  .feeblock__p {
+    margin: 0 0 12px;
+    color: var(--ink-muted);
+    font-size: 1rem;
+    line-height: 1.55;
+    max-width: 62ch;
+  }
+  .feeblock__list {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--ink-muted);
+    font-size: 1rem;
+    line-height: 1.55;
+    max-width: 62ch;
+  }
+  .feeblock__list li { margin-bottom: 10px; }
 </style>
