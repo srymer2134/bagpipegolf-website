@@ -1,0 +1,61 @@
+---
+// `/app/tournaments/[id]/payments` — W1 for a standalone tournament
+// (plan 3.1 takes `{leagueId | tournamentId}`).
+//
+// OFF unless PAYMENTS_ENABLED (404). OWNER ONLY: `tournaments.user_id`,
+// the same gate /manage uses. Not in the middleware's public
+// tournament patterns, so it is signed-in only.
+//
+// Note: there is no entry-fee table yet (`entry_fees` is plan 2.1), so
+// a tournament can be onboarded here but its players' Pay button gets
+// `no_fee_set` until that lands.
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
+import MerchantSetup from '../../../../components/payments/MerchantSetup.astro';
+import { merchantView, parseEntityId } from '../../../../lib/payments';
+import { fixtureParam, getMerchant, modeFor, notFound } from '../../../../lib/paymentsServer';
+import { isOwner, loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
+
+const locals = Astro.locals as App.Locals;
+const mode = modeFor(locals);
+if (mode === 'off') return notFound();
+
+const id = parseEntityId(Astro.params.id);
+if (!id) return notFound();
+const user = locals.user;
+
+let payable = null;
+try {
+  payable = await loadPayable(supabaseFor(Astro as unknown as RouteCtx), 'tournament', id);
+} catch (err) {
+  console.error('[app/tournament/payments] load failed', err);
+}
+if (!isOwner(payable, user?.id)) {
+  return Astro.redirect(`/app/tournaments/${encodeURIComponent(id)}`, 302);
+}
+
+const fixture = fixtureParam(mode, Astro.url);
+const res = await getMerchant({ locals }, mode, 'tournament', id, fixture);
+const neverOnboarded = !res.ok && res.code === 'merchant_not_ready';
+const view = res.ok ? merchantView(res.data) : neverOnboarded ? merchantView(null) : null;
+const action = withQuery('/api/merchants/onboard', { fixture });
+---
+
+<BaseLayout title={`Card payments · ${payable!.name} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Tournament · director</p>
+    <h1 class="pagewrap__title">Card payments.</h1>
+    <p class="pagewrap__sub">{payable!.name}</p>
+    <TournamentSubnav id={id} active="manage" />
+    <MerchantSetup
+      scope="tournament"
+      id={id}
+      name={payable!.name}
+      view={view}
+      loadFailed={!res.ok && !neverOnboarded}
+      setupCode={Astro.url.searchParams.get('setup')}
+      action={action}
+    />
+    <p class="pagewrap__sub"><a href={`/app/tournaments/${encodeURIComponent(id)}/manage`}>Back to Manage</a></p>
+  </main>
+</BaseLayout>

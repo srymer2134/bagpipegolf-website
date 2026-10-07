@@ -1,0 +1,7 @@
+{
+  "http": 400,
+  "body": {
+    "error": "This league hasn't set its season dues yet.",
+    "code": "no_fee_set"
+  }
+}

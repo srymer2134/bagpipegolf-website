@@ -1,0 +1,7 @@
+{
+  "http": 403,
+  "body": {
+    "error": "Only the league's owner can do that.",
+    "code": "not_director"
+  }
+}

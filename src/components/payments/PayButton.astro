@@ -1,0 +1,74 @@
+---
+// W3 — "Pay season dues" / "Pay entry fee". Plan step 4.3.
+//
+// Rendered by the caller ONLY when PAYMENTS_ENABLED; with the flag off
+// this component is never on the page.
+//
+// The form posts exactly three fields — scope, id, kind — to
+// /api/payments/checkout-session, which 303s to Stripe-hosted
+// Checkout (K5). 🚨 THE AMOUNT IS NOT ON THE WIRE. `amountLabel` is for
+// the eye only (from `leagues.dues_cents` via leagueDues.ts); the
+// server derives the price on its own and Stripe's page shows the
+// total the player actually pays.
+//
+// "You're paid" appears only when the server's own payment list has a
+// settled row for this kind (`settledRowFor`), or when checkout itself
+// refused with `already_paid`. Never from a URL.
+import type { CheckoutNotice, PaymentScope } from '../../lib/payments';
+import { kindFor } from '../../lib/payments';
+
+interface Props {
+  scope: PaymentScope;
+  id: string;
+  amountLabel: string | null;
+  paid: boolean;
+  notice: CheckoutNotice | null;
+  /** `/api/payments/checkout-session`, plus `?fixture=` in dev fixture mode. */
+  action: string;
+}
+
+const { scope, id, amountLabel, paid, notice, action } = Astro.props;
+const kind = kindFor(scope);
+const label = scope === 'league' ? 'Pay season dues' : 'Pay entry fee';
+const showPaid = paid || notice?.code === 'already_paid';
+---
+
+<section class="card paybox" id="pay">
+  <span class="chip">{scope === 'league' ? 'Season dues' : 'Entry fee'}</span>
+  {showPaid ? (
+    <>
+      <h3 class="paybox__h">You’re paid.</h3>
+      <p class="paybox__p">There’s nothing more to pay here.</p>
+    </>
+  ) : (
+    <>
+      {notice && (
+        <div class:list={['paybox__notice', `paybox__notice--${notice.tone}`]} role="status">
+          <strong>{notice.title}</strong> {notice.body}
+        </div>
+      )}
+      {amountLabel && <h3 class="paybox__h">{amountLabel}</h3>}
+      <form method="post" action={action}>
+        <input type="hidden" name="scope" value={scope} />
+        <input type="hidden" name="id" value={id} />
+        <input type="hidden" name="kind" value={kind} />
+        <button type="submit" class="btn btn--primary">{label}</button>
+      </form>
+      <p class="paybox__fine">
+        Card only, on Stripe’s secure page. Your entry updates once
+        Stripe confirms the payment.
+      </p>
+    </>
+  )}
+</section>
+
+<style>
+  .paybox { margin: 0 0 20px; }
+  .paybox__h { font-size: 1.0625rem; color: var(--brand-green-dark, #1f5133); margin: 8px 0 10px; }
+  .paybox__p { margin: 0; color: var(--ink-muted, #4b5b54); font-size: 0.9375rem; }
+  .paybox__fine { margin: 8px 0 0; color: var(--ink-muted, #4b5b54); font-size: 0.8125rem; }
+  .paybox__notice { border-radius: 10px; padding: 10px 12px; margin: 8px 0 12px; font-size: 0.875rem; }
+  .paybox__notice--warn { background: #fff4dc; border: 1px solid #f0d58a; }
+  .paybox__notice--bad { background: #fdecea; border: 1px solid #f3b8b1; }
+  .paybox__notice--good { background: #e4f3ea; border: 1px solid #b7dcc4; }
+</style>

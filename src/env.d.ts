@@ -21,6 +21,15 @@ type Runtime = import('@astrojs/cloudflare').Runtime<{
   // way the app's `beforeSend` hook does. Not required — falls back to
   // 'production' when unset.
   SENTRY_ENVIRONMENT?: string;
+  // Card payments (Stripe Connect, W1–W4). UNSET in production: every
+  // payments route 404s and no Pay / "Set up card payments" control
+  // renders. '1' turns the surfaces on against Railway.
+  // See src/lib/payments.ts `paymentsMode`.
+  PAYMENTS_ENABLED?: string;
+  // Dev only: '1' answers the payments calls from
+  // src/lib/__fixtures__/payments/*.json. Ignored outside `astro dev`
+  // (import.meta.env.DEV is false in every built Worker).
+  PAYMENTS_FIXTURES?: string;
   ASSETS: Fetcher;
 }>;
 

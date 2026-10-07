@@ -33,6 +33,7 @@ import LeagueEventBanner from '../../../../components/LeagueEventBanner.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { getPublicTournament, type TournamentPlayer } from '../../../../lib/tournamentQueries';
 import { leagueEventFor, type LeagueEventContext } from '../../../../lib/leagueEvents';
+import { modeFor } from '../../../../lib/paymentsServer';
 
 const { id } = Astro.params;
 const user = Astro.locals.user;
@@ -160,6 +161,14 @@ if (tournament) {
 
     <TournamentSubnav id={id!} active="manage" />
     <LeagueEventBanner ctx={leagueEvent} />
+
+    {/* W1 entry point — only with PAYMENTS_ENABLED. This page already
+        redirects anyone but the owner (`tournaments.user_id`). */}
+    {tournament && modeFor(Astro.locals as App.Locals) !== 'off' && (
+      <p class="pagewrap__sub">
+        <a class="btn btn--ghost" href={`/app/tournaments/${id}/payments`}>Set up card payments</a>
+      </p>
+    )}
 
     {loadError && (
       <div class="errorbar" role="alert">⚠️ {loadError}</div>

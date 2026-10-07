@@ -1,0 +1,61 @@
+---
+// `/app/leagues/[id]/payments` — W1, plan step 3.4. "Set up card
+// payments" for a league.
+//
+// OFF unless PAYMENTS_ENABLED: 404, the same answer env-diag and the
+// admin plan page give, so production shows nothing new.
+//
+// OWNER ONLY (F5): `leagues.user_id`, not any commissioner. A
+// co-commissioner is sent back to the overview, the way manage sends
+// a non-commissioner. The API enforces the same rule (`not_director`).
+//
+// Rendering only READS (§2.2). The Account Link is minted by the POST
+// behind the button — see MerchantSetup.astro for why.
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+import MerchantSetup from '../../../../components/payments/MerchantSetup.astro';
+import { merchantView, parseEntityId } from '../../../../lib/payments';
+import { fixtureParam, getMerchant, modeFor, notFound } from '../../../../lib/paymentsServer';
+import { isOwner, loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
+
+const locals = Astro.locals as App.Locals;
+const mode = modeFor(locals);
+if (mode === 'off') return notFound();
+
+const id = parseEntityId(Astro.params.id);
+if (!id) return notFound();
+const user = locals.user;
+
+let payable = null;
+try {
+  payable = await loadPayable(supabaseFor(Astro as unknown as RouteCtx), 'league', id);
+} catch (err) {
+  console.error('[app/league/payments] load failed', err);
+}
+if (!isOwner(payable, user?.id)) return Astro.redirect(`/app/leagues/${encodeURIComponent(id)}`, 302);
+
+const fixture = fixtureParam(mode, Astro.url);
+const res = await getMerchant({ locals }, mode, 'league', id, fixture);
+const neverOnboarded = !res.ok && res.code === 'merchant_not_ready';
+const view = res.ok ? merchantView(res.data) : neverOnboarded ? merchantView(null) : null;
+const action = withQuery('/api/merchants/onboard', { fixture });
+---
+
+<BaseLayout title={`Card payments · ${payable!.name} · Bagpipe Golf`}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">League · owner</p>
+    <h1 class="pagewrap__title">Card payments.</h1>
+    <p class="pagewrap__sub">{payable!.name}</p>
+    <LeagueSubnav id={id} active="manage" />
+    <MerchantSetup
+      scope="league"
+      id={id}
+      name={payable!.name}
+      view={view}
+      loadFailed={!res.ok && !neverOnboarded}
+      setupCode={Astro.url.searchParams.get('setup')}
+      action={action}
+    />
+    <p class="pagewrap__sub"><a href={`/app/leagues/${encodeURIComponent(id)}/manage`}>Back to Manage</a></p>
+  </main>
+</BaseLayout>
