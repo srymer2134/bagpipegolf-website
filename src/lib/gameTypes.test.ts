@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BUNKERS_IS_BUNKER_HUNT,
   EXPECTED_GAME_TYPE_COUNT,
+  LEGACY_ALIASES,
+  RESERVED_WIRES,
   GAME_TYPE_COUNT,
   gameTypeLabels,
   gameTypeWires,
   resolveGameType,
   resolveGameTypes,
-  slugForWireInEra,
+  slugForWire,
   snakeToCamel,
 } from './gameTypes';
 import { sideGameBySlug, sideGames } from './sideGames';
@@ -43,24 +44,24 @@ describe('the map covers every game the app ships', () => {
 });
 
 describe('the two sand bets do not get swapped', () => {
-  // The whole reason this is a table. `GameType.sandies` is displayed
-  // as "Bunkers" and `GameType.bunkers` is "Bunker Hunt", so deriving a
-  // slug from the wire text sends Bunker Hunt to the wrong rules.
-  it('wire "bunkers" is Bunker Hunt', () => {
+  // The whole reason this is a table and not a transform. The values
+  // crossed over on 2026-10-06/07: `bunkers` was Bunker Hunt's, and
+  // the flat penalty game stored `sandies` while labelled "Bunkers".
+  it('wire "bunkers" is the flat penalty game', () => {
     const r = resolveGameType('bunkers');
-    expect(r.label).toBe('Bunker Hunt');
-    expect(r.href).toBe('/side-games/bunker-hunt');
-  });
-
-  it('wire "sandies" is Bunkers', () => {
-    const r = resolveGameType('sandies');
     expect(r.label).toBe('Bunkers');
     expect(r.href).toBe('/side-games/bunkers');
   });
 
+  it('wire "bunker_hunt" is Bunker Hunt', () => {
+    const r = resolveGameType('bunker_hunt');
+    expect(r.label).toBe('Bunker Hunt');
+    expect(r.href).toBe('/side-games/bunker-hunt');
+  });
+
   it('and they are different games', () => {
     expect(resolveGameType('bunkers').slug)
-      .not.toBe(resolveGameType('sandies').slug);
+      .not.toBe(resolveGameType('bunker_hunt').slug);
   });
 });
 
@@ -111,16 +112,16 @@ describe('no raw wire value reaches the reader', () => {
     // What the pages used to do. Kept as a test so the regression is
     // described, not just prevented.
     const old = (g: string) => g.replace(/_/g, ' ');
-    expect(old('bunkers')).toBe('bunkers');          // not "Bunker Hunt"
+    expect(old('bunkers')).toBe('bunkers');          // a bare wire value
     expect(old('matchPlay')).toBe('matchPlay');      // untouched
-    expect(resolveGameType('bunkers').label).toBe('Bunker Hunt');
+    expect(resolveGameType('bunkers').label).toBe('Bunkers');
     expect(resolveGameType('matchPlay').label).toBe('Match Play');
   });
 });
 
 describe('resolveGameTypes on a real row', () => {
   it('maps a list, keeping order', () => {
-    const out = resolveGameTypes(['skins', 'bunkers', 'matchPlay']);
+    const out = resolveGameTypes(['skins', 'bunker_hunt', 'matchPlay']);
     expect(out.map((g) => g.label)).toEqual([
       'Skins', 'Bunker Hunt', 'Match Play',
     ]);
@@ -158,54 +159,50 @@ describe('the library names are the single source', () => {
   });
 });
 
-describe('the sandies -> bunkers -> bunker_hunt rename, both eras', () => {
-  // Sam, 2026-10-06: rename the stored values so `sandies` is free for
-  // a new game. The two renames chain, so `bunkers` means a different
-  // game before and after. Both eras are asserted here so the flip of
-  // `BUNKERS_IS_BUNKER_HUNT` cannot quietly swap two games' rules.
-  const BEFORE = true;
-  const AFTER = false;
-
-  it('before the migration: sandies is the flat penalty, bunkers is Bunker Hunt', () => {
-    // Ground truth 2026-10-06 on the live database: 5 bets and 6
-    // bagpipe.games rows hold `sandies`; nothing holds `bunkers`.
-    expect(slugForWireInEra('sandies', BEFORE)).toBe('bunkers');
-    expect(slugForWireInEra('bunkers', BEFORE)).toBe('bunker-hunt');
+describe('the settled bunker vocabulary', () => {
+  // Those two values crossed over on 2026-10-06/07, and the wrong
+  // pairing sends a game to another game's rules page. No migration
+  // ever ran: Sam asked whether clearing `sandies` would remove what
+  // was associated with Bunkers, it would have, so the five live rows
+  // were left alone and the new game took `sand_save`.
+  it('bunkers is the flat penalty game', () => {
+    const r = resolveGameType('bunkers');
+    expect(r.label).toBe('Bunkers');
+    expect(r.href).toBe('/side-games/bunkers');
   });
 
-  it('after the migration: bunkers is the flat penalty, bunker_hunt is Bunker Hunt', () => {
-    expect(slugForWireInEra('bunkers', AFTER)).toBe('bunkers');
-    expect(slugForWireInEra('bunker_hunt', AFTER)).toBe('bunker-hunt');
-    expect(slugForWireInEra('bunkerHunt', AFTER)).toBe('bunker-hunt');
+  it('bunker_hunt is Bunker Hunt, in both spellings', () => {
+    expect(resolveGameType('bunker_hunt').label).toBe('Bunker Hunt');
+    expect(resolveGameType('bunkerHunt').label).toBe('Bunker Hunt');
+    expect(resolveGameType('bunker_hunt').href)
+      .toBe('/side-games/bunker-hunt');
   });
 
-  it('the new spelling already resolves before the migration', () => {
-    // A newer client build can write `bunker_hunt` into a row before
-    // the migration rewrites anything. The site must not show that as
-    // an unknown game.
-    expect(slugForWireInEra('bunker_hunt', BEFORE)).toBe('bunker-hunt');
-    expect(slugForWireInEra('bunkerHunt', BEFORE)).toBe('bunker-hunt');
+  it('the legacy sandies still resolves, to the flat penalty game', () => {
+    // Five live bets depend on this and it does not expire.
+    expect(LEGACY_ALIASES.sandies).toBe('bunkers');
+    expect(resolveGameType('sandies').label).toBe('Bunkers');
+    expect(resolveGameType('sandies').href).toBe('/side-games/bunkers');
   });
 
-  it('the old spelling still resolves after the migration', () => {
-    // Any row the migration missed, and any client that predates it.
-    expect(slugForWireInEra('sandies', AFTER)).toBe('bunkers');
+  it('the two games never collapse into one', () => {
+    expect(resolveGameType('bunkers').slug)
+      .not.toBe(resolveGameType('bunker_hunt').slug);
+    expect(resolveGameType('sandies').slug)
+      .toBe(resolveGameType('bunkers').slug);
   });
 
-  it('the two games never collapse into one, in either era', () => {
-    for (const era of [BEFORE, AFTER]) {
-      const flat = slugForWireInEra(era ? 'sandies' : 'bunkers', era);
-      const hunt = slugForWireInEra(era ? 'bunkers' : 'bunker_hunt', era);
-      expect(flat).toBe('bunkers');
-      expect(hunt).toBe('bunker-hunt');
-      expect(flat).not.toBe(hunt);
-    }
+  it('sand_save is reserved and resolves to nothing yet', () => {
+    // The Sandies game is not built. Resolving its name to some other
+    // game is the exact bug the reservation guards against.
+    expect(RESERVED_WIRES.has('sand_save')).toBe(true);
+    expect(slugForWire('sand_save')).toBeNull();
   });
 
-  it('the live module agrees with the era it declares', () => {
-    for (const wire of gameTypeWires()) {
-      expect(resolveGameType(wire).slug, wire)
-        .toBe(slugForWireInEra(wire, BUNKERS_IS_BUNKER_HUNT));
+  it('no reserved value is already claimed', () => {
+    for (const reserved of RESERVED_WIRES) {
+      expect(gameTypeWires()).not.toContain(reserved);
+      expect(LEGACY_ALIASES[reserved]).toBeUndefined();
     }
   });
 });
