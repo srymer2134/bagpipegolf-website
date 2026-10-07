@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BUNKERS_IS_BUNKER_HUNT,
   EXPECTED_GAME_TYPE_COUNT,
   GAME_TYPE_COUNT,
   gameTypeLabels,
   gameTypeWires,
   resolveGameType,
   resolveGameTypes,
+  slugForWireInEra,
   snakeToCamel,
 } from './gameTypes';
 import { sideGameBySlug, sideGames } from './sideGames';
@@ -152,6 +154,58 @@ describe('the library names are the single source', () => {
     for (const wire of gameTypeWires()) {
       const r = resolveGameType(wire);
       expect(r.label).toBe(sideGameBySlug(r.slug!)!.name);
+    }
+  });
+});
+
+describe('the sandies -> bunkers -> bunker_hunt rename, both eras', () => {
+  // Sam, 2026-10-06: rename the stored values so `sandies` is free for
+  // a new game. The two renames chain, so `bunkers` means a different
+  // game before and after. Both eras are asserted here so the flip of
+  // `BUNKERS_IS_BUNKER_HUNT` cannot quietly swap two games' rules.
+  const BEFORE = true;
+  const AFTER = false;
+
+  it('before the migration: sandies is the flat penalty, bunkers is Bunker Hunt', () => {
+    // Ground truth 2026-10-06 on the live database: 5 bets and 6
+    // bagpipe.games rows hold `sandies`; nothing holds `bunkers`.
+    expect(slugForWireInEra('sandies', BEFORE)).toBe('bunkers');
+    expect(slugForWireInEra('bunkers', BEFORE)).toBe('bunker-hunt');
+  });
+
+  it('after the migration: bunkers is the flat penalty, bunker_hunt is Bunker Hunt', () => {
+    expect(slugForWireInEra('bunkers', AFTER)).toBe('bunkers');
+    expect(slugForWireInEra('bunker_hunt', AFTER)).toBe('bunker-hunt');
+    expect(slugForWireInEra('bunkerHunt', AFTER)).toBe('bunker-hunt');
+  });
+
+  it('the new spelling already resolves before the migration', () => {
+    // A newer client build can write `bunker_hunt` into a row before
+    // the migration rewrites anything. The site must not show that as
+    // an unknown game.
+    expect(slugForWireInEra('bunker_hunt', BEFORE)).toBe('bunker-hunt');
+    expect(slugForWireInEra('bunkerHunt', BEFORE)).toBe('bunker-hunt');
+  });
+
+  it('the old spelling still resolves after the migration', () => {
+    // Any row the migration missed, and any client that predates it.
+    expect(slugForWireInEra('sandies', AFTER)).toBe('bunkers');
+  });
+
+  it('the two games never collapse into one, in either era', () => {
+    for (const era of [BEFORE, AFTER]) {
+      const flat = slugForWireInEra(era ? 'sandies' : 'bunkers', era);
+      const hunt = slugForWireInEra(era ? 'bunkers' : 'bunker_hunt', era);
+      expect(flat).toBe('bunkers');
+      expect(hunt).toBe('bunker-hunt');
+      expect(flat).not.toBe(hunt);
+    }
+  });
+
+  it('the live module agrees with the era it declares', () => {
+    for (const wire of gameTypeWires()) {
+      expect(resolveGameType(wire).slug, wire)
+        .toBe(slugForWireInEra(wire, BUNKERS_IS_BUNKER_HUNT));
     }
   });
 });
