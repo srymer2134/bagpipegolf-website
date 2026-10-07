@@ -1,7 +1,33 @@
 # bagpipegolf.com
+#
+# A crawler obeys ONLY the most specific group that names it, so every
+# group below repeats the same Disallow lines. A bot-specific group with
+# just "Allow: /" would silently drop the private paths for that bot.
+
 User-agent: *
+Allow: /
 Disallow: /app/
 Disallow: /api/
 Disallow: /pay/
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+
+# AI search and assistant crawlers: explicitly welcome, same rules.
+# Google-Extended and Applebot-Extended are not crawlers. They are the
+# opt-in tokens for Google's and Apple's AI training use of this content.
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ClaudeBot
+User-agent: PerplexityBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /app/
+Disallow: /api/
+Disallow: /pay/
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
 
 Sitemap: https://bagpipegolf.com/sitemap-index.xml
