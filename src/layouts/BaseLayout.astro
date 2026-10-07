@@ -1,6 +1,7 @@
 ---
 import SiteNav from '../components/SiteNav.astro';
 import Footer from '../components/Footer.astro';
+import { siteJsonLd } from '../lib/siteIdentity';
 
 interface Props {
   title: string;
@@ -69,6 +70,7 @@ const shareImage = new URL('/og.jpg', SITE).toString();
     <meta name="twitter:title" content={shareTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={shareImage} />
+    <script type="application/ld+json" set:html={JSON.stringify(siteJsonLd())} />
   </head>
   <body>
     {!bare && <SiteNav />}
