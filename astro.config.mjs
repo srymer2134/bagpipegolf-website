@@ -3,6 +3,14 @@ import { defineConfig } from 'astro/config';
 
 import cloudflare from "@astrojs/cloudflare";
 import sentry from "@sentry/astro";
+import sitemap from "@astrojs/sitemap";
+import { sideGames } from "./src/lib/sideGames.ts";
+
+// Paths that must never appear in the sitemap: signed-in surfaces, API
+// routes, Stripe return pages, auth forms, and per-event/per-league
+// share links (user-generated, often private, and not marketing pages).
+const NOT_IN_SITEMAP =
+  /^https:\/\/bagpipegolf\.com\/(app|api|pay|join|l|t)(\/|$)|\/(login|signup|forgot-password)\/?$/;
 
 // Bagpipe Golf marketing + director-portal site.
 //
@@ -32,6 +40,24 @@ export default defineConfig({
   output: 'server',
   adapter: cloudflare(),
   integrations: [
+    // sitemap-index.xml + sitemap-0.xml at build time. With
+    // `output: 'server'` the integration sees only routes without
+    // params, so the side-game detail pages (`/side-games/[slug]`) are
+    // listed explicitly from the same data the page renders from.
+    // `robots.txt` (public/) points crawlers here.
+    sitemap({
+      customPages: sideGames.map(
+        (g) => `https://bagpipegolf.com/side-games/${g.slug}`,
+      ),
+      filter: (page) => !NOT_IN_SITEMAP.test(page),
+      // Every internal link on the site is slash-less (`href="/faq"`), and
+      // both forms serve 200, so list the form the site itself links to.
+      // The root stays `https://bagpipegolf.com/`.
+      serialize: (item) => ({
+        ...item,
+        url: item.url.replace(/(?<=\.com\/.+)\/$/, ''),
+      }),
+    }),
     sentry({
       // Client DSN is a public value (embedded in the browser bundle).
       // `PUBLIC_*` is Astro's convention for exposing env vars to the
