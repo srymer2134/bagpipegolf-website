@@ -209,6 +209,18 @@ const shareImage = new URL('/og.jpg', SITE).toString();
         background: #FEF3C7;
         color: #92400E;
       }
+      /* A chip that is a link to that game's rules. Reads as a chip
+         first and a link second — no underline until hover, because a
+         row of underlined chips looks like an error. */
+      a.chip--link {
+        text-decoration: none;
+        transition: background 140ms ease, color 140ms ease;
+      }
+      a.chip--link:hover,
+      a.chip--link:focus-visible {
+        background: var(--brand-green-dark);
+        color: #fff;
+      }
     </style>
   </body>
 </html>
