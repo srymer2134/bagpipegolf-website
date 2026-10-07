@@ -2,7 +2,7 @@
  "_comment": "GENERATED. Do not hand-edit. Built from RoundFormat + roundFormatMeta (lib/core/models/round_format.dart), kSegmentableFormats (round_segment.dart) and GameType (betting.dart). Regenerate with: REGEN=1 flutter test test/parity/round_formats_catalog.json, verify the diff, then copy to bagpipegolf-website/src/lib/__generated__/formats.json",
  "version": 1,
  "formatCount": 20,
- "sideGameCount": 33,
+ "sideGameCount": 34,
  "formats": [
   {
    "code": "stroke_play",
