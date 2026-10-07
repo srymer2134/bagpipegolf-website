@@ -107,7 +107,7 @@ const WIRE_TO_SLUG: Record<string, string> = {
  * `bagpipe.games` rows hold `sandies`, and NOTHING holds `bunkers`.
  * So `bunkers` can only mean Bunker Hunt right now.
  *
- * FALSE once `20261029_rename_sandies_to_bunkers.sql` has run and the
+ * FALSE once `20261030_rename_sandies_to_bunkers.sql` has run and the
  * client builds write the new vocabulary. Flipping this line is the
  * website's entire part of the rename. Both states are covered by
  * tests, so the flip cannot silently swap the two games' rules pages,
