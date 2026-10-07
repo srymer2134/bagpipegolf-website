@@ -2,6 +2,7 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { createSupabaseClient } from '../../../lib/supabase';
 import { getBet, type BetRow } from '../../../lib/queries';
+import { resolveGameTypes } from '../../../lib/gameTypes';
 
 const { id } = Astro.params;
 
@@ -46,7 +47,8 @@ const totalHoles = bet?.total_holes ?? 18;
 const pars = bet?.pars ?? [];
 const scoresByPlayer = bet?.scores ?? {};
 
-const gameLabels = (bet?.game_types ?? []).map((g) => g.replace(/_/g, ' '));
+// Names, not wire values — and each one links to its rules.
+const gameChips = resolveGameTypes(bet?.game_types);
 const holeRange = Array.from({ length: totalHoles }, (_, i) => i);
 ---
 
@@ -75,9 +77,13 @@ const holeRange = Array.from({ length: totalHoles }, (_, i) => i);
         <section class="block">
           <h2 class="block__title">Games</h2>
           <div class="tags">
-            {gameLabels.length === 0
+            {gameChips.length === 0
               ? <span class="muted">No game types recorded.</span>
-              : gameLabels.map((g) => <span class="chip">{g}</span>)}
+              : gameChips.map((g) => (
+                  g.href
+                    ? <a class="chip chip--link" href={g.href} title={`${g.label} rules`}>{g.label}</a>
+                    : <span class="chip">{g.label}</span>
+                ))}
           </div>
         </section>
 

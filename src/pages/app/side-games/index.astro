@@ -2,6 +2,7 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { createSupabaseClient } from '../../../lib/supabase';
 import { listBets, type BetRow } from '../../../lib/queries';
+import { resolveGameTypes } from '../../../lib/gameTypes';
 
 const supabase = createSupabaseClient({
   request: Astro.request,
@@ -36,7 +37,10 @@ const playerNames = (b: BetRow) =>
     .map((p) => (p?.name as string) || (p?.id as string) || '')
     .filter(Boolean);
 
-const gameLabels = (b: BetRow) => (b.game_types ?? []).map((g) => g.replace(/_/g, ' '));
+// Names, not wire values. The underscore strip this replaces could
+// not name Bunker Hunt (wire `bunkers`) and did nothing at all to the
+// camelCase spelling the app actually writes — see `gameTypes.ts`.
+const gameChips = (b: BetRow) => resolveGameTypes(b.game_types);
 
 const progressLabel = (b: BetRow) => {
   if (b.completed) return 'Settled';
@@ -71,7 +75,11 @@ const progressLabel = (b: BetRow) => {
               </div>
               <h3 class="bet__course">{b.course_name ?? 'Unknown course'}</h3>
               <div class="bet__tags">
-                {gameLabels(b).map((g) => <span class="chip">{g}</span>)}
+                {gameChips(b).map((g) => (
+                  g.href
+                    ? <a class="chip chip--link" href={g.href} title={`${g.label} rules`}>{g.label}</a>
+                    : <span class="chip">{g.label}</span>
+                ))}
               </div>
               <div class="bet__players">
                 {playerNames(b).slice(0, 4).join(' · ')}
@@ -100,7 +108,11 @@ const progressLabel = (b: BetRow) => {
               </div>
               <h3 class="bet__course">{b.course_name ?? 'Unknown course'}</h3>
               <div class="bet__tags">
-                {gameLabels(b).map((g) => <span class="chip">{g}</span>)}
+                {gameChips(b).map((g) => (
+                  g.href
+                    ? <a class="chip chip--link" href={g.href} title={`${g.label} rules`}>{g.label}</a>
+                    : <span class="chip">{g.label}</span>
+                ))}
               </div>
               <div class="bet__players">
                 {playerNames(b).slice(0, 4).join(' · ')}
