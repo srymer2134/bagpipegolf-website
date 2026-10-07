@@ -77,7 +77,8 @@ const WIRE_TO_SLUG: Record<string, string> = {
   round_robin: 'round-robin',
   firs: 'firs',
   girs: 'girs',
-  // ⚠️ The crossover. Do not "simplify" either of these two lines.
+  // ⚠️ THE CROSSOVER. Do not "simplify" either of these two lines, and
+  //    read `RENAME_ALIASES` below before changing them.
   sandies: 'bunkers',
   bunkers: 'bunker-hunt',
   modified_stableford: 'modified-stableford',
@@ -85,6 +86,48 @@ const WIRE_TO_SLUG: Record<string, string> = {
   wolf_hammer: 'wolf-hammer',
   lost_balls: 'lost-balls',
 };
+
+/**
+ * A rename is in flight, and for a while both vocabularies are in the
+ * data at once.
+ *
+ * Sam is freeing the value `sandies` for a new game he has not built
+ * yet, which means two renames that CHAIN — the new name of the first
+ * is the old name of the second:
+ *
+ *     flat per-hole penalty   `sandies`  ->  `bunkers`
+ *     bimodal holder/count    `bunkers`  ->  `bunker_hunt`
+ *
+ * So the bare value `bunkers` is ambiguous on its own, and which game
+ * it means depends on whether the data has been migrated. `sandies`
+ * and `bunker_hunt` are unambiguous in either era.
+ *
+ * TRUE while the rows still predate the migration, which is TODAY on
+ * every environment: verified 2026-10-06, five bets and six
+ * `bagpipe.games` rows hold `sandies`, and NOTHING holds `bunkers`.
+ * So `bunkers` can only mean Bunker Hunt right now.
+ *
+ * FALSE once `20261029_rename_sandies_to_bunkers.sql` has run and the
+ * client builds write the new vocabulary. Flipping this line is the
+ * website's entire part of the rename. Both states are covered by
+ * tests, so the flip cannot silently swap the two games' rules pages,
+ * which is the one failure worth guarding here.
+ */
+export const BUNKERS_IS_BUNKER_HUNT = true;
+
+/**
+ * Values that are not this era's canonical spelling but still appear in
+ * data or in a client of a different vintage. Kept apart from
+ * `WIRE_TO_SLUG` so that map stays exactly one value per game, which is
+ * what its tests assert.
+ */
+export const RENAME_ALIASES: Record<string, string> = BUNKERS_IS_BUNKER_HUNT
+  // Pre-migration: the new spelling may already arrive from a newer
+  // client build, before the rows it would be written into are rewritten.
+  ? { bunker_hunt: 'bunker-hunt' }
+  // Post-migration: `sandies` survives in any row not yet rewritten and
+  // in any client that predates the rename.
+  : { sandies: 'bunkers' };
 
 /** `low_ball_high_ball` → `lowBallHighBall`, matching Dart's `.name`. */
 export function snakeToCamel(wire: string): string {
@@ -99,8 +142,41 @@ const LOOKUP: Record<string, string> = (() => {
     out[snakeToCamel(wire)] = slug;
     out[wire.toLowerCase()] = slug;
   }
+  // The chained rename: whichever spellings are not canonical this era.
+  for (const [wire, slug] of Object.entries(RENAME_ALIASES)) {
+    out[wire] = slug;
+    out[snakeToCamel(wire)] = slug;
+  }
   return out;
 })();
+
+/**
+ * Slug for a wire value in a given era. Pure and parameterised so the
+ * POST-migration behaviour is tested today, rather than discovered on
+ * the day someone flips `BUNKERS_IS_BUNKER_HUNT`.
+ */
+export function slugForWireInEra(
+  raw: string,
+  bunkersIsBunkerHunt: boolean,
+): string | null {
+  const wire = String(raw ?? '').trim();
+  const canon: Record<string, string> = { ...WIRE_TO_SLUG };
+  if (!bunkersIsBunkerHunt) {
+    // After the migration the chain has moved on by one.
+    canon.bunkers = 'bunkers';
+    canon.bunker_hunt = 'bunker-hunt';
+    delete canon.sandies;
+  }
+  const aliases: Record<string, string> = bunkersIsBunkerHunt
+    ? { bunker_hunt: 'bunker-hunt' }
+    : { sandies: 'bunkers' };
+  const all: Record<string, string> = {};
+  for (const [w, slug] of Object.entries({ ...canon, ...aliases })) {
+    all[w] = slug;
+    all[snakeToCamel(w)] = slug;
+  }
+  return all[wire] ?? all[wire.toLowerCase()] ?? null;
+}
 
 export const GAME_TYPE_COUNT = Object.keys(WIRE_TO_SLUG).length;
 export const EXPECTED_GAME_TYPE_COUNT: number = generated.sideGameCount;
