@@ -1,10 +1,11 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { sideGames } from '../lib/sideGames';
 ---
 
 <BaseLayout
   title="For Players · Bagpipe Golf"
-  description="One app for the whole round — scorecard, 34 side games, and live tournament leaderboards. Free for a limited time."
+  description={`One app for the whole round — scorecard, ${sideGames.length} side games, and live tournament leaderboards. Free for a limited time.`}
 >
   <main class="pagewrap">
     <p class="pagewrap__eyebrow">For Players</p>
@@ -26,7 +27,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </p>
       </article>
       <article class="card">
-        <h3>34 side games, settled clean</h3>
+        <h3>{sideGames.length} side games, settled clean</h3>
         <p>
           Skins, Nassau, Wolf, Vegas, Scotch, Hammer and every classic
           dot bet. Stack as many as you want on one round. When you sit

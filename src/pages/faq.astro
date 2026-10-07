@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { sideGames } from '../lib/sideGames';
 
 const faqs = [
   {
@@ -12,7 +13,8 @@ const faqs = [
   },
   {
     q: 'How many side games are supported?',
-    a: '30+ — Nassau, Skins, Wolf, Stableford, Hammer, Vegas, Bingo Bango Bongo, Scotch, Sixes and more. Every game settles hole-by-hole and is zero-sum.',
+    // Derived, never typed: this answer said "30+" while the app had 34.
+    a: `${sideGames.length} — Nassau, Skins, Wolf, Stableford, Hammer, Vegas, Bingo Bango Bongo, Scotch, Sixes and more. Every game settles hole-by-hole and is zero-sum.`,
   },
   {
     q: 'Can I run a multi-day tournament with different formats per round?',

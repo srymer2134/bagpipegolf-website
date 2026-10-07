@@ -33,8 +33,8 @@
 // from the snake one rather than listed twice.
 //
 // NAMES ARE NOT DUPLICATED HERE. The display name comes from
-// `sideGames.ts`, which already carries the reader-facing name for all
-// 33 games. This module owns one fact only: which wire value is which
+// `sideGames.ts`, which already carries the reader-facing name for
+// every game. This module owns one fact only: which wire value is which
 // game.
 
 import { sideGames, sideGameBySlug, type SideGame } from './sideGames';
