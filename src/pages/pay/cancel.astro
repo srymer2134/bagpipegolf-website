@@ -1,0 +1,29 @@
+---
+// Stripe Checkout return — the CANCEL url.
+//
+// Cancelling is NOT a failure. The player chose it, nothing was
+// charged, the row stays `pending`, and Pay still works. Showing an
+// error here would tell someone they broke something by changing their
+// mind.
+//
+// No polling: there is nothing to wait for.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Payment cancelled · Bagpipe Golf"
+  ogTitle="Bagpipe Golf"
+  description="Your Bagpipe Golf payment was cancelled. Nothing was charged."
+>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Payment</p>
+    <h1 class="pagewrap__title">Payment cancelled</h1>
+    <p class="pagewrap__sub">
+      Nothing was charged. You can pay whenever you’re ready — your
+      spot is still there.
+    </p>
+    <p class="pagewrap__sub">
+      <a href="/app">Back to your events</a>
+    </p>
+  </main>
+</BaseLayout>

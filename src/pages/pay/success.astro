@@ -1,0 +1,142 @@
+---
+// Stripe Checkout return — the SUCCESS url.
+//
+// 🚨 THIS PAGE NEVER MARKS ANYTHING PAID. Landing here means only that
+// Stripe sent the browser back. The row is flipped by the webhook
+// (`PAYMENTS_API_CONTRACT_V1.md` §0 rule 2), and this URL is trivially
+// forgeable by typing it — so the page asks the SERVER and reports what
+// it says.
+//
+// WHY IT EXISTS AT ALL, given the app handles `/pay/success` as a
+// universal link. Three cases land here instead of in the app:
+//
+//   1. the player paid on a laptop
+//   2. the universal link did not fire (Android, until §32's SHA-256
+//      fingerprint lands, and iOS when the user has "open in app"
+//      switched off)
+//   3. someone shared or typed the URL
+//
+// Before this page, all three got a 404 — immediately after entering
+// card details, which looks exactly like the payment vanishing.
+//
+// The honest middle state is the whole design. A slow webhook is
+// NORMAL, and a page that says "failed" because it has not landed yet
+// makes a paying player pay twice.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Payment · Bagpipe Golf"
+  ogTitle="Bagpipe Golf"
+  description="Confirming your payment with Bagpipe Golf."
+>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Payment</p>
+
+    <h1 class="pagewrap__title" id="pay-title">Processing…</h1>
+    <p class="pagewrap__sub" id="pay-body">
+      Confirming with your bank. This usually takes a second or two.
+    </p>
+
+    <section class="card" id="pay-card" hidden>
+      <p id="pay-detail"></p>
+    </section>
+
+    <p class="pagewrap__sub">
+      <a href="/app">Back to your events</a>
+    </p>
+  </main>
+</BaseLayout>
+
+<script>
+  // Poll OUR api for the row's status. The page reports the server's
+  // answer and nothing else.
+  const titleEl = document.getElementById('pay-title');
+  const bodyEl = document.getElementById('pay-body');
+  const cardEl = document.getElementById('pay-card');
+  const detailEl = document.getElementById('pay-detail');
+
+  const params = new URLSearchParams(window.location.search);
+  const paymentId = params.get('payment_id');
+  const scope = params.get('scope');
+  const id = params.get('id');
+
+  // Same ten-second window the app's return screen uses, so the two
+  // surfaces give up at the same point and tell the player the same
+  // thing.
+  const WINDOW_MS = 10_000;
+  const INTERVAL_MS = 900;
+
+  const SETTLED = ['succeeded', 'waived', 'paid_offline'];
+
+  function settle(title: string, body: string, detail?: string) {
+    if (titleEl) titleEl.textContent = title;
+    if (bodyEl) bodyEl.textContent = body;
+    if (detail && cardEl && detailEl) {
+      detailEl.textContent = detail;
+      cardEl.hidden = false;
+    }
+  }
+
+  function stillProcessing() {
+    // NOT an error. The money may well have moved; we just have not
+    // been told yet. "No need to pay again" is the load-bearing half.
+    settle(
+      'Still processing',
+      'Your payment is still being confirmed. We’ll update your entry ' +
+        'as soon as it lands — there’s no need to pay again.',
+    );
+  }
+
+  async function poll() {
+    if (!scope || !id) {
+      // Nothing to query — a shared or hand-typed link. Say something
+      // true rather than spin forever.
+      settle(
+        'Thanks',
+        'If you completed a payment, your entry will update shortly. ' +
+          'Open the app or your event page to check.',
+      );
+      return;
+    }
+
+    const deadline = Date.now() + WINDOW_MS;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(
+          `/api/payments?scope=${encodeURIComponent(scope)}&id=${encodeURIComponent(id)}`,
+          { headers: { accept: 'application/json' } },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const rows = Array.isArray(data?.payments) ? data.payments : [];
+          const row = paymentId
+            ? rows.find((r: any) => r?.id === paymentId)
+            : rows.filter((r: any) => SETTLED.includes(r?.status)).pop();
+          if (row && SETTLED.includes(row.status)) {
+            const cents = Number(row.amount_cents);
+            const amount = Number.isFinite(cents)
+              ? cents % 100 === 0
+                ? `$${cents / 100}`
+                : `$${(cents / 100).toFixed(2)}`
+              : '';
+            settle(
+              'You’re paid',
+              `${amount} received. Your entry is updated.`.trim(),
+            );
+            return;
+          }
+        }
+        // A non-ok response is not a failed payment — the endpoint may
+        // simply not be deployed yet. Keep asking until the window
+        // closes, then say the honest thing.
+      } catch {
+        // Same for a network error.
+      }
+      await new Promise((r) => setTimeout(r, INTERVAL_MS));
+    }
+    stillProcessing();
+  }
+
+  void poll();
+</script>
