@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { sideGames } from '../lib/sideGames';
 
 const groups = [
   {
@@ -7,7 +8,7 @@ const groups = [
     body: 'GHIN-style notation, per-hole fairways in regulation, greens in regulation, and putts, course handicap math done for you. Career stats roll up automatically.',
   },
   {
-    title: '34 side games',
+    title: `${sideGames.length} side games`,
     body: 'Skins, Nassau, Wolf, Vegas, Stableford, Hammer, Bingo Bango Bongo, Scotch, Sixes and more — hole-by-hole, zero-sum settlement.',
     href: '/side-games',
   },

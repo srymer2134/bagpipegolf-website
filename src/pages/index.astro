@@ -1,6 +1,12 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SocialLinks from '../components/SocialLinks.astro';
+import { sideGames } from '../lib/sideGames';
+
+// The games named in the side-games card. "N more" is the library size
+// minus this list — it said "21 more" after nine names with 34 games.
+const featuredGames = ['Skins', 'Nassau', 'Wolf', 'Vegas', 'Stableford', 'Hammer', 'Bingo Bango Bongo', 'Scotch', 'Sixes'];
+const moreGames = sideGames.length - featuredGames.length;
 ---
 
 <BaseLayout title="Bagpipe Golf — Play games. Settle scores." ogTitle="Bagpipe Golf">
@@ -19,7 +25,7 @@ import SocialLinks from '../components/SocialLinks.astro';
         <p class="hero__tagline">
           The scorecard and side-game engine for buddies trips,
           tournaments, and everything in between. Customizable trip
-          templates, 34 side games, full settlement math, flighted
+          templates, {sideGames.length} side games, full settlement math, flighted
           tournaments, a clubhouse-TV kiosk view — built by golfers
           who got tired of doing skins on a napkin.
         </p>
@@ -83,10 +89,9 @@ import SocialLinks from '../components/SocialLinks.astro';
           </article>
           <article class="card">
             <div class="card__icon" aria-hidden="true">💰</div>
-            <h3>34 side games</h3>
+            <h3>{sideGames.length} side games</h3>
             <p>
-              Skins, Nassau, Wolf, Vegas, Stableford, Hammer, Bingo Bango
-              Bongo, Scotch, Sixes and 21 more — full settlement
+              {featuredGames.join(', ')} and {moreGames} more — full settlement
               math, hole-by-hole, zero-sum guaranteed. Add a press at
               the 9th and the engine still balances.
             </p>
@@ -122,7 +127,7 @@ import SocialLinks from '../components/SocialLinks.astro';
           <li>Team Cups over as many rounds as your trip &mdash; score front, back, and overall on every one</li>
           <li><strong>Pre-loaded Cup templates that morph to your round count</strong> &mdash; pick Bandon or Streamsong, pick 2&ndash;12 rounds, the app rebuilds the composition (Preserve shootouts, Shortys, singles finale) to fit</li>
           <li>Custom formats: match play, best ball, scramble, alternate shot, Nassau, skins &mdash; mix and match round to round</li>
-          <li><strong>34 side games</strong> running underneath &mdash; wolf, vegas, scotch, hammer, bingo bango bongo, snake &mdash; the tab settles itself, hole by hole, zero-sum</li>
+          <li><strong>{sideGames.length} side games</strong> running underneath &mdash; wolf, vegas, scotch, hammer, bingo bango bongo, snake &mdash; the tab settles itself, hole by hole, zero-sum</li>
           <li>Handicaps handled &mdash; mixed-skill trips stay fair</li>
           <li>Live leaderboards &mdash; per round, cumulative, and Cup team standings updating as scores land</li>
           <li>Post-round bet settlement + hole-by-hole recap the group pores over <em>while</em> the Tournament Director pairs the next groupings &mdash; nobody's just standing around</li>
