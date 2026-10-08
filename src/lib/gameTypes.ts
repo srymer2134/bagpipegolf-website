@@ -61,7 +61,7 @@ const WIRE_TO_SLUG: Record<string, string> = {
   low_ball_high_ball: 'low-ball-high-ball',
   dots: 'dots',
   vegas: 'vegas',
-  six_six_six: 'six-six-six',
+  six_six_six: 'sixes',
   arnies: 'arnies',
   defender: 'defender',
   scotch: 'scotch',

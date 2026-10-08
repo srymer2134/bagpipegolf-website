@@ -1246,7 +1246,7 @@ export const sideGames: SideGame[] = [
       result: 'A collects $12 from B and $12 from C. The three totals add to 162.',
     },
     variations: [
-      'Some groups play sixes with a foursome — 6 points as 3/2/1/0. Not in the app; Nines needs exactly three.',
+      'Some foursomes split 6 points a hole as 3/2/1/0. That points variant is not in the app (it is not the Sixes side game, which is partners); Nines needs exactly three.',
       'Net is the default. Gross works and changes the tie pattern considerably.',
     ],
     inApp: [
@@ -1355,7 +1355,7 @@ export const sideGames: SideGame[] = [
   {
     slug: 'round-robin',
     name: 'Round Robin',
-    aka: ['round robin golf', 'sixes', 'switch'],
+    aka: ['round robin golf', 'switch'],
     players: '4 (exactly)',
     summary:
       'Partners change every six holes so you play with everyone once. Three mini match-play matches in one round.',
@@ -1376,7 +1376,7 @@ export const sideGames: SideGame[] = [
       result: 'Three segments settle separately and the net falls out of the three results.',
     },
     variations: [
-      'Six-Six-Six uses the same rotation but scores best ball within each segment instead of match play.',
+      'Sixes uses the same rotation but scores best ball within each segment instead of match play.',
       'Some groups carry a running total across segments rather than settling each. The app settles per segment.',
     ],
     inApp: [
@@ -1386,20 +1386,21 @@ export const sideGames: SideGame[] = [
     ],
     faq: [
       {
-        q: 'How is this different from Six-Six-Six?',
-        a: 'Same partner rotation. Round Robin plays each segment as match play, hole by hole; Six-Six-Six scores best ball across the segment.',
+        q: 'How is this different from Sixes?',
+        a: 'Same partner rotation. Round Robin plays each segment as match play, hole by hole; Sixes scores best ball across the segment.',
       },
       {
         q: 'Can we pick our own partners?',
         a: 'The rotation is fixed so that everyone pairs with everyone. If you want to choose, Wolf is the game for that.',
       },
     ],
-    related: ['six-six-six', 'wolf', 'nassau'],
+    related: ['sixes', 'wolf', 'nassau'],
   },
   {
-    slug: 'six-six-six',
-    name: 'Six-Six-Six',
-    aka: ['666', 'sixes', 'six six six golf'],
+    slug: 'sixes',
+    name: 'Sixes',
+    // Renamed from Six-Six-Six 2026-10-07; the old names stay searchable.
+    aka: ['six-six-six', '666', 'six six six golf'],
     players: '4 (exactly)',
     summary:
       'Three six-hole segments with rotating partners, each scored as best ball. The name is the three sixes.',
@@ -1420,7 +1421,7 @@ export const sideGames: SideGame[] = [
       'Others play nine-hole segments with a threesome. Not in the app; this needs four.',
     ],
     inApp: [
-      'Add Six-Six-Six at setup with exactly four players.',
+      'Add Sixes at setup with exactly four players.',
       'Confirm or change partners when the app prompts at holes 7 and 13.',
       'Settlement shows each segment with its partners and margin.',
     ],
@@ -1526,6 +1527,12 @@ export const sideGames: SideGame[] = [
     related: ['wolf', 'hammer', 'round-robin'],
   },
 ];
+
+/** Slugs a game USED to live at → where it lives now. The [slug] page
+ *  answers these with a 301, so old links and search rankings carry over. */
+export const RENAMED_SIDE_GAME_SLUGS: Record<string, string> = {
+  'six-six-six': 'sixes', // 2026-10-07: Six-Six-Six → Sixes (Sam)
+};
 
 export const sideGameBySlug = (slug: string): SideGame | undefined =>
   sideGames.find((g) => g.slug === slug);
