@@ -114,10 +114,11 @@ export type PaymentsErrorBody = {
   code: string;
   /** Present on `already_paid`. */
   payment?: PaymentRow;
-  /** Present on `merchant_not_ready` when one could be minted. The
-   *  website NEVER follows this on a player's behalf — see
-   *  `checkoutErrorMessage`. */
-  onboarding_url?: string;
+  // No `onboarding_url`, on any code. The contract carried one on
+  // `merchant_not_ready` until the 2026-10-07 amendment (§78): checkout
+  // is called by PLAYERS, and an Account Link is a single-use key to
+  // the league's own Stripe onboarding. Only the owner-only onboard
+  // call (§2.1) ever returns one.
 };
 
 // ── The flag gate ───────────────────────────────────────────────
@@ -292,10 +293,10 @@ export type CheckoutNotice = {
  * the server's `error` string is not echoed, and an unknown code gets
  * a calm generic sentence rather than raw text from a URL.
  *
- * `merchant_not_ready` deliberately says nothing about setting up
- * Stripe: the person who tapped Pay is a player, and the contract's
- * optional `onboarding_url` on that error is for the owner, not for
- * them. The website never follows it.
+ * `merchant_not_ready` tells a player the league isn't ready and to
+ * pay the commissioner directly — it never asks THEM to set anything
+ * up. (The error carries no onboarding link at all since the contract's
+ * 2026-10-07 amendment; the person who tapped Pay is a player.)
  */
 export function checkoutNotice(code: string | null | undefined, scope: PaymentScope): CheckoutNotice | null {
   if (!code) return null;
@@ -323,7 +324,7 @@ function checkoutNoticeText(code: string, scope: PaymentScope): CheckoutNotice {
       return {
         tone: 'warn',
         title: 'Card payments aren’t ready yet',
-        body: `This ${scope} can’t take cards yet. Nothing was charged — pay the ${host} directly, or try again later.`,
+        body: `This ${scope} hasn’t finished setting up card payments. Nothing was charged — pay the ${host} directly for now.`,
       };
     case 'kind_not_allowed':
       return {

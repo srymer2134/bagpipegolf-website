@@ -17,5 +17,10 @@ SENTRY_ENVIRONMENT=development
 # the pages with no API: set both to 1, run `npm run dev`, and pick a
 # state with `?fixture=<name>` (names = src/lib/__fixtures__/payments/).
 # PAYMENTS_FIXTURES is ignored by any built Worker.
+#   Roster (W5): /app/leagues/<id>/payments?payments=payments_roster
+#     (all six statuses); add &fixture=error_<code> to see a refused
+#     "Mark paid in cash" / "Waive", and ?roster=<code> for each result.
+#   Signup dues step: /app/leagues/<id>/signup?pay=<code> or
+#     ?payments=error_payments_disabled (step hidden).
 PAYMENTS_ENABLED=
 PAYMENTS_FIXTURES=

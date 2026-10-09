@@ -7,7 +7,7 @@
 // All Stripe logic lives in fairwayiq-api (plan §3.2); this site only
 // asks Railway for a URL and sends the browser to it.
 //
-// The four endpoints (PAYMENTS_API_CONTRACT_V1 §2.1–2.4) do not exist
+// The endpoints (PAYMENTS_API_CONTRACT_V1 §2.1–2.4, 2.6, 2.7) do not exist
 // on Railway yet — they are Patrick's plan Phases 3–4. Until they do,
 // `live` mode gets a 404 from Railway, which every caller below
 // already renders as a calm "not available" rather than a failure.
@@ -23,7 +23,9 @@ import {
   type PaymentsErrorBody,
   type PaymentsListBody,
   type PaymentsMode,
+  type PaymentRow,
 } from './payments';
+import type { MarkOfflineRequest, WaiveRequest } from './paymentsRoster';
 
 type Ctx = { locals: App.Locals };
 
@@ -100,7 +102,7 @@ async function live<T>(ctx: Ctx, init: Parameters<typeof callRailway>[1]): Promi
   }
 }
 
-// ── The four calls ──────────────────────────────────────────────
+// ── The calls ──────────────────────────────────────────────
 
 /** §2.2. A 404 `merchant_not_ready` is "never onboarded", not an error —
  *  callers check `code`. */
@@ -171,9 +173,49 @@ export function listPayments(
   fixture?: string | null,
 ): Promise<ApiResult<PaymentsListBody>> {
   if (mode === 'fixtures') {
-    return Promise.resolve(fromFixture(pickFixture(fixture, PAYMENTS_FIXTURES, 'payments_empty')));
+    // An error fixture is allowed too, so `payments_disabled` on the
+    // read (which hides the signup page's dues step) is viewable.
+    return Promise.resolve(
+      fromFixture(pickFixture(fixture, [...PAYMENTS_FIXTURES, ...ERROR_FIXTURES], 'payments_empty')),
+    );
   }
   return live(ctx, { method: 'GET', path: '/api/payments', query: { scope, id } });
+}
+
+/** §2.6 — the director collected cash. No Stripe call on the API side
+ *  either. The body is rebuilt from the validated request: the
+ *  contract's fields and nothing else, never an amount. */
+export function markOffline(
+  ctx: Ctx,
+  mode: PaymentsMode,
+  req: MarkOfflineRequest,
+  fixture?: string | null,
+): Promise<ApiResult<{ payment: PaymentRow }>> {
+  if (mode === 'fixtures') {
+    return Promise.resolve(
+      fromFixture(pickFixture(fixture, ['mark_offline_created', ...ERROR_FIXTURES], 'mark_offline_created')),
+    );
+  }
+  const body: MarkOfflineRequest = { scope: req.scope, id: req.id, profile_id: req.profile_id };
+  if (req.note) body.note = req.note;
+  return live(ctx, { method: 'POST', path: '/api/payments/mark-offline', body });
+}
+
+/** §2.7 — the director comped them. Same shape as §2.6 with `reason`. */
+export function waive(
+  ctx: Ctx,
+  mode: PaymentsMode,
+  req: WaiveRequest,
+  fixture?: string | null,
+): Promise<ApiResult<{ payment: PaymentRow }>> {
+  if (mode === 'fixtures') {
+    return Promise.resolve(
+      fromFixture(pickFixture(fixture, ['waive_created', ...ERROR_FIXTURES], 'waive_created')),
+    );
+  }
+  const body: WaiveRequest = { scope: req.scope, id: req.id, profile_id: req.profile_id };
+  if (req.reason) body.reason = req.reason;
+  return live(ctx, { method: 'POST', path: '/api/payments/waive', body });
 }
 
 /** 404 the way the repo's other gated surfaces do (`env-diag`, the

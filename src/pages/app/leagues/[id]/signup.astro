@@ -21,10 +21,13 @@
 // is needed for this flow**, which is the opposite of what reading
 // their page as a season sign-up suggested.
 //
-// 🚨 NOTHING HERE CHARGES ANYONE. The fee block is illustrative and the
-// pay button is inert. The real seam already exists and is flag-gated —
-// see "What connecting Stripe actually needs" at the bottom of the page
-// and `FeatureFlags.stripeEnabled` in the Flutter repo.
+// 🚨 STEPS 1–5 CHARGE NOBODY. The fee block is illustrative and step
+// 5's pay button is inert, flag or no flag.
+//
+// The one REAL money control is step 6, "Season dues", and it exists
+// only with PAYMENTS_ENABLED (see `signupDuesStep` in
+// `src/lib/paymentsSignup.ts`). With the flag off — production today —
+// this page renders exactly as it did before step 6 was added.
 //
 // WHAT THEIR FORM ASKS, AND WHY OURS IS SHORTER
 //
@@ -55,6 +58,10 @@ import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { leagueDetail } from '../../../../lib/leaguePortal';
+import PayButton from '../../../../components/payments/PayButton.astro';
+import { fixtureParam, listPayments, modeFor } from '../../../../lib/paymentsServer';
+import { loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
+import { signupDuesStep, type SignupDues } from '../../../../lib/paymentsSignup';
 
 const { id } = Astro.params;
 const user = Astro.locals.user;
@@ -145,6 +152,41 @@ const feeRows = [
   { label: 'Closest to the pin', value: money(EXAMPLE.potCtpCents), note: 'optional, on the day', viaApp: false },
 ];
 const dueNowCents = EXAMPLE.entryFeeCents;
+
+// ── 6 · Season dues — REAL, and only with PAYMENTS_ENABLED ─────────
+// With the flag off nothing below runs, `dues` stays null and the page
+// renders exactly as it did before (steps 1–5 above are still the
+// placeholder; step 5's inert button is untouched either way).
+//
+// Being on this page already means being on the league's roster —
+// `leagueDetail` returns null otherwise — so the SEASON signup has
+// happened (the join). Season dues hang off that, not off the
+// per-event answer below, which is still inert.
+//
+// OPTIONAL BY DESIGN: nothing here blocks signing up. A commissioner
+// may collect in cash and record it on the roster (W5).
+//
+// The amount is display only (`leagues.dues_cents` via leagueDues.ts).
+// The Pay form posts exactly {scope, id, kind}; the server derives the
+// price (contract §0 rule 1). Hidden entirely on `payments_disabled`.
+const payMode = modeFor(Astro.locals as App.Locals);
+let dues: SignupDues | null = null;
+if (payMode !== 'off' && detail && id) {
+  try {
+    dues = await signupDuesStep({
+      mode: payMode,
+      payParam: Astro.url.searchParams.get('pay'),
+      slotParam: Astro.url.searchParams.get('slot'),
+      fixture: fixtureParam(payMode, Astro.url),
+      listFixture: payMode === 'fixtures' ? Astro.url.searchParams.get('payments') : null,
+      loadDues: () => loadPayable(supabaseFor(Astro as unknown as RouteCtx), 'league', id!),
+      listPayments: (f) => listPayments({ locals: Astro.locals as App.Locals }, payMode, 'league', id!, f),
+      withQuery,
+    });
+  } catch (err) {
+    console.error('[app/league/signup] payments load failed', err);
+  }
+}
 ---
 
 <BaseLayout title="League sign-up · Bagpipe Golf">
@@ -370,6 +412,27 @@ const dueNowCents = EXAMPLE.entryFeeCents;
           notify the director &mdash; the same two-step Unknown Golf uses
           ("pending approval", then a confirmation email). Inert here.
         </p>
+
+        {/* ── 6. Season dues — real, flag-gated, optional ─────── */}
+        {dues && (
+          <section class="blk" id="dues-step">
+            <h2 class="blk__h">6 &middot; Season dues</h2>
+            <p class="hint">
+              <strong>Optional.</strong> You&rsquo;re on the roster whether or
+              not you pay here &mdash; your commissioner may collect dues in
+              cash instead. Skip this step if you&rsquo;d rather pay them
+              directly.
+            </p>
+            <PayButton
+              scope="league"
+              id={id!}
+              amountLabel={dues.amountLabel}
+              paid={dues.paid}
+              notice={dues.notice}
+              action={dues.action}
+            />
+          </section>
+        )}
 
         {/* ── What Stripe actually needs ──────────────────────── */}
         <section class="blk blk--gates">

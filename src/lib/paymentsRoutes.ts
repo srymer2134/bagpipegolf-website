@@ -14,7 +14,8 @@ import {
   type PaymentScope,
   type PaymentsMode,
 } from './payments';
-import { fixtureParam, modeFor, notFound, onboard } from './paymentsServer';
+import { fixtureParam, markOffline, modeFor, notFound, onboard, waive } from './paymentsServer';
+import { parseRosterAction, type RosterAction } from './paymentsRoster';
 
 /** What every handler needs from Astro — satisfied by both an
  *  `APIContext` and the `Astro` global. */
@@ -149,6 +150,57 @@ export async function startOnboarding(
     return redirect(withQuery(setup, { setup: 'bad_link' }));
   }
   return redirect(res.data.onboarding_url);
+}
+
+/**
+ * W5 — "Mark paid in cash" (§2.6) and "Waive" (§2.7), the POSTs behind
+ * the owner's roster. Shared by `/api/payments/mark-offline` and
+ * `/api/payments/waive`.
+ *
+ * Order matters and each step is a guard:
+ *   1. flag off → 404 before the body or session is read;
+ *   2. the form is EXACTLY the contract's fields (no amount, no status —
+ *      `parseRosterAction`), else 400;
+ *   3. signed in, else login;
+ *   4. the caller OWNS the league/tournament (F5 — `user_id`, not any
+ *      commissioner), else back to the event page and Railway is never
+ *      called. The API refuses a non-owner too (`not_director`);
+ *   5. the Railway body is rebuilt from the validated request.
+ *
+ * Always lands back on the payments page with `?roster=<code>`, so the
+ * owner reads "Recorded." or the refusal. It never says "sent".
+ */
+export async function recordRosterAction(ctx: RouteCtx, action: RosterAction): Promise<Response> {
+  const mode: PaymentsMode = modeFor(ctx.locals);
+  if (mode === 'off') return notFound();
+
+  let form: FormData;
+  try {
+    form = await ctx.request.formData();
+  } catch {
+    return new Response('Bad request', { status: 400 });
+  }
+  const parsed =
+    action === 'mark_offline'
+      ? parseRosterAction('mark_offline', form.entries())
+      : parseRosterAction('waive', form.entries());
+  if (!parsed.ok) return new Response(`Bad request: ${parsed.reason}`, { status: 400 });
+  const req = parsed.value;
+  const setup = paymentsSetupPath(req.scope, req.id);
+
+  const user = ctx.locals.user;
+  if (!user) return redirect(`/login?next=${encodeURIComponent(setup)}`);
+
+  const payable = await loadPayable(supabaseFor(ctx), req.scope, req.id);
+  if (!isOwner(payable, user.id)) return redirect(eventPath(req.scope, req.id));
+
+  const fixture = fixtureParam(mode, ctx.url);
+  const res =
+    action === 'mark_offline'
+      ? await markOffline(ctx, mode, req as Parameters<typeof markOffline>[2], fixture)
+      : await waive(ctx, mode, req as Parameters<typeof waive>[2], fixture);
+  const code = res.ok ? (action === 'mark_offline' ? 'recorded_offline' : 'recorded_waived') : res.code;
+  return redirect(withQuery(setup, { roster: code, fixture }) + '#roster');
 }
 
 export { isKindAllowed, withQuery, redirect };

@@ -9,13 +9,19 @@
 // co-commissioner is sent back to the overview, the way manage sends
 // a non-commissioner. The API enforces the same rule (`not_director`).
 //
-// Rendering only READS (§2.2). The Account Link is minted by the POST
-// behind the button — see MerchantSetup.astro for why.
+// Rendering only READS (§2.2, §2.4). The Account Link is minted by the
+// POST behind the button — see MerchantSetup.astro for why.
+//
+// W5 — the dues roster below it: every `league_members` row joined to
+// GET /api/payments (§2.4), with "Mark paid in cash" / "Waive" POSTs
+// (§2.6 / §2.7). Same owner-only gate as the rest of the page.
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import MerchantSetup from '../../../../components/payments/MerchantSetup.astro';
+import PaymentsRoster from '../../../../components/payments/PaymentsRoster.astro';
+import { rosterPayments, rosterResultCode, type RosterMember } from '../../../../lib/paymentsRoster';
 import { merchantView, parseEntityId } from '../../../../lib/payments';
-import { fixtureParam, getMerchant, modeFor, notFound } from '../../../../lib/paymentsServer';
+import { fixtureParam, getMerchant, listPayments, modeFor, notFound } from '../../../../lib/paymentsServer';
 import { isOwner, loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
 
 const locals = Astro.locals as App.Locals;
@@ -27,18 +33,37 @@ if (!id) return notFound();
 const user = locals.user;
 
 let payable = null;
+const supabase = supabaseFor(Astro as unknown as RouteCtx);
 try {
-  payable = await loadPayable(supabaseFor(Astro as unknown as RouteCtx), 'league', id);
+  payable = await loadPayable(supabase, 'league', id);
 } catch (err) {
   console.error('[app/league/payments] load failed', err);
 }
 if (!isOwner(payable, user?.id)) return Astro.redirect(`/app/leagues/${encodeURIComponent(id)}`, 302);
+
+// The roster the manage page already reads. Handicaps are not needed.
+let members: RosterMember[] = [];
+try {
+  const { data } = await supabase
+    .from('league_members')
+    .select('user_id, display_name, status')
+    .eq('league_id', id);
+  members = (data ?? []) as RosterMember[];
+} catch (err) {
+  console.error('[app/league/payments] roster load failed', err);
+}
 
 const fixture = fixtureParam(mode, Astro.url);
 const res = await getMerchant({ locals }, mode, 'league', id, fixture);
 const neverOnboarded = !res.ok && res.code === 'merchant_not_ready';
 const view = res.ok ? merchantView(res.data) : neverOnboarded ? merchantView(null) : null;
 const action = withQuery('/api/merchants/onboard', { fixture });
+
+// `?payments=` picks the list fixture in dev; `?fixture=` drives the
+// action fixtures, as on the overview's Pay button.
+const list = await listPayments({ locals }, mode, 'league', id,
+  mode === 'fixtures' ? Astro.url.searchParams.get('payments') : null);
+const rosterRows = list.ok ? rosterPayments(members, list.data.payments, 'season_dues') : [];
 ---
 
 <BaseLayout title={`Card payments · ${payable!.name} · Bagpipe Golf`}>
@@ -55,6 +80,15 @@ const action = withQuery('/api/merchants/onboard', { fixture });
       loadFailed={!res.ok && !neverOnboarded}
       setupCode={Astro.url.searchParams.get('setup')}
       action={action}
+    />
+    <PaymentsRoster
+      scope="league"
+      id={id}
+      rows={rosterRows}
+      loadFailed={!list.ok}
+      resultCode={rosterResultCode(Astro.url.searchParams.get('roster'))}
+      markOfflineAction={withQuery('/api/payments/mark-offline', { fixture })}
+      waiveAction={withQuery('/api/payments/waive', { fixture })}
     />
     <p class="pagewrap__sub"><a href={`/app/leagues/${encodeURIComponent(id)}/manage`}>Back to Manage</a></p>
   </main>

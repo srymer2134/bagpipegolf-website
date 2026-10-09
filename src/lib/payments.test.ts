@@ -216,7 +216,7 @@ describe('checkout request is exactly {scope, id, kind}', () => {
       }),
     );
     expect(res.status).toBe(303);
-    // Not the onboarding_url the error carried — a player is never sent there.
+    // Back to the event page — a player is never sent toward Stripe setup.
     expect(res.headers.get('location')).toBe('/app/tournaments/tourney_1?pay=merchant_not_ready#pay');
   });
 
@@ -407,7 +407,10 @@ describe('fixtures are contract-shaped', () => {
       expect(f.body).toEqual(expect.objectContaining({ code, error: expect.any(String) }));
     }
     expect(fixture('error_already_paid').body.payment.id).toBeTruthy();
-    expect(fixture('error_merchant_not_ready').body.onboarding_url).toBeTruthy();
+    // Contract amendment 2026-10-07 (§78): checkout is a player's call,
+    // so merchant_not_ready carries no Account Link.
+    expect(fixture('error_merchant_not_ready').body).not.toHaveProperty('onboarding_url');
+    expect(Object.keys(fixture('error_merchant_not_ready').body).sort()).toEqual(['code', 'error']);
   });
 
   it('HTTP statuses match the contract table', () => {
