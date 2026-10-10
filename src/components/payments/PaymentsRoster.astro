@@ -1,0 +1,149 @@
+---
+// W5 — the owner's dues roster on /app/leagues/[id]/payments. Plan
+// step 4.5; parity with the app's A6 roster.
+//
+// Rendered by the page ONLY when PAYMENTS_ENABLED and only for the
+// league's OWNER (the page 404s / redirects otherwise).
+//
+// Status comes from GET /api/payments (contract §2.4) joined to
+// `league_members` by `rosterPayments` — the website never decides
+// anyone has paid. "Mark paid in cash" and "Waive" are POST forms with
+// exactly the contract's fields (§2.6 / §2.7); there is no amount
+// field, and the route refuses one.
+//
+// Vocabulary: `statusLabel` in paymentStatus.ts, shared with the app.
+// `paid_offline` reads "Paid (cash)" and `waived` reads "Waived" — a
+// treasurer needs the difference between a cash sale and a comp.
+import type { RosterPaymentRow } from '../../lib/paymentsRoster';
+import { rosterNotice, rosterSummary, ROSTER_TEXT_MAX } from '../../lib/paymentsRoster';
+import type { PaymentScope } from '../../lib/payments';
+
+interface Props {
+  scope: PaymentScope;
+  id: string;
+  rows: RosterPaymentRow[];
+  /** The §2.4 read failed (e.g. the API isn't deployed yet). */
+  loadFailed?: boolean;
+  /** `?roster=<code>` after an action. */
+  resultCode?: string | null;
+  /** `/api/payments/mark-offline` (+ `?fixture=` in dev fixture mode). */
+  markOfflineAction: string;
+  /** `/api/payments/waive` (+ `?fixture=` in dev fixture mode). */
+  waiveAction: string;
+}
+
+const { scope, id, rows, loadFailed = false, resultCode = null, markOfflineAction, waiveAction } = Astro.props;
+const notice = rosterNotice(resultCode);
+const summary = rosterSummary(rows);
+const host = scope === 'league' ? 'league' : 'tournament';
+---
+
+<section class="card roster" id="roster">
+  <div class="roster__head">
+    <span class="chip">{scope === 'league' ? 'Season dues' : 'Entry fees'} · roster</span>
+    {!loadFailed && rows.length > 0 && (
+      <span class="roster__count">{summary.settled} settled · {summary.owing} still owe</span>
+    )}
+  </div>
+
+  {notice && (
+    <div class:list={['roster__notice', `roster__notice--${notice.tone}`]} role="status">
+      <strong>{notice.title}</strong> {notice.body}
+    </div>
+  )}
+
+  {loadFailed ? (
+    <p class="roster__p">We couldn’t load payments just now. Try again in a moment.</p>
+  ) : rows.length === 0 ? (
+    <p class="roster__p">No members on the roster yet.</p>
+  ) : (
+    <ul class="roster__list">
+      {rows.map((r) => (
+        <li class="roster__row" data-status={r.status ?? 'none'}>
+          <div class="roster__who">
+            <span class="roster__name">{r.name}</span>
+            {r.waivedReason && <span class="roster__why">{r.waivedReason}</span>}
+          </div>
+          <div class="roster__state">
+            {r.amountLabel && <span class="roster__amt">{r.amountLabel}</span>}
+            <span class:list={['roster__pill', `roster__pill--${r.tone}`]}>{r.label}</span>
+          </div>
+          {r.canRecord && r.onRoster && (
+            <details class="roster__actions">
+              <summary>Record a payment</summary>
+              <form method="post" action={markOfflineAction} class="roster__form">
+                <input type="hidden" name="scope" value={scope} />
+                <input type="hidden" name="id" value={id} />
+                <input type="hidden" name="profile_id" value={r.profileId} />
+                <label>
+                  <span>Note <em>optional</em></span>
+                  <input type="text" name="note" maxlength={ROSTER_TEXT_MAX} placeholder="Cash at week 1, Venmo 10/7…" />
+                </label>
+                <button type="submit" class="btn btn--primary">Mark paid in cash</button>
+              </form>
+              <form method="post" action={waiveAction} class="roster__form">
+                <input type="hidden" name="scope" value={scope} />
+                <input type="hidden" name="id" value={id} />
+                <input type="hidden" name="profile_id" value={r.profileId} />
+                <label>
+                  <span>Reason <em>optional</em></span>
+                  <input type="text" name="reason" maxlength={ROSTER_TEXT_MAX} placeholder="Junior member, comp…" />
+                </label>
+                <button type="submit" class="btn btn--ghost">Waive</button>
+              </form>
+              {r.status === 'pending' && (
+                <p class="roster__fine">
+                  This player has a card checkout open. Record cash only if
+                  you’re sure they won’t also pay by card.
+                </p>
+              )}
+            </details>
+          )}
+        </li>
+      ))}
+    </ul>
+  )}
+
+  <p class="roster__fine">
+    <strong>Paid (cash)</strong> and <strong>Waived</strong> are records
+    you keep — Bagpipe moves no money for either. <strong>Paid</strong>
+    means Stripe confirmed a card payment.
+  </p>
+  <!-- W7 / plan §2.3 S9 — PENDING CASEY'S REVIEW. -->
+  <p class="roster__fine" id="refunds">
+    <strong>Refunds cost the {host} Stripe’s processing fee.</strong>
+    Stripe keeps its fee on a card payment even when you refund it.
+  </p>
+</section>
+
+<style>
+  .roster { margin: 0 0 20px; }
+  .roster__head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .roster__count { font-size: 0.8125rem; color: var(--ink-muted, #4b5b54); }
+  .roster__p { margin: 0 0 10px; color: var(--ink-muted, #4b5b54); font-size: 0.9375rem; }
+  .roster__list { list-style: none; margin: 0 0 12px; padding: 0; }
+  .roster__row {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+    gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--line, #dfe6e2);
+  }
+  .roster__who { min-width: 0; display: flex; flex-direction: column; }
+  .roster__name { font-weight: 600; font-size: 0.9375rem; overflow-wrap: anywhere; }
+  .roster__why { font-size: 0.8125rem; color: var(--ink-muted, #4b5b54); }
+  .roster__state { display: flex; align-items: center; gap: 8px; }
+  .roster__amt { font-size: 0.875rem; font-variant-numeric: tabular-nums; color: var(--ink-muted, #4b5b54); }
+  .roster__pill { font-weight: 700; font-size: 0.8125rem; padding: 3px 10px; border-radius: 999px; background: #eef2ef; color: var(--ink-muted, #4b5b54); }
+  .roster__pill--good { background: #e4f3ea; color: var(--brand-green-dark, #1f5133); }
+  .roster__pill--warn { background: #fff4dc; color: #7a5600; }
+  .roster__pill--bad { background: #fdecea; color: #8a1f12; }
+  .roster__actions { flex-basis: 100%; }
+  .roster__actions summary { cursor: pointer; font-size: 0.875rem; color: var(--brand-green-dark, #1f5133); }
+  .roster__form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin: 10px 0 0; }
+  .roster__form label { flex: 1 1 200px; display: flex; flex-direction: column; font-size: 0.8125rem; }
+  .roster__form label em { font-style: normal; opacity: 0.7; }
+  .roster__form input[type='text'] { font-size: 1rem; padding: 7px 8px; box-sizing: border-box; width: 100%; }
+  .roster__fine { margin: 8px 0 0; color: var(--ink-muted, #4b5b54); font-size: 0.8125rem; }
+  .roster__notice { border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; font-size: 0.875rem; }
+  .roster__notice--warn { background: #fff4dc; border: 1px solid #f0d58a; }
+  .roster__notice--bad { background: #fdecea; border: 1px solid #f3b8b1; }
+  .roster__notice--good { background: #e4f3ea; border: 1px solid #b7dcc4; }
+</style>

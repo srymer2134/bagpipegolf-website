@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { eventPath, isKindAllowed, parseCheckoutRequest } from '../../../lib/payments';
 import { createCheckout, fixtureParam, modeFor, notFound } from '../../../lib/paymentsServer';
 import { isStripeUrl, redirect, withQuery } from '../../../lib/paymentsRoutes';
+import { parseCheckoutOrigin, parseSlot } from '../../../lib/paymentsRoster';
 
 // POST /api/payments/checkout-session — W3's Pay button.
 //
@@ -16,7 +17,10 @@ import { isStripeUrl, redirect, withQuery } from '../../../lib/paymentsRoutes';
 // Stripe.js, no card fields on our page). On a refusal: 303 back to
 // the event page with `?pay=<code>`, which renders the human sentence
 // for that code. The back-link is built from (scope, id), never from a
-// caller-supplied URL.
+// caller-supplied URL. The league signup page adds `?from=signup`
+// (and its `slot`) to the ACTION URL — not the body, which stays
+// exactly three fields — so a refusal lands back on the signup page;
+// that path is rebuilt from (scope, id) as well.
 //
 // Off (404) unless PAYMENTS_ENABLED.
 export const POST: APIRoute = async (ctx) => {
@@ -33,7 +37,11 @@ export const POST: APIRoute = async (ctx) => {
   const parsed = parseCheckoutRequest(form.entries());
   if (!parsed.ok) return new Response(`Bad request: ${parsed.reason}`, { status: 400 });
   const req = parsed.value;
-  const back = eventPath(req.scope, req.id);
+  const fromSignup = req.scope === 'league' && parseCheckoutOrigin(ctx.url.searchParams.get('from')) === 'signup';
+  const slot = fromSignup ? parseSlot(ctx.url.searchParams.get('slot')) : null;
+  const back = fromSignup
+    ? withQuery(`${eventPath(req.scope, req.id)}/signup`, { slot })
+    : eventPath(req.scope, req.id);
 
   if (!locals.user) return redirect(`/login?next=${encodeURIComponent(back)}`);
   if (!isKindAllowed(req.scope, req.kind)) {
