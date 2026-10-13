@@ -22,5 +22,12 @@ SENTRY_ENVIRONMENT=development
 #     "Mark paid in cash" / "Waive", and ?roster=<code> for each result.
 #   Signup dues step: /app/leagues/<id>/signup?pay=<code> or
 #     ?payments=error_payments_disabled (step hidden).
+#   Per-scope gate (paymentsGate.ts) — a league/tournament the API has
+#   not allow-listed. Every payment control is hidden:
+#     member Pay buttons: /app/leagues/<id>?payments=error_payments_disabled
+#       and /app/tournaments/<id>?payments=error_payments_disabled
+#     owner set-up link:  /app/leagues/<id>/manage?fixture=error_payments_disabled
+#       and /app/tournaments/<id>/manage?fixture=error_payments_disabled
+#     payments page 404s: /app/leagues/<id>/payments?fixture=error_payments_disabled
 PAYMENTS_ENABLED=
 PAYMENTS_FIXTURES=

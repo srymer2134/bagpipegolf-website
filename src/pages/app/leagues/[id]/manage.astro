@@ -19,7 +19,8 @@ import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { leagueDetail, visibilityLabel, type PortalDetail } from '../../../../lib/leaguePortal';
-import { modeFor } from '../../../../lib/paymentsServer';
+import { fixtureParam, getMerchant, modeFor } from '../../../../lib/paymentsServer';
+import { paymentsGate } from '../../../../lib/paymentsGate';
 
 // `/app/leagues/[id]/manage` — the director's read-only view.
 //
@@ -112,7 +113,17 @@ if (modeFor(Astro.locals as App.Locals) !== 'off' && d && id) {
     console.error('[app/league/manage] owner read failed', err);
   }
 }
-const showPaymentsLink = Boolean(user?.id && leagueOwnerId === user.id);
+// …and only when the API says THIS league takes payments. The owner's
+// merchant read (§2.2) is the gate (paymentsGate.ts): 503
+// `payments_disabled` for a league not on the allow-list, any error or
+// a timeout → no link. Called for the owner only, so one call at most.
+let showPaymentsLink = false;
+if (id && user?.id && leagueOwnerId === user.id) {
+  const payMode = modeFor(Astro.locals as App.Locals);
+  const gate = await paymentsGate(payMode, () =>
+    getMerchant({ locals: Astro.locals as App.Locals }, payMode, 'league', id!, fixtureParam(payMode, Astro.url)));
+  showPaymentsLink = gate.enabled;
+}
 
 const active = roster.filter((r) => !r.status || r.status === 'active');
 

@@ -12,6 +12,7 @@ import { formatDuesLine } from '../../../../lib/leagueDues';
 import { checkoutNotice, payNoticeCode, settledRowFor } from '../../../../lib/payments';
 import { fixtureParam, listPayments, modeFor } from '../../../../lib/paymentsServer';
 import { loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
+import { paymentsGate } from '../../../../lib/paymentsGate';
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
@@ -41,7 +42,10 @@ const played = d ? d.weeks.filter((w) => w.week_of < new Date().toISOString().sl
 // W3 — "Pay season dues". Nothing below runs unless PAYMENTS_ENABLED:
 // with the flag off `pay` stays null and no Pay control renders. Shown
 // only when the league has dues set; the amount is display-only (the
-// server derives what is charged).
+// server derives what is charged). And only when the API says THIS
+// league takes payments: the payments read is the per-league gate
+// (paymentsGate.ts) — `payments_disabled`, any error or a timeout →
+// no Pay control at all.
 const payMode = modeFor(Astro.locals as App.Locals);
 let pay: { amountLabel: string; paid: boolean; action: string; notice: ReturnType<typeof checkoutNotice> } | null = null;
 if (payMode !== 'off' && d && id) {
@@ -50,11 +54,13 @@ if (payMode !== 'off' && d && id) {
     const amountLabel = formatDuesLine(payable?.duesCents, payable?.duesDueDate);
     if (amountLabel) {
       const fixture = fixtureParam(payMode, Astro.url);
-      const list = await listPayments({ locals: Astro.locals as App.Locals }, payMode, 'league', id,
-        payMode === 'fixtures' ? Astro.url.searchParams.get('payments') : null);
-      pay = {
+      const gate = await paymentsGate(payMode, () =>
+        listPayments({ locals: Astro.locals as App.Locals }, payMode, 'league', id,
+          payMode === 'fixtures' ? Astro.url.searchParams.get('payments') : null));
+      const list = gate.enabled ? gate.result : null;
+      pay = !list || !list.ok ? null : {
         amountLabel,
-        paid: list.ok ? settledRowFor(list.data.payments, 'season_dues') !== null : false,
+        paid: settledRowFor(list.data.payments, 'season_dues') !== null,
         action: withQuery('/api/payments/checkout-session', { fixture }),
         notice: checkoutNotice(payNoticeCode(Astro.url.searchParams.get('pay')), 'league'),
       };

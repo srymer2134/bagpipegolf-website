@@ -369,12 +369,20 @@ describe('signup season-dues step', () => {
     expect(step!.paid).toBe(true);
   });
 
-  it('a failed payments read still offers Pay (the server refuses if needed)', async () => {
+  it('a failed payments read hides the step (fail closed — the read is the per-league gate)', async () => {
     const step = await signupDuesStep(deps({
       listPayments: async () => ({ ok: false, status: 404, code: 'upstream_error', error: 'x', body: null }),
     }));
-    expect(step).not.toBeNull();
-    expect(step!.paid).toBe(false);
+    expect(step).toBeNull();
+  });
+
+  it('a thrown payments read hides the step', async () => {
+    const step = await signupDuesStep(deps({
+      listPayments: async () => {
+        throw new Error('network down');
+      },
+    }));
+    expect(step).toBeNull();
   });
 
   it.each(['already_paid', 'merchant_not_ready', 'no_fee_set', 'kind_not_allowed', 'not_director'])(

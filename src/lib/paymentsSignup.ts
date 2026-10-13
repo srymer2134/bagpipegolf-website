@@ -3,6 +3,10 @@
 // page (`src/pages/app/leagues/[id]/signup.astro`) calls it with the
 // real loaders.
 //
+// 🚨 NOT ENABLED FOR THIS LEAGUE → NOTHING RENDERS. The payments read
+// doubles as the per-league gate; `payments_disabled`, any error or a
+// timeout hides the step (fail closed).
+//
 // 🚨 FLAG OFF → NOTHING RUNS. With `PAYMENTS_ENABLED` unset this
 // returns null before touching a single loader, so the page renders
 // exactly as it did before the step existed.
@@ -12,6 +16,7 @@ import { checkoutNotice, payNoticeCode, settledRowFor, type CheckoutNotice, type
 import type { ApiResult } from './paymentsServer';
 import type { PaymentsListBody } from './payments';
 import { showSignupDuesStep } from './paymentsRoster';
+import { paymentsGate } from './paymentsGate';
 
 export type SignupDues = {
   amountLabel: string;
@@ -43,7 +48,12 @@ export async function signupDuesStep(d: SignupDuesDeps): Promise<SignupDues | nu
   const amountLabel = formatDuesLine(payable?.duesCents, payable?.duesDueDate);
   if (!amountLabel) return null;
   const payCode = payNoticeCode(d.payParam);
-  const list = await d.listPayments(d.listFixture);
+  // The per-scope gate (paymentsGate.ts): a league not on the API's
+  // allow-list answers `payments_disabled`, and any failed read is
+  // treated the same — the step does not render at all.
+  const gate = await paymentsGate(d.mode, () => d.listPayments(d.listFixture));
+  if (!gate.enabled) return null;
+  const list = gate.result;
   const show = showSignupDuesStep({
     mode: d.mode,
     duesCents: payable?.duesCents,

@@ -33,7 +33,8 @@ import LeagueEventBanner from '../../../../components/LeagueEventBanner.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { getPublicTournament, type TournamentPlayer } from '../../../../lib/tournamentQueries';
 import { leagueEventFor, type LeagueEventContext } from '../../../../lib/leagueEvents';
-import { modeFor } from '../../../../lib/paymentsServer';
+import { fixtureParam, getMerchant, modeFor } from '../../../../lib/paymentsServer';
+import { paymentsGate } from '../../../../lib/paymentsGate';
 
 const { id } = Astro.params;
 const user = Astro.locals.user;
@@ -65,6 +66,19 @@ try {
 // we mirror the mobile app's owner-only edit surface.
 if (tournament && tournament.user_id !== user.id) {
   return Astro.redirect(`/app/tournaments/${id}/leaderboard`, 302);
+}
+
+// W1 entry point gate. `PAYMENTS_ENABLED` is site-wide; the API takes
+// payments only for allow-listed scopes. The owner's merchant read
+// (§2.2) is the per-tournament gate (paymentsGate.ts): 503
+// `payments_disabled`, any error or a timeout → no "Set up card
+// payments" link. Flag off → no call.
+let showPaymentsLink = false;
+if (tournament && id) {
+  const payMode = modeFor(Astro.locals as App.Locals);
+  const gate = await paymentsGate(payMode, () =>
+    getMerchant({ locals: Astro.locals as App.Locals }, payMode, 'tournament', id!, fixtureParam(payMode, Astro.url)));
+  showPaymentsLink = gate.enabled;
 }
 
 // Is this tournament a league event? Cheap, failure-tolerant, and
@@ -162,9 +176,10 @@ if (tournament) {
     <TournamentSubnav id={id!} active="manage" />
     <LeagueEventBanner ctx={leagueEvent} />
 
-    {/* W1 entry point — only with PAYMENTS_ENABLED. This page already
-        redirects anyone but the owner (`tournaments.user_id`). */}
-    {tournament && modeFor(Astro.locals as App.Locals) !== 'off' && (
+    {/* W1 entry point — only with PAYMENTS_ENABLED AND when the API says
+        this tournament takes payments (`showPaymentsLink`, above). This
+        page already redirects anyone but the owner. */}
+    {showPaymentsLink && (
       <p class="pagewrap__sub">
         <a class="btn btn--ghost" href={`/app/tournaments/${id}/payments`}>Set up card payments</a>
       </p>
