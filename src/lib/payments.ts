@@ -208,6 +208,34 @@ export function paymentsSetupPath(scope: PaymentScope, id: string): string {
   return `${eventPath(scope, id)}/payments`;
 }
 
+/**
+ * Where `/app/payments/setup` should send someone, given the leagues
+ * they OWN.
+ *
+ * Sam, 2026-10-13: Chris went to finish setting up payments and landed
+ * on a list of his leagues — pick one, open Manage, find the button.
+ * Owning exactly one league is the overwhelmingly common case and does
+ * not need a picker.
+ *
+ * Returns the destination path, or `null` meaning "render the page"
+ * (nothing to own, several to choose from, or the load failed — the
+ * page says which).
+ *
+ * Pure so the branch is testable: the redirect itself lives in a
+ * server-rendered `.astro`, which a unit test cannot reach.
+ */
+export function paymentsSetupDestination(
+  owned: ReadonlyArray<{ id: string }> | null | undefined,
+): string | null {
+  if (!owned || owned.length !== 1) return null;
+  const id = owned[0]?.id;
+  // An owned row with no usable id is a data problem, not a
+  // destination — fall through to the page rather than redirect to
+  // `/app/leagues//payments`.
+  if (typeof id !== 'string' || id.trim() === '') return null;
+  return paymentsSetupPath('league', id.trim());
+}
+
 // ── The checkout request: exactly {scope, id, kind} ─────────────
 
 export type CheckoutRequest = { scope: PaymentScope; id: string; kind: PaymentKind };
