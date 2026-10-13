@@ -114,7 +114,11 @@ export function getMerchant(
   fixture?: string | null,
 ): Promise<ApiResult<MerchantStatusBody>> {
   if (mode === 'fixtures') {
-    return Promise.resolve(fromFixture(pickFixture(fixture, MERCHANT_FIXTURES, 'merchant_not_set_up')));
+    // `error_payments_disabled` is allowed so the per-scope gate's
+    // hidden state (paymentsGate.ts) is viewable on the owner pages.
+    return Promise.resolve(
+      fromFixture(pickFixture(fixture, [...MERCHANT_FIXTURES, 'error_payments_disabled'], 'merchant_not_set_up')),
+    );
   }
   return live(ctx, {
     method: 'GET',
