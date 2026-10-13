@@ -1,4 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
+import { CONTENT_SECURITY_POLICY } from './lib/csp';
 import { createSupabaseClient } from './lib/supabase';
 import { handleWellKnownRequest } from './lib/wellKnown';
 import { ensureSentryInit, captureServerError } from './lib/sentryServer';
@@ -142,25 +143,14 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
 // Report-only would be the cautious first step, but the three
 // directives below are narrow enough to enforce, and a
 // report-only CSP with nobody reading the reports is theatre.
+
+
 function withSecurityHeaders(res: Response): Response {
   // Never rewrite a redirect or a response already streaming — the
   // body is consumed by then and re-wrapping can drop the Location.
   const h = new Headers(res.headers);
 
-  h.set('Content-Security-Policy', [
-    "default-src 'self'",
-    // See the note above on 'unsafe-inline'.
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    'font-src https://fonts.gstatic.com data:',
-    "img-src 'self' data: https:",
-    // Supabase + Railway + Sentry ingest.
-    "connect-src 'self' https:",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "object-src 'none'",
-  ].join('; '));
+  h.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
 
   h.set('X-Content-Type-Options', 'nosniff');
   h.set('Referrer-Policy', 'strict-origin-when-cross-origin');
