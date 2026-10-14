@@ -67,6 +67,18 @@ const optional = ROSTER_COLUMNS.filter((c) => !c.required);
     <dd>{optional.map((c) => <code>{c.name}</code>)}</dd>
   </dl>
   <p class="rcsv__hint">
+    <strong>The smallest file that works is <code>name,email</code></strong> —
+    everything else is optional, and a club league can ignore the rest of
+    the template. Two columns, one row per player.
+  </p>
+  <p class="rcsv__hint">
+    Already have first and last in separate columns? Use
+    <code>first_name</code> and <code>last_name</code> instead of
+    <code>name</code> and we'll join them. <code>First</code>,
+    <code>Last</code>, <code>surname</code> and
+    <code>given_name</code> work too.
+  </p>
+  <p class="rcsv__hint">
     Columns can be in any order, and a column we don't recognise is
     ignored rather than rejected. <code>grade</code>,
     <code>gender</code> and <code>team</code> are for school teams —
