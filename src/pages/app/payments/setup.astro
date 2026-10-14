@@ -1,0 +1,107 @@
+---
+// Direct entry to card-payments setup.
+//
+// WHY THIS EXISTS. Sam, 2026-10-13: Chris went to finish setting up
+// payments and landed on a list of his leagues, having to pick one and
+// then find "Set up card payments" inside Manage. Three clicks and a
+// guess for the overwhelmingly common case of owning exactly one
+// league.
+//
+// So: own ONE league → straight to its payments page. Own several →
+// pick, but from a list that shows each league's setup state, so the
+// choice is informed rather than a second guess. Own none → say so
+// plainly instead of a blank picker.
+//
+// Rendering only READS. The Stripe Account Link is still minted by the
+// POST on the destination page (see MerchantSetup.astro) — this route
+// never mints one, so a link-preview bot following /app/payments/setup
+// cannot burn a single-use link.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { modeFor, notFound } from '../../../lib/paymentsServer';
+import { paymentsSetupDestination, paymentsSetupPath } from '../../../lib/payments';
+import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
+
+const locals = Astro.locals as App.Locals;
+if (modeFor(locals) === 'off') return notFound();
+
+const user = locals.user;
+if (!user) {
+  return Astro.redirect(
+    `/login?next=${encodeURIComponent('/app/payments/setup')}`,
+    302,
+  );
+}
+
+// Leagues this person OWNS. `user_id` is the one designated login (F5)
+// — a co-commissioner cannot set up the money account, and the
+// destination page enforces the same rule, so showing them here would
+// only bounce them.
+const supabase = supabaseFor(Astro as unknown as RouteCtx);
+const { data, error } = await supabase
+  .from('leagues')
+  .select('id, name')
+  .eq('user_id', user.id)
+  .order('name', { ascending: true });
+
+const owned = (error ? [] : (data ?? [])) as Array<{ id: string; name: string }>;
+
+// The common case: exactly one. Skip the picker entirely. The branch
+// lives in `paymentsSetupDestination` so it is unit-testable — a
+// server-rendered .astro is not.
+const direct = error ? null : paymentsSetupDestination(owned);
+if (direct) return Astro.redirect(direct, 302);
+---
+
+<BaseLayout title="Set up card payments · Bagpipe Golf">
+  <section class="pagewrap">
+    <p class="pagewrap__eyebrow">Card payments</p>
+    <h1 class="pagewrap__title">Set up card payments.</h1>
+
+    {error && (
+      <p class="pagewrap__sub">
+        We couldn’t load your leagues just now. Try again in a moment, or
+        open the league and use <strong>Manage → Set up card payments</strong>.
+      </p>
+    )}
+
+    {!error && owned.length === 0 && (
+      <>
+        <p class="pagewrap__sub">
+          Card payments are set up per league, and you don’t own one yet.
+          Whoever created a league is the only person who can connect its
+          Stripe account.
+        </p>
+        <p><a class="btn btn--primary" href="/app/leagues">Your leagues</a></p>
+      </>
+    )}
+
+    {!error && owned.length > 1 && (
+      <>
+        <p class="pagewrap__sub">
+          You own {owned.length} leagues. Each one connects its own Stripe
+          account, so pick the one you’re setting up.
+        </p>
+        <ul class="setuplist">
+          {owned.map((l) => (
+            <li class="setuplist__row">
+              <span class="setuplist__name">{l.name}</span>
+              <a class="btn btn--ghost btn--sm" href={paymentsSetupPath('league', l.id)}>
+                Set up
+              </a>
+            </li>
+          ))}
+        </ul>
+      </>
+    )}
+  </section>
+</BaseLayout>
+
+<style>
+  .setuplist { list-style: none; margin: 1.25rem 0 0; padding: 0; }
+  .setuplist__row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: 0.85rem 0; border-bottom: 1px solid var(--rule, #e5e7eb);
+  }
+  .setuplist__row:last-child { border-bottom: 0; }
+  .setuplist__name { font-weight: 600; }
+</style>
