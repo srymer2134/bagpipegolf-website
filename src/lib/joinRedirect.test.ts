@@ -26,6 +26,41 @@ function scriptBodies(src: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
+/**
+ * The accept PROXY must hand the page a league id.
+ *
+ * Railway returns `{ kind: 'league', league: <row>, alreadyJoined }`.
+ * The proxy originally forwarded only `tournament_id`, so an emailed
+ * league invite arrived at the page with nothing to redirect on — and
+ * a page-side fix keyed on `body.league_id` was a SILENT NO-OP. Found
+ * by tracing the response shape before merging that fix, not after.
+ */
+const PROXY = new URL('../pages/api/invites/[token]/accept.ts', import.meta.url);
+
+describe('accept proxy forwards the league id', () => {
+  const proxy = scriptBodies(readFileSync(PROXY, 'utf8'));
+
+  it('reads the id out of Railway\'s league row', () => {
+    expect(proxy).toMatch(/result\?\.league\?\.id/);
+  });
+
+  it('returns league_id to the browser', () => {
+    expect(proxy).toMatch(/league_id:/);
+  });
+
+  it('still returns tournament_id', () => {
+    // The tournament path worked; narrowing must not break it.
+    expect(proxy).toMatch(/tournament_id:/);
+  });
+
+  it('treats Railway\'s alreadyJoined as already_accepted', () => {
+    // The league envelope says alreadyJoined; the tournament one says
+    // alreadyAccepted. Reading only the latter reports every repeat
+    // league accept as brand new.
+    expect(proxy).toMatch(/alreadyJoined/);
+  });
+});
+
 describe('join accept redirect', () => {
   const raw = readFileSync(PAGE, 'utf8');
   const code = scriptBodies(raw);
