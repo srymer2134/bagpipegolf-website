@@ -1,0 +1,7 @@
+{
+  "http": 403,
+  "body": {
+    "error": "Only active league members can pay season dues.",
+    "code": "not_member"
+  }
+}

@@ -18,6 +18,7 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import MerchantSetup from '../../../../components/payments/MerchantSetup.astro';
+import { formatDuesLine } from '../../../../lib/leagueDues';
 import PaymentsRoster from '../../../../components/payments/PaymentsRoster.astro';
 import { rosterPayments, rosterResultCode, type RosterMember } from '../../../../lib/paymentsRoster';
 import { merchantView, parseEntityId } from '../../../../lib/payments';
@@ -88,6 +89,9 @@ const rosterRows = list.ok ? rosterPayments(members, list.data.payments, 'season
       loadFailed={!res.ok && !neverOnboarded}
       setupCode={Astro.url.searchParams.get('setup')}
       action={action}
+      nextSteps={payable
+        ? { duesLine: formatDuesLine(payable.duesCents, payable.duesDueDate), joinCode: payable.joinCode ?? null }
+        : null}
     />
     <PaymentsRoster
       scope="league"

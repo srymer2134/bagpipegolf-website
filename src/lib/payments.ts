@@ -43,7 +43,11 @@ export type PaymentsErrorCode =
   | 'merchant_not_ready'
   | 'kind_not_allowed'
   | 'not_director'
-  | 'payments_disabled';
+  | 'payments_disabled'
+  // Live API code beyond the original contract (amendment 3, §4b): the
+  // caller isn't an active member of the league. Before 2026-10-13 the
+  // site didn't know it and showed "Couldn't start checkout".
+  | 'not_member';
 
 export const PAYMENTS_ERROR_CODES: readonly PaymentsErrorCode[] = [
   'no_fee_set',
@@ -52,6 +56,7 @@ export const PAYMENTS_ERROR_CODES: readonly PaymentsErrorCode[] = [
   'kind_not_allowed',
   'not_director',
   'payments_disabled',
+  'not_member',
 ];
 
 /** §2.2 `GET /api/merchants/{scope}/{id}` — 200 body. */
@@ -250,7 +255,7 @@ export function parseCheckoutRequest(
 
 // ── W1/W2 — what the merchant status means to a director ────────
 
-export type MerchantState = 'not_set_up' | 'finishing' | 'ready';
+export type MerchantState = 'not_set_up' | 'finishing' | 'verifying' | 'ready';
 
 export type MerchantView = {
   state: MerchantState;
@@ -272,6 +277,14 @@ export type MerchantView = {
 export function merchantView(status: MerchantStatusBody | null): MerchantView {
   if (!status) return { state: 'not_set_up', label: 'Not set up', needsAttention: false };
   if (status.charges_enabled !== true) {
+    // Sent everything, Stripe still checking: nothing for the owner to do.
+    // Showing "Continue setup" here just bounced them back into Stripe
+    // (Sam, 2026-10-13) — it took ~45 s in the sandbox, can take a day or
+    // two live.
+    const due = Array.isArray(status.requirements_due) ? status.requirements_due : [];
+    if (status.details_submitted === true && due.length === 0) {
+      return { state: 'verifying', label: 'Stripe is verifying', needsAttention: false };
+    }
     return { state: 'finishing', label: 'Finishing setup', needsAttention: true };
   }
   const due = Array.isArray(status.requirements_due) ? status.requirements_due : [];
@@ -337,6 +350,14 @@ function checkoutNoticeText(code: string, scope: PaymentScope): CheckoutNotice {
         tone: 'warn',
         title: 'Card payments are off',
         body: `Card payments aren’t available for this ${scope} right now. Nothing was charged.`,
+      };
+    case 'not_member':
+      return {
+        tone: 'warn',
+        title: `Join the ${scope} first`,
+        body: scope === 'league'
+          ? 'Only league members can pay season dues here. Join with the league\'s code (in the app: Leagues → Join), then pay. Nothing was charged.'
+          : 'Only registered players can pay the entry fee here. Nothing was charged.',
       };
     case 'not_director':
       // Not a checkout code, but a stale link can land it here.

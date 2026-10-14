@@ -25,9 +25,12 @@ interface Props {
   setupCode?: string | null;
   /** `/api/merchants/onboard`, plus `?fixture=` in dev fixture mode. */
   action: string;
+  /** League scope: what the owner does once card payments are on. */
+  nextSteps?: { duesLine: string | null; joinCode: string | null } | null;
 }
 
-const { scope, id, name, view, loadFailed = false, setupCode = null, action } = Astro.props;
+const { scope, id, name, view, loadFailed = false, setupCode = null, action, nextSteps = null } = Astro.props;
+const here = Astro.url.pathname + Astro.url.search;
 const noun = scope === 'league' ? 'league' : 'tournament';
 const charges = scope === 'league' ? 'season dues' : 'entry fees';
 const notice = setupNotice(setupCode);
@@ -57,12 +60,33 @@ const state = view?.state ?? null;
 
   {state === 'ready' && (
     <>
-      <h3 class="pset__h">{name} can take card payments.</h3>
+      <h3 class="pset__h">Card payments are on for {name}.</h3>
       <p class="pset__p">
-        Players see a <strong>Pay</strong> button for {charges}. Payments
-        land in the {noun}’s own Stripe account, and the roster updates
-        when Stripe confirms each one.
+        Payments land in the {noun}’s own Stripe account, and the roster
+        updates when Stripe confirms each one.
       </p>
+      {nextSteps && (
+        <>
+          <p class="pset__p"><strong>What happens next</strong></p>
+          <ol class="pset__list">
+            <li>
+              <strong>Season dues:</strong>{' '}
+              {nextSteps.duesLine
+                ? <>{nextSteps.duesLine}. Change it in the app (League → menu → Set season dues).</>
+                : <>not set yet — set them in the app (League → menu → Set season dues). Members can’t pay until you do.</>}
+            </li>
+            <li>
+              <strong>Invite members</strong>
+              {nextSteps.joinCode ? <> with join code <strong>{nextSteps.joinCode}</strong></> : null}.
+            </li>
+            <li>Members open the {noun} and tap <strong>Pay season dues</strong>.</li>
+            <li>Watch who’s paid in the roster below — and record cash with <strong>Mark paid in cash</strong>.</li>
+          </ol>
+        </>
+      )}
+      {!nextSteps && (
+        <p class="pset__p">Players see a <strong>Pay</strong> button for {charges}.</p>
+      )}
       {view?.needsAttention && (
         <>
           <p class="pset__p">
@@ -80,13 +104,29 @@ const state = view?.state ?? null;
     </>
   )}
 
+  {state === 'verifying' && (
+    <>
+      <h3 class="pset__h">Stripe is checking your details.</h3>
+      <p class="pset__p">
+        You’ve sent everything Stripe asked for — there’s nothing more to
+        do. Verification usually takes a few minutes, and can take up to a
+        day or two. Card payments switch on by themselves when it’s done.
+      </p>
+      <p><a class="btn btn--primary" href={here}>Refresh status</a></p>
+      <form method="post" action={action} class="pset__secondary">
+        <input type="hidden" name="scope" value={scope} />
+        <input type="hidden" name="id" value={id} />
+        <button type="submit" class="btn btn--ghost">Review what I sent in Stripe</button>
+      </form>
+    </>
+  )}
+
   {state === 'finishing' && (
     <>
       <h3 class="pset__h">Setup isn’t finished yet.</h3>
       <p class="pset__p">
-        Stripe hasn’t switched on card payments for {name}. If you’ve
-        already sent everything, Stripe may still be verifying — that
-        can take a day or two. Otherwise pick up where you left off.
+        Stripe still needs a few details before it can switch on card
+        payments for {name}. Pick up where you left off.
       </p>
       <form method="post" action={action}>
         <input type="hidden" name="scope" value={scope} />
@@ -162,6 +202,8 @@ const state = view?.state ?? null;
   .pset__status { font-weight: 700; font-size: 0.8125rem; padding: 3px 10px; border-radius: 999px; background: #eef2ef; color: var(--ink-muted, #4b5b54); }
   .pset__status--ready { background: #e4f3ea; color: var(--brand-green-dark, #1f5133); }
   .pset__status--finishing { background: #fff4dc; color: #7a5600; }
+  .pset__status--verifying { background: #e8f0fb; color: #1e4b8f; }
+  .pset__secondary { margin-top: 8px; }
   .pset__h { font-size: 1.0625rem; color: var(--brand-green-dark, #1f5133); margin: 8px 0 6px; }
   .pset__p { margin: 0 0 10px; color: var(--ink-muted, #4b5b54); font-size: 0.9375rem; }
   .pset__list { margin: 0 0 16px; padding-left: 20px; color: var(--ink-muted, #4b5b54); font-size: 0.9375rem; }
