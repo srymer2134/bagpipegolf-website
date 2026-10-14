@@ -32,7 +32,7 @@ export type RosterColumn = {
 
 export const ROSTER_COLUMNS: readonly RosterColumn[] = [
   { name: 'name', required: true, label: 'Name', kind: 'text', example: 'Jamie Fraser' },
-  { name: 'email', required: false, label: 'Email', kind: 'email', example: 'jamie@example.com' },
+  { name: 'email', required: true, label: 'Email', kind: 'email', example: 'jamie@example.com' },
   { name: 'handicap_index', required: false, label: 'Handicap index', kind: 'decimal', example: '12.4' },
   { name: 'phone', required: false, label: 'Phone', kind: 'text', example: '555-0142' },
   { name: 'grade', required: false, label: 'Grade', kind: 'int', example: '11' },
@@ -77,8 +77,22 @@ export type RosterImportResult = {
  * and the first thing most people do is overwrite line 2.
  */
 export function rosterCsvTemplate(): string {
-  const header = ROSTER_COLUMNS.map((c) => c.name).join(',');
-  const example = ROSTER_COLUMNS.map((c) => csvCell(c.example)).join(',');
+  // Leads with first_name, last_name, email — the three Sam set as the
+  // minimum (2026-10-14) — then the optional columns. `name` is still
+  // accepted on upload for anyone who already has a single-column
+  // roster; it is simply not what we hand out, because a template that
+  // shows seven columns reads as "seven columns are needed", which is
+  // the confusion that prompted the change.
+  const cols = [
+    { name: 'first_name', example: 'Jamie' },
+    { name: 'last_name', example: 'Fraser' },
+    ...ROSTER_COLUMNS.filter((c) => c.name !== 'name').map((c) => ({
+      name: c.name,
+      example: c.example,
+    })),
+  ];
+  const header = cols.map((c) => c.name).join(',');
+  const example = cols.map((c) => csvCell(c.example)).join(',');
   return `${header}\n${example}\n`;
 }
 
@@ -223,7 +237,13 @@ export function parseRosterCsv(text: string): RosterImportResult {
   headers.forEach((h, i) => {
     if (h.length === 0) return;
     if (KNOWN.has(h) && !columns.includes(h)) columns.push(h);
-    else if (!KNOWN.has(h)) ignored.push(grid[0][i].trim());
+    // NAME_PARTS are recognised but are not columns of their own — they
+    // fold into `name`. Without this they landed in `ignored`, so the
+    // preview told a director we had ignored the very headers our own
+    // template hands them.
+    else if (!KNOWN.has(h) && !(NAME_PARTS as readonly string[]).includes(h)) {
+      ignored.push(grid[0][i].trim());
+    }
   });
 
   // `first_name` / `last_name` stand in for `name`. They are not
@@ -293,7 +313,18 @@ export function parseRosterCsv(text: string): RosterImportResult {
 
     const rawEmail = cell('email').toLowerCase();
     let email: string | null = null;
-    if (rawEmail.length > 0) {
+    if (rawEmail.length === 0) {
+      // Sam, 2026-10-14: "emails, first and last name should be the
+      // minimum requirement to upload."
+      //
+      // This is why the importer no longer needs a home for people
+      // without an account: every row is now invitable, so the whole
+      // file goes through the existing invite path. The gap that
+      // required a `league_pending_members` write endpoint
+      // (PATRICK_BACKLOG §87) is closed by the requirement, not by
+      // building the endpoint.
+      errors.push('Email is required.');
+    } else {
       if (!isEmailShape(rawEmail)) {
         errors.push(`"${rawEmail}" is not an email address.`);
       } else {
@@ -383,16 +414,6 @@ export function importableRows(rows: RosterImportRow[]): RosterImportRow[] {
 /** Importable rows WITH an email → the invite path (Phase 1). */
 export function invitableRows(rows: RosterImportRow[]): RosterImportRow[] {
   return importableRows(rows).filter((r) => r.email !== null);
-}
-
-/**
- * Importable rows with NO email → these need a `league_pending_members`
- * write, which has no API endpoint today. The UI counts them so a
- * director is told what will NOT happen, rather than quietly importing
- * two thirds of their file.
- */
-export function pendingOnlyRows(rows: RosterImportRow[]): RosterImportRow[] {
-  return importableRows(rows).filter((r) => r.email === null);
 }
 
 /**

@@ -9,7 +9,6 @@ import {
   isEmailShape,
   parseEmailList,
   parseRosterCsv,
-  pendingOnlyRows,
   rosterCsvTemplate,
   ROSTER_COLUMNS,
   splitCsv,
@@ -18,9 +17,22 @@ import {
 const HEADER = 'name,email,handicap_index,phone,grade,gender,team';
 
 describe('rosterCsvTemplate', () => {
-  it('is generated from the column list, in order', () => {
+  it('leads with the three required columns', () => {
+    // Sam, 2026-10-14: email + first + last are the minimum. The
+    // template hands out exactly that shape first, because a file
+    // showing seven columns reads as "seven columns are needed".
     const [header] = rosterCsvTemplate().split('\n');
-    expect(header).toBe(ROSTER_COLUMNS.map((c) => c.name).join(','));
+    expect(header.startsWith('first_name,last_name,email')).toBe(true);
+  });
+
+  it('still offers the optional columns after them', () => {
+    const [header] = rosterCsvTemplate().split('\n');
+    for (const c of ['handicap_index', 'phone', 'grade', 'gender', 'team']) {
+      expect(header).toContain(c);
+    }
+    // `name` is accepted on upload but is not what we hand out — the
+    // template uses the split form.
+    expect(header.split(',')).not.toContain('name');
   });
 
   it('round-trips through its own parser with no errors', () => {
@@ -45,8 +57,11 @@ describe('rosterCsvTemplate', () => {
     expect(await res.text()).toBe(rosterCsvTemplate());
   });
 
-  it('declares name as the only required column', () => {
-    expect(ROSTER_COLUMNS.filter((c) => c.required).map((c) => c.name)).toEqual(['name']);
+  it('declares name and email required', () => {
+    expect(ROSTER_COLUMNS.filter((c) => c.required).map((c) => c.name)).toEqual([
+      'name',
+      'email',
+    ]);
   });
 });
 
@@ -92,11 +107,11 @@ describe('parseRosterCsv — whole-file failures', () => {
 });
 
 describe('parseRosterCsv — headers', () => {
-  it('accepts a name-only file', () => {
+  it('refuses a name-only file — email is required now', () => {
+    // Changed 2026-10-14. Every row must be invitable, which is what
+    // removed the need for a league_pending_members write path.
     const out = parseRosterCsv('name\nJamie\nClaire');
-    expect(out.fatal).toBeNull();
-    expect(out.columns).toEqual(['name']);
-    expect(out.rows.map((r) => r.name)).toEqual(['Jamie', 'Claire']);
+    expect(out.fatal).toContain('email');
   });
 
   it('is case- and separator-insensitive, and honours common aliases', () => {
@@ -107,12 +122,12 @@ describe('parseRosterCsv — headers', () => {
   });
 
   it('reads columns in whatever order the file used them', () => {
-    const out = parseRosterCsv('team,name,grade\nVarsity,Jamie,11');
+    const out = parseRosterCsv('team,name,grade,email\nVarsity,Jamie,11,a@b.com');
     expect(out.rows[0]).toMatchObject({ name: 'Jamie', team: 'Varsity', grade: 11 });
   });
 
   it('ignores an unrecognised column instead of failing the file', () => {
-    const out = parseRosterCsv('name,Locker,notes\nJamie,14,likes links golf');
+    const out = parseRosterCsv('name,email,Locker,notes\nJamie,a@b.com,14,likes links golf');
     expect(out.fatal).toBeNull();
     expect(out.ignored).toEqual(['Locker', 'notes']);
     expect(out.rows[0].errors).toEqual([]);
@@ -139,34 +154,38 @@ describe('parseRosterCsv — per-row validation', () => {
     expect(out.rows[1].errors).toEqual(['Same email as line 2.']);
   });
 
-  it('flags a duplicate name only when neither row has an email', () => {
-    const dupes = parseRosterCsv('name\nJamie\njamie');
-    expect(dupes.rows[1].errors).toEqual(['Same name as line 2, with no email.']);
+  it('a row with no email is an error, not a silently-skipped player', () => {
+    // Changed 2026-10-14: email is required, so the old "duplicate name
+    // when neither has an email" case can no longer occur with valid
+    // data — an emailless row never reaches duplicate checking.
+    const dupes = parseRosterCsv('name,email\nJamie,\njamie,');
+    expect(dupes.rows[0].errors).toContain('Email is required.');
+    expect(dupes.rows[1].errors).toContain('Email is required.');
 
     const distinct = parseRosterCsv('name,email\nJamie,a@b.com\nJamie,c@d.com');
     expect(distinct.rows.every((r) => r.errors.length === 0)).toBe(true);
   });
 
   it('parses a plus handicap as the negative number golf means by it', () => {
-    const out = parseRosterCsv('name,handicap_index\nJamie,+2.1');
+    const out = parseRosterCsv('name,email,handicap_index\nJamie,a@b.com,+2.1');
     expect(out.rows[0].handicap_index).toBe(-2.1);
     expect(out.rows[0].errors).toEqual([]);
   });
 
   it('rounds a handicap to the one decimal numeric(4,1) stores', () => {
-    const out = parseRosterCsv('name,handicap_index\nJamie,12.46');
+    const out = parseRosterCsv('name,email,handicap_index\nJamie,a@b.com,12.46');
     expect(out.rows[0].handicap_index).toBe(12.5);
   });
 
   it('rejects a non-numeric or out-of-range handicap', () => {
-    const out = parseRosterCsv('name,handicap_index\nJamie,scratch\nClaire,124\nBrian,-11');
+    const out = parseRosterCsv('name,email,handicap_index\nJamie,a@b.com,scratch\nClaire,c@d.com,124\nBrian,e@f.com,-11');
     expect(out.rows[0].errors).toEqual(['Handicap "scratch" is not a number.']);
     expect(out.rows[1].errors).toEqual(['Handicap 124 is outside -10 to 54.']);
     expect(out.rows[2].errors).toEqual(['Handicap -11 is outside -10 to 54.']);
   });
 
   it('rejects a grade that is not a whole 1-12', () => {
-    const out = parseRosterCsv('name,grade\nJamie,13\nClaire,10.5\nBrian,senior');
+    const out = parseRosterCsv('name,email,grade\nJamie,a@b.com,13\nClaire,c@d.com,10.5\nBrian,e@f.com,senior');
     expect(out.rows.map((r) => r.errors.length)).toEqual([1, 1, 1]);
     expect(out.rows[0].errors[0]).toMatch(/whole number from 1 to 12/);
   });
@@ -177,7 +196,7 @@ describe('parseRosterCsv — per-row validation', () => {
   });
 
   it('skips blank lines rather than calling them nameless rows', () => {
-    const out = parseRosterCsv('name\nJamie\n\n,\nClaire\n');
+    const out = parseRosterCsv('name,email\nJamie,a@b.com\n\n,\nClaire,c@d.com\n');
     expect(out.rows.map((r) => r.name)).toEqual(['Jamie', 'Claire']);
     expect(out.rows.every((r) => r.errors.length === 0)).toBe(true);
   });
@@ -214,12 +233,17 @@ describe('split by destination', () => {
     expect(invitableRows(out.rows).map((r) => r.email)).toEqual(['jamie@x.com']);
   });
 
-  it('routes emailless rows to the pending path', () => {
-    expect(pendingOnlyRows(out.rows).map((r) => r.name)).toEqual(['Claire']);
+  it('an emailless row is NOT importable — it is an error', () => {
+    // `pendingOnlyRows` is gone with this change. Every importable row
+    // now has an email, so the whole file goes through the invite
+    // path and league_pending_members is not needed for leagues.
+    const claire = out.rows.find((r) => r.name === 'Claire');
+    expect(claire?.errors).toContain('Email is required.');
+    expect(importableRows(out.rows).every((r) => r.email !== null)).toBe(true);
   });
 
   it('routes an invalid row nowhere', () => {
-    expect(importableRows(out.rows)).toHaveLength(2);
+    expect(importableRows(out.rows)).toHaveLength(1);
   });
 });
 
@@ -309,13 +333,17 @@ describe('a minimal league roster', () => {
   it('one part alone still yields a name', () => {
     // Poor data, but it is the director's data — refusing the whole
     // file over a missing first name helps nobody.
-    expect(parseRosterCsv('last_name\nFraser\n').rows[0].name).toBe('Fraser');
-    expect(parseRosterCsv('first_name\nJamie\n').rows[0].name).toBe('Jamie');
+    expect(
+      parseRosterCsv('last_name,email\nFraser,a@b.com\n').rows[0].name,
+    ).toBe('Fraser');
+    expect(
+      parseRosterCsv('first_name,email\nJamie,a@b.com\n').rows[0].name,
+    ).toBe('Jamie');
   });
 
   it('an explicit name column wins over the parts', () => {
     const r = parseRosterCsv(
-      'name,first_name,last_name\nJamie Fraser,Ignore,Me\n',
+      'name,first_name,last_name,email\nJamie Fraser,Ignore,Me,a@b.com\n',
     );
     expect(r.rows[0].name).toBe('Jamie Fraser');
   });

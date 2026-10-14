@@ -67,16 +67,16 @@ const optional = ROSTER_COLUMNS.filter((c) => !c.required);
     <dd>{optional.map((c) => <code>{c.name}</code>)}</dd>
   </dl>
   <p class="rcsv__hint">
-    <strong>The smallest file that works is <code>name,email</code></strong> —
-    everything else is optional, and a club league can ignore the rest of
-    the template. Two columns, one row per player.
+    <strong>The minimum is <code>first_name</code>, <code>last_name</code>
+    and <code>email</code></strong> — everything else is optional, and a
+    club league can ignore the rest of the template. Three columns, one
+    row per player. Every player needs an email, because that is how
+    they get their invite.
   </p>
   <p class="rcsv__hint">
-    Already have first and last in separate columns? Use
-    <code>first_name</code> and <code>last_name</code> instead of
-    <code>name</code> and we'll join them. <code>First</code>,
-    <code>Last</code>, <code>surname</code> and
-    <code>given_name</code> work too.
+    Have one <code>name</code> column instead of two? That works too, and
+    so do <code>First</code>, <code>Last</code>, <code>surname</code> and
+    <code>given_name</code>.
   </p>
   <p class="rcsv__hint">
     Columns can be in any order, and a column we don't recognise is
@@ -101,7 +101,6 @@ const optional = ROSTER_COLUMNS.filter((c) => !c.required);
     importableRows,
     invitableRows,
     parseRosterCsv,
-    pendingOnlyRows,
     type RosterImportResult,
     type RosterImportRow,
   } from '../../lib/leagueRosterImport';
@@ -149,7 +148,6 @@ const optional = ROSTER_COLUMNS.filter((c) => !c.required);
 
     const good = importableRows(out.rows);
     const invitable = invitableRows(out.rows);
-    const pendingOnly = pendingOnlyRows(out.rows);
     const bad = out.rows.length - good.length;
 
     const summary = el(
@@ -157,7 +155,6 @@ const optional = ROSTER_COLUMNS.filter((c) => !c.required);
       'rcsv__sum',
       `Read ${out.rows.length} row${out.rows.length === 1 ? '' : 's'}. ` +
         `${invitable.length} can be invited by email` +
-        (pendingOnly.length > 0 ? `, ${pendingOnly.length} have no email` : '') +
         (bad > 0 ? `, ${bad} need${bad === 1 ? 's' : ''} fixing` : '') +
         '.',
     );
@@ -176,22 +173,10 @@ const optional = ROSTER_COLUMNS.filter((c) => !c.required);
 
     host.append(buildTable(out.rows));
 
-    // The honest version of "we can't do this yet". A director who is
-    // not told would import 25 of 40 players and assume the other 15
-    // were on the roster.
-    if (pendingOnly.length > 0) {
-      host.append(
-        el(
-          'p',
-          'rcsv__warn',
-          `${pendingOnly.length} player${pendingOnly.length === 1 ? '' : 's'} ` +
-            `on this list ${pendingOnly.length === 1 ? 'has' : 'have'} no email, ` +
-            'and the web can’t add a player without one yet. Add them from the ' +
-            'league roster in the app, or put an email in the spreadsheet and ' +
-            'upload it again.',
-        ),
-      );
-    }
+    // The "no email" warning that used to live here is gone: email is
+    // required as of 2026-10-14, so a row without one is a per-row
+    // error in the table above with the reason on it, rather than a
+    // silently-skipped player explained in a footnote.
 
     if (invitable.length === 0) {
       host.append(el('p', 'rcsv__hint', 'Nothing here can be imported from the web.'));
