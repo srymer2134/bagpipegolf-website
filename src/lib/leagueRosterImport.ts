@@ -170,7 +170,22 @@ const HEADER_ALIASES: Record<string, string> = {
   mobile: 'phone',
   sex: 'gender',
   year: 'grade',
+  // First/last as separate columns. The table stores ONE `name`, but
+  // almost every roster a director already has — a club export, a
+  // spreadsheet someone keeps by hand, a Google Form — splits them.
+  // Asking them to concatenate in Excel before uploading is the kind
+  // of small tax that stops people using a feature at all.
+  first: 'first_name',
+  firstname: 'first_name',
+  given_name: 'first_name',
+  last: 'last_name',
+  lastname: 'last_name',
+  surname: 'last_name',
+  family_name: 'last_name',
 };
+
+/** Joined into `name` when the file has no `name` column. */
+const NAME_PARTS = ['first_name', 'last_name'] as const;
 
 /**
  * Parse and validate an uploaded roster CSV.
@@ -211,13 +226,21 @@ export function parseRosterCsv(text: string): RosterImportResult {
     else if (!KNOWN.has(h)) ignored.push(grid[0][i].trim());
   });
 
-  const missing = REQUIRED_COLUMNS.filter((c) => !columns.includes(c));
+  // `first_name` / `last_name` stand in for `name`. They are not
+  // ROSTER_COLUMNS — the table has one `name` — so they are recognised
+  // here and joined per row below.
+  const hasNameParts = NAME_PARTS.some((p) => headers.includes(p));
+  const missing = REQUIRED_COLUMNS.filter(
+    (c) => !columns.includes(c) && !(c === 'name' && hasNameParts),
+  );
   if (missing.length > 0) {
     return empty(
-      `This file has no ${missing.join(' or ')} column. ` +
+      `This file has no ${missing.join(' or ')} column — ` +
+        'a `name` column, or `first_name` and `last_name`. ' +
         'Download the template and use its header row.',
     );
   }
+  if (!columns.includes('name') && hasNameParts) columns.push('name');
 
   if (grid.length === 1) {
     return {
@@ -231,7 +254,9 @@ export function parseRosterCsv(text: string): RosterImportResult {
   // Index of each recognised column, so a reordered file still works.
   const at = new Map<string, number>();
   headers.forEach((h, i) => {
-    if (KNOWN.has(h) && !at.has(h)) at.set(h, i);
+    if ((KNOWN.has(h) || (NAME_PARTS as readonly string[]).includes(h)) && !at.has(h)) {
+      at.set(h, i);
+    }
   });
 
   const rows: RosterImportRow[] = [];
@@ -255,7 +280,15 @@ export function parseRosterCsv(text: string): RosterImportResult {
     const line = r + 1;
     const errors: string[] = [];
 
-    const name = cell('name');
+    // A `name` column wins; otherwise join first + last. Either part
+    // alone is accepted — a roster with only surnames is poor data but
+    // it is the director's data, and refusing the whole file over it
+    // helps nobody.
+    const name =
+      cell('name') ||
+      NAME_PARTS.map((p) => cell(p))
+        .filter((v) => v.length > 0)
+        .join(' ');
     if (name.length === 0) errors.push('Name is required.');
 
     const rawEmail = cell('email').toLowerCase();

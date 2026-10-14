@@ -262,3 +262,71 @@ describe('isEmailShape', () => {
     expect(isEmailShape('')).toBe(false);
   });
 });
+
+/**
+ * Sam, 2026-10-14: "CSV Template for leagues has school, handicap, etc.
+ * Can just a first, last name and email suffice for the upload on
+ * leagues?"
+ *
+ * Two answers. Only `name` was ever required, so `name,email` already
+ * worked — the template merely SHOWED all seven columns, which made
+ * them look mandatory. And a roster a director already has almost
+ * always splits first and last, so those are now accepted and joined.
+ */
+describe('a minimal league roster', () => {
+  it('name,email alone imports cleanly', () => {
+    const r = parseRosterCsv('name,email\nJamie Fraser,jamie@example.com\n');
+    expect(r.fatal).toBeFalsy();
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].errors).toEqual([]);
+    expect(r.rows[0].name).toBe('Jamie Fraser');
+    expect(r.rows[0].handicap_index).toBeNull();
+    expect(r.rows[0].grade).toBeNull();
+  });
+
+  it('first_name,last_name,email is joined into one name', () => {
+    const r = parseRosterCsv(
+      'first_name,last_name,email\nJamie,Fraser,jamie@example.com\n',
+    );
+    expect(r.fatal).toBeFalsy();
+    expect(r.rows[0].name).toBe('Jamie Fraser');
+    expect(r.rows[0].email).toBe('jamie@example.com');
+    expect(r.rows[0].errors).toEqual([]);
+  });
+
+  it('accepts the aliases people actually type', () => {
+    for (const header of [
+      'First,Last,Email',
+      'firstname,lastname,e_mail',
+      'given_name,surname,email_address',
+    ]) {
+      const r = parseRosterCsv(`${header}\nJamie,Fraser,jamie@example.com\n`);
+      expect(r.fatal, header).toBeFalsy();
+      expect(r.rows[0].name, header).toBe('Jamie Fraser');
+    }
+  });
+
+  it('one part alone still yields a name', () => {
+    // Poor data, but it is the director's data — refusing the whole
+    // file over a missing first name helps nobody.
+    expect(parseRosterCsv('last_name\nFraser\n').rows[0].name).toBe('Fraser');
+    expect(parseRosterCsv('first_name\nJamie\n').rows[0].name).toBe('Jamie');
+  });
+
+  it('an explicit name column wins over the parts', () => {
+    const r = parseRosterCsv(
+      'name,first_name,last_name\nJamie Fraser,Ignore,Me\n',
+    );
+    expect(r.rows[0].name).toBe('Jamie Fraser');
+  });
+
+  it('a file with neither name nor parts is refused, and says how', () => {
+    const r = parseRosterCsv('email\njamie@example.com\n');
+    expect(r.fatal).toContain('first_name');
+  });
+
+  it('blank parts are still a missing name, not a space', () => {
+    const r = parseRosterCsv('first_name,last_name,email\n , ,a@b.com\n');
+    expect(r.rows[0].errors).toContain('Name is required.');
+  });
+});
