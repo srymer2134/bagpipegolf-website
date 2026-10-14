@@ -17,12 +17,14 @@ import {
 import { LEAGUE_CONFIG_FIELDS } from '../../../../lib/leagueCreate';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+import RosterInvite from '../../../../components/leagues/RosterInvite.astro';
+import RosterCsvImport from '../../../../components/leagues/RosterCsvImport.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { leagueDetail, visibilityLabel, type PortalDetail } from '../../../../lib/leaguePortal';
 import { fixtureParam, getMerchant, modeFor } from '../../../../lib/paymentsServer';
 import { paymentsGate } from '../../../../lib/paymentsGate';
 
-// `/app/leagues/[id]/manage` — the director's read-only view.
+// `/app/leagues/[id]/manage` — the director's desk.
 //
 // GATED on being the commissioner. The placeholder this replaced carried
 // the note "PR #2 will gate this on the user being the league's
@@ -30,11 +32,39 @@ import { paymentsGate } from '../../../../lib/paymentsGate';
 // member could open a page headed "director controls". Now a non-
 // commissioner is bounced to the overview.
 //
-// READ-ONLY on purpose. Season setup, roster, pairings, flighting and
-// subs are all write surfaces the app already owns, and putting a second
-// writer on the web would mean two paths into league configuration with
-// different validation. This page shows what IS configured and says
-// where to change it.
+// WHAT THIS PAGE MAY WRITE — AND WHY A "READ-ONLY ON PURPOSE" PAGE HAS
+// WRITE SURFACES ON IT.
+//
+// It began read-only, on this reasoning: "Season setup, roster,
+// pairings, flighting and subs are all write surfaces the app already
+// owns, and putting a second writer on the web would mean two paths
+// into league configuration with different validation."
+//
+// The substance of that objection was never "the web must not write" —
+// it was "two validators". Both exceptions since are answers to it
+// rather than overrides of it:
+//
+//   1. SEASON SETTINGS (W2b). The form below is GENERATED from the
+//      migrations, so the fields, the allowed values and the
+//      cross-field rules all come from the one place Postgres gets
+//      them. One definition rendered twice. See
+//      src/pages/api/leagues/[id]/config.ts.
+//
+//   2. MEMBERSHIP, OWNER-ONLY — invite by email and CSV import (Sam,
+//      2026-10-13; fairwayiq-flutter docs/plans/
+//      LD_ROSTER_MANAGEMENT_PLAN.md D1 + D2). Emailing a roster and
+//      importing a spreadsheet are desk work; nobody types 40 rows on
+//      a phone. And membership already had a second writer — the
+//      join-code flow — so this reopens nothing. The write goes
+//      through the Railway API, which keeps the validation in one
+//      place; that is D2, and it is why there is no Supabase-direct
+//      membership write anywhere on this page.
+//
+// SCOPE OF THE EXCEPTION: membership only, and the OWNER only
+// (`leagues.user_id` — the same identity the payments pages check, not
+// every commissioner). Pairings, substitutes, weekly matchups and
+// anything mid-round stay in the app, where the offline outbox is. The
+// line is the parity plan's: the desk, not the tee box.
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
@@ -60,9 +90,14 @@ try {
             // Every generated config column, plus the few this page
             // shows but does not edit. Hand-listing the config half is
             // what let it drift before — it now comes from the schema.
+            // `user_id` rides along because the owner-only surfaces
+            // (payments, roster writes) all need it and this is
+            // already a read of the same row. It cannot be written
+            // back: the settings POST accepts only generated column
+            // names, and the form renders a control only for those.
             [...LEAGUE_CONFIG_FIELDS.map((f) => f.name),
              'points_model', 'sub_scoring_rule', 'flight_count',
-             'playoff_size', 'join_code'].join(', '),
+             'playoff_size', 'join_code', 'user_id'].join(', '),
           )
           .eq('id', id)
           .maybeSingle(),
@@ -97,28 +132,53 @@ if (d && d.league.role !== 'commissioner') {
   return Astro.redirect(`/app/leagues/${id}`, 302);
 }
 
-// W1 entry point. Only with PAYMENTS_ENABLED, and only for the
-// league's OWNER (F5: one login from Bagpipe) — not every commissioner.
-let leagueOwnerId: string | null = null;
-if (modeFor(Astro.locals as App.Locals) !== 'off' && d && id) {
+// The league's OWNER (`leagues.user_id`) — one identity, used by both
+// owner-only surfaces: payments (F5, "one login from Bagpipe") and the
+// roster writes below. NOT every commissioner. This used to be a second
+// query for the same column on the same row; it now comes off the read
+// above, so a config read that failed also means no owner surfaces,
+// which is the safe direction to fail.
+const leagueOwnerId = (config?.user_id as string | null | undefined) ?? null;
+const isOwner = Boolean(user?.id) && leagueOwnerId === user?.id;
+
+// Phase 1's pending chips, server-rendered so the panel is populated on
+// first paint. `league_invites` carries an owner-scoped SELECT policy
+// ("owner reads own league invites", 20260812_league_invites.sql), so a
+// non-owner's read returns nothing rather than erroring — the isOwner
+// check is about not making a pointless query, not about security.
+// Accepted invites are excluded: those people are on the roster now.
+type PendingInvite = { id: string; email: string; status: string; created_at: string | null };
+let invites: PendingInvite[] = [];
+if (isOwner && id) {
   try {
     const supabase = createSupabaseClient({
       request: Astro.request,
       cookies: Astro.cookies,
       locals: Astro.locals as App.Locals,
     });
-    const { data } = await supabase.from('leagues').select('user_id').eq('id', id).maybeSingle();
-    leagueOwnerId = (data as { user_id?: string | null } | null)?.user_id ?? null;
+    const { data } = await supabase
+      .from('league_invites')
+      .select('id, email, status, created_at')
+      .eq('league_id', id)
+      .neq('status', 'accepted')
+      .order('created_at', { ascending: false });
+    invites = (data ?? []) as PendingInvite[];
   } catch (err) {
-    console.error('[app/league/manage] owner read failed', err);
+    // An empty list is wrong but harmless — the panel re-reads from
+    // /api/leagues/[id]/invites after any change.
+    console.error('[app/league/manage] invite read failed', err);
   }
 }
-// …and only when the API says THIS league takes payments. The owner's
-// merchant read (§2.2) is the gate (paymentsGate.ts): 503
-// `payments_disabled` for a league not on the allow-list, any error or
-// a timeout → no link. Called for the owner only, so one call at most.
+
+// W1 entry point — the payments link, only when the API says THIS
+// league takes payments. The owner's merchant read (§2.2) is the gate
+// (paymentsGate.ts): 503 `payments_disabled` for a league not on the
+// allow-list, any error or a timeout → no link. Called for the owner
+// only, so one call at most — and `paymentsGate` returns before the
+// probe runs when PAYMENTS_ENABLED is unset, so flag-off still makes
+// no call.
 let showPaymentsLink = false;
-if (id && user?.id && leagueOwnerId === user.id) {
+if (id && isOwner) {
   const payMode = modeFor(Astro.locals as App.Locals);
   const gate = await paymentsGate(payMode, () =>
     getMerchant({ locals: Astro.locals as App.Locals }, payMode, 'league', id!, fixtureParam(payMode, Astro.url)));
@@ -306,14 +366,28 @@ const visibleGroups = groups
           </article>
         </section>
 
+        {isOwner && (
+          <section class="lsec">
+            <h2 class="lsec__h">Add players</h2>
+            <p class="small muted">
+              Only you can do this — the login that owns this league, not
+              every commissioner. Removing a player, and withdrawing an
+              invite, are still done from the league roster in the app.
+            </p>
+            <RosterInvite leagueId={d.league.id} invites={invites} />
+            <RosterCsvImport leagueId={d.league.id} />
+          </section>
+        )}
+
         <section class="lsec">
           <h2 class="lsec__h">Still edited in the app</h2>
           <p class="small muted">
             Pairings and substitutes · weekly matchups · recording scores ·
-            messaging the league. These are mid-round or on-course surfaces,
-            and the app has an offline outbox that a browser tab does not —
-            the dividing line the parity plan calls "the desk, not the tee
-            box".
+            messaging the league · removing a player or withdrawing an
+            invite. These are mid-round, on-course or roster-removal
+            surfaces, and the app has an offline outbox that a browser tab
+            does not — the dividing line the parity plan calls "the desk,
+            not the tee box".
           </p>
         </section>
       </>
