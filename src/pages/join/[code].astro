@@ -435,8 +435,24 @@ const title =
             return;
           }
           if (doneLink) {
-            if (body && body.league_id) {
-              doneLink.setAttribute('href', '/app/leagues');
+            // Land on the league you just joined, not the list.
+            //
+            // 2026-10-13: this sent league accepts to '/app/leagues' —
+            // the LIST — while tournament accepts went to the specific
+            // tournament, even though `league_id` is right here in the
+            // response. A new member finished on a page that neither
+            // names the league they joined nor carries "Pay season
+            // dues", which lives on /app/leagues/<id>.
+            //
+            // Kept inline rather than imported from src/lib: this
+            // script is `is:inline`, so Astro does not bundle it and ES
+            // imports are not available. test/joinRedirect guards the
+            // shape instead.
+            if (body && typeof body.league_id === 'string' && body.league_id) {
+              doneLink.setAttribute(
+                'href',
+                `/app/leagues/${encodeURIComponent(body.league_id)}`,
+              );
             } else if (body && body.tournament_id) {
               doneLink.setAttribute('href', `/app/tournaments/${body.tournament_id}`);
             }
