@@ -12,6 +12,7 @@
 // OFF unless PAYMENTS_ENABLED (404). Owner only, like W1.
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import MerchantSetup from '../../../components/payments/MerchantSetup.astro';
+import { formatDuesLine } from '../../../lib/leagueDues';
 import { eventPath, merchantView, parseEntityId, parseScope, paymentsSetupPath } from '../../../lib/payments';
 import { fixtureParam, getMerchant, modeFor, notFound } from '../../../lib/paymentsServer';
 import { isOwner, loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../lib/paymentsRoutes';
@@ -52,6 +53,9 @@ const title = view?.state === 'ready' ? 'You’re set up.' : 'Back from Stripe.'
       view={view}
       loadFailed={!res.ok && !neverOnboarded}
       action={action}
+      nextSteps={scope === 'league' && payable
+        ? { duesLine: formatDuesLine(payable.duesCents, payable.duesDueDate), joinCode: payable.joinCode ?? null }
+        : null}
     />
     <p class="pagewrap__sub">
       <a href={paymentsSetupPath(scope, id)}>Card payments settings</a> ·

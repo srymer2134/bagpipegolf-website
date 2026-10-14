@@ -36,6 +36,9 @@ export type Payable = {
    *  server derives the charged amount on its own (contract §0 rule 1). */
   duesCents: number | null;
   duesDueDate: string | null;
+  /** League scope only — what members join with. Shown to the owner in
+   *  the Ready state's next steps. */
+  joinCode?: string | null;
 };
 
 export async function loadPayable(
@@ -46,7 +49,7 @@ export async function loadPayable(
   if (scope === 'league') {
     const { data, error } = await supabase
       .from('leagues')
-      .select('id, name, user_id, dues_cents, dues_due_date')
+      .select('id, name, user_id, dues_cents, dues_due_date, join_code')
       .eq('id', id)
       .maybeSingle();
     if (error || !data) return null;
@@ -58,6 +61,7 @@ export async function loadPayable(
       ownerId: (r.user_id as string | null) ?? null,
       duesCents: typeof r.dues_cents === 'number' ? r.dues_cents : null,
       duesDueDate: (r.dues_due_date as string | null) ?? null,
+      joinCode: (r.join_code as string | null) ?? null,
     };
   }
   const { data, error } = await supabase

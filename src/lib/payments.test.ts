@@ -253,9 +253,17 @@ describe('merchantView — return ≠ complete', () => {
   it('never onboarded → Not set up', () => {
     expect(merchantView(null).state).toBe('not_set_up');
   });
-  it('charges off → Finishing setup, even with details submitted', () => {
-    expect(merchantView({ ...base, charges_enabled: false, details_submitted: true }).state).toBe('finishing');
+  it('charges off with something due → Finishing setup (send them back to Stripe)', () => {
+    expect(merchantView({ ...base, charges_enabled: false, details_submitted: true, requirements_due: ['external_account'] }).state).toBe('finishing');
+    expect(merchantView({ ...base, charges_enabled: false, details_submitted: false, requirements_due: [] }).state).toBe('finishing');
     expect(merchantView(fixture('merchant_finishing').body).label).toBe('Finishing setup');
+  });
+  it('submitted, nothing due, charges off → Verifying (NOT "Continue setup")', () => {
+    // 2026-10-13: the owner came back from Stripe with everything sent and
+    // was offered "Continue setup", which only bounced them back into Stripe.
+    const v = merchantView(fixture('merchant_verifying').body);
+    expect(v.state).toBe('verifying');
+    expect(v.needsAttention).toBe(false);
   });
   it('charges on → Ready', () => {
     expect(merchantView(base)).toEqual({ state: 'ready', label: 'Ready', needsAttention: false });
@@ -264,6 +272,15 @@ describe('merchantView — return ≠ complete', () => {
     const v = merchantView(fixture('merchant_ready_requirements_due').body);
     expect(v.state).toBe('ready');
     expect(v.needsAttention).toBe(true);
+  });
+});
+
+describe('not_member (2026-10-13)', () => {
+  it('gets its own message instead of the generic "Couldn\'t start checkout"', () => {
+    expect(payNoticeCode('not_member')).toBe('not_member');
+    const n = checkoutNotice('not_member', 'league')!;
+    expect(n.title).toBe('Join the league first');
+    expect(n.body).toContain('Nothing was charged');
   });
 });
 
