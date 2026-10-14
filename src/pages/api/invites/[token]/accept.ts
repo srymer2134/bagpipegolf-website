@@ -22,18 +22,34 @@ export const POST: APIRoute = async (ctx) => {
     const result = await callRailway<{
       tournament?: { id?: string; name?: string };
       tournament_id?: string;
+      // Railway's league accept returns `{ kind: 'league', league: <row>,
+      // alreadyJoined }` — the whole leagues row, so `league.id` is here.
+      // This proxy used to drop it entirely and return only
+      // `tournament_id`, which meant a league invite accepted from an
+      // EMAILED token had no id to redirect with: the page fell back to
+      // the bare `/app/leagues` list, and any fix keyed on
+      // `body.league_id` was a silent no-op.
+      league?: { id?: string };
+      league_id?: string;
       alreadyAccepted?: boolean;
+      alreadyJoined?: boolean;
       already_accepted?: boolean;
     }>(ctx, {
       method: 'POST',
       path: `/api/invites/${encodeURIComponent(token)}/accept`,
     });
     const tournamentId = result?.tournament?.id ?? result?.tournament_id ?? null;
+    const leagueId = result?.league?.id ?? result?.league_id ?? null;
     return json(
       {
         ok: true,
         tournament_id: tournamentId,
-        already_accepted: Boolean(result?.alreadyAccepted ?? result?.already_accepted),
+        league_id: leagueId,
+        already_accepted: Boolean(
+          result?.alreadyAccepted ??
+            result?.alreadyJoined ??
+            result?.already_accepted,
+        ),
       },
       200,
     );
