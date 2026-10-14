@@ -62,6 +62,7 @@ import PayButton from '../../../../components/payments/PayButton.astro';
 import { fixtureParam, listPayments, modeFor } from '../../../../lib/paymentsServer';
 import { loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
 import { signupDuesStep, type SignupDues } from '../../../../lib/paymentsSignup';
+import { loadOwnMembership } from '../../../../lib/leagueParticipation';
 
 const { id } = Astro.params;
 const user = Astro.locals.user;
@@ -180,6 +181,7 @@ if (payMode !== 'off' && detail && id) {
       fixture: fixtureParam(payMode, Astro.url),
       listFixture: payMode === 'fixtures' ? Astro.url.searchParams.get('payments') : null,
       loadDues: () => loadPayable(supabaseFor(Astro as unknown as RouteCtx), 'league', id!),
+      loadOwn: () => loadOwnMembership(supabaseFor(Astro as unknown as RouteCtx), id!, user.id),
       listPayments: (f) => listPayments({ locals: Astro.locals as App.Locals }, payMode, 'league', id!, f),
       withQuery,
     });
@@ -424,6 +426,7 @@ if (payMode !== 'off' && detail && id) {
               directly.
             </p>
             <PayButton
+              nothing={dues.nothing}
               scope="league"
               id={id!}
               amountLabel={dues.amountLabel}

@@ -28,6 +28,7 @@ import {
   type PaymentStatus,
   type StatusTone,
 } from './paymentStatus';
+import { isOrganizer } from './leagueParticipation';
 import {
   parseEntityId,
   parseScope,
@@ -45,6 +46,9 @@ export type RosterMember = {
   user_id: string | null;
   display_name: string | null;
   status?: string | null;
+  /** `'organizer'` = the owner opted out of playing
+   *  (LEAGUE_OWNER_PARTICIPATION_PLAN §2) — not on the dues roster. */
+  role?: string | null;
 };
 
 export type RosterPaymentRow = {
@@ -122,14 +126,25 @@ export function rosterPayments(
 
   const seen = new Set<string>();
   const out: RosterPaymentRow[] = [];
+  // Organizers owe no dues (§2: the dues roster means "people who
+  // play"), so they get no line. If one somehow has a payment row (they
+  // paid before opting out) it still shows below, by name, as off the
+  // roster — money is never hidden.
+  const organizerNames = new Map<string, string>();
   for (const m of members ?? []) {
-    if (!m?.user_id || seen.has(m.user_id)) continue;
+    if (m?.user_id && isOrganizer(m)) organizerNames.set(m.user_id, m.display_name?.trim() || 'Organizer');
+  }
+  for (const m of members ?? []) {
+    if (!m?.user_id || seen.has(m.user_id) || isOrganizer(m)) continue;
     seen.add(m.user_id);
     out.push(line(m.user_id, m.display_name?.trim() || 'Player', true));
   }
   out.sort((a, b) => a.name.localeCompare(b.name));
   const orphans = [...best.keys()].filter((p) => !seen.has(p)).sort();
-  for (const p of orphans) out.push(line(p, 'Not on the roster', false));
+  for (const p of orphans) {
+    const org = organizerNames.get(p);
+    out.push(line(p, org ? `${org} (organizer)` : 'Not on the roster', false));
+  }
   return out;
 }
 

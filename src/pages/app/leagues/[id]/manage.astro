@@ -21,6 +21,10 @@ import { createSupabaseClient } from '../../../../lib/supabase';
 import { leagueDetail, visibilityLabel, type PortalDetail } from '../../../../lib/leaguePortal';
 import { fixtureParam, getMerchant, modeFor } from '../../../../lib/paymentsServer';
 import { paymentsGate } from '../../../../lib/paymentsGate';
+import OwnerParticipation from '../../../../components/OwnerParticipation.astro';
+import {
+  isOrganizer, loadOwnMembership, needsParticipationPrompt, type OwnMembership,
+} from '../../../../lib/leagueParticipation';
 
 // `/app/leagues/[id]/manage` — the director's read-only view.
 //
@@ -43,6 +47,11 @@ let d: PortalDetail | null = null;
 let config: Record<string, unknown> | null = null;
 let roster: RosterWithHandicap[] = [];
 let failed = false;
+// The owner's own participation (playing / organizing + their dues
+// override) — LEAGUE_OWNER_PARTICIPATION_PLAN.md D4/D5. Null for a
+// co-director: participation is the OWNER's control.
+let own: OwnMembership | null = null;
+let ownerIdForParticipation: string | null = null;
 
 try {
   const supabase = createSupabaseClient({
@@ -62,7 +71,7 @@ try {
             // what let it drift before — it now comes from the schema.
             [...LEAGUE_CONFIG_FIELDS.map((f) => f.name),
              'points_model', 'sub_scoring_rule', 'flight_count',
-             'playoff_size', 'join_code'].join(', '),
+             'playoff_size', 'join_code', 'user_id'].join(', '),
           )
           .eq('id', id)
           .maybeSingle(),
@@ -86,6 +95,16 @@ try {
         profiles = (profRes.data ?? []) as ProfileHandicapRow[];
       }
       roster = mergeRosterHandicaps(rows, profiles);
+      ownerIdForParticipation = (config?.user_id as string | null | undefined) ?? null;
+      if (ownerIdForParticipation === user.id) {
+        try {
+          own = await loadOwnMembership(supabase, id, user.id);
+        } catch (err) {
+          // A failed read hides the control rather than prompting an
+          // owner who may well have answered already.
+          console.error('[app/league/manage] own membership read failed', err);
+        }
+      }
     }
   }
 } catch (err) {
@@ -126,6 +145,10 @@ if (id && user?.id && leagueOwnerId === user.id) {
 }
 
 const active = roster.filter((r) => !r.status || r.status === 'active');
+const showPrompt = own !== null && needsParticipationPrompt({
+  supported: own.supported, isOwner: true, row: own.row,
+});
+const showParticipation = own !== null && own.supported && !showPrompt;
 
 // The settings form, built entirely from the generated schema. A new
 // column on `leagues` appears here by being regenerated — see
@@ -170,6 +193,11 @@ const visibleGroups = groups
       <>
         <p class="pagewrap__sub">{d.league.name}</p>
         <LeagueSubnav id={d.league.id} active="manage" />
+
+        {showPrompt && (
+          <OwnerParticipation leagueId={d.league.id} mode="prompt" row={null}
+            leagueDuesCents={(config?.dues_cents as number | null | undefined) ?? null} />
+        )}
 
         {showPaymentsLink && (
           <p class="pagewrap__sub">
@@ -262,6 +290,11 @@ const visibleGroups = groups
           </div>
         </form>
 
+        {showParticipation && (
+          <OwnerParticipation leagueId={d.league.id} mode="settings" row={own!.row}
+            leagueDuesCents={(config?.dues_cents as number | null | undefined) ?? null} />
+        )}
+
         <section class="grid grid--2">
           <article class="card">
             <span class="chip">Roster</span>
@@ -275,7 +308,7 @@ const visibleGroups = groups
                       <tr>
                         <td>{m.display_name ?? 'Player'}</td>
                         <td>{m.handicap ?? '—'}</td>
-                        <td>{m.role ?? 'member'}</td>
+                        <td>{isOrganizer(m) ? 'organizer (not playing)' : (m.role ?? 'member')}</td>
                       </tr>
                     ))}
                   </tbody>

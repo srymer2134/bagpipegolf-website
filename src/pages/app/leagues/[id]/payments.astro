@@ -44,11 +44,15 @@ try {
 if (!isOwner(payable, user?.id)) return Astro.redirect(`/app/leagues/${encodeURIComponent(id)}`, 302);
 
 // The roster the manage page already reads. Handicaps are not needed.
+// `role` so `rosterPayments` can drop organizers (they owe no dues); the
+// league OWNER appears here only once they are a playing member — they
+// now have a `league_members` row like everyone else
+// (LEAGUE_OWNER_PARTICIPATION_PLAN §2), so no special case is needed.
 let members: RosterMember[] = [];
 try {
   const { data } = await supabase
     .from('league_members')
-    .select('user_id, display_name, status')
+    .select('user_id, display_name, status, role')
     .eq('league_id', id);
   members = (data ?? []) as RosterMember[];
 } catch (err) {

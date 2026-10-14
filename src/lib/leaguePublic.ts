@@ -2,6 +2,7 @@
 // small helpers the three /l/[id] pages share. Mirrors the Flutter
 // contract in lib/features/leagues/utils/league_standings_snapshot.dart
 // (`v` = 1) and the week-sheet tee-time arithmetic.
+import { isOrganizer } from './leagueParticipation';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type PublicLeague = {
@@ -22,7 +23,9 @@ export type PublicLeague = {
   };
   teams: Array<{ id: string; name: string; seed: number | null; withdrawn_from_slot: number | null }>;
   team_members: Array<{ team_id: string; display_name: string; position: number; from_slot: number; to_slot: number | null }>;
-  members: Array<{ display_name: string; handicap: number | null }>;
+  /** Players. `role` is not in today's payload; if the SQL lane adds
+   *  it, organizers are dropped by `readLeague` (see there). */
+  members: Array<{ display_name: string; handicap: number | null; role?: string | null }>;
   weeks: Array<{
     slot_index: number; week_of: string; status: string; tee: string | null; holes: number | null;
     first_tee_at: string | null; tee_interval_minutes: number | null; course_id: string | null;
@@ -75,7 +78,16 @@ export async function readLeague(supabase: SupabaseClient, id: string): Promise<
   if (error) throw error;
   if (!data || typeof data !== 'object') return { kind: 'private' };
   if ((data as { gated?: string }).gated === 'members') return { kind: 'gated' };
-  return { kind: 'ok', league: data as PublicLeague };
+  const league = data as PublicLeague;
+  // LEAGUE_OWNER_PARTICIPATION_PLAN §2: the public roster means "people
+  // who play", so an organizer is not on it. The real filter belongs in
+  // `get_public_league` (SQL lane — it emits `display_name`/`handicap`
+  // only, so this page cannot tell an organizer apart today). This is
+  // belt-and-braces for when the payload carries `role`.
+  if (Array.isArray(league.members)) {
+    league.members = league.members.filter((m) => !isOrganizer(m));
+  }
+  return { kind: 'ok', league };
 }
 
 /** Back-compat shim for callers that only care about the payload. */

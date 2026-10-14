@@ -1,0 +1,167 @@
+---
+// The league OWNER's participation — "Your participation" on Manage,
+// and the one-time D4 prompt on Manage and the league overview.
+// fairwayiq-flutter `docs/plans/LEAGUE_OWNER_PARTICIPATION_PLAN.md`.
+//
+// Rendered by the caller only for the league's OWNER and only when the
+// backend has landed (`loadOwnMembership(...).supported`). Writes go to
+// `POST /api/leagues/[id]/participation` — the caller's own
+// `league_members` row, nothing else.
+//
+//   mode 'prompt'   — the owner has NO row: "Are you playing in this
+//                     league?" Yes is the default (primary) answer.
+//   mode 'settings' — the owner has answered: playing / organizing,
+//                     and "My dues" (league amount / custom / none).
+import { centsToInput } from '../lib/leagueFieldLanguage';
+import { duesChoiceFor, isOrganizer, type MemberRow } from '../lib/leagueParticipation';
+import { formatDuesCents } from '../lib/leagueDues';
+
+interface Props {
+  leagueId: string;
+  mode: 'prompt' | 'settings';
+  row: MemberRow | null;
+  leagueDuesCents: number | null;
+}
+
+const { leagueId, mode, row, leagueDuesCents } = Astro.props;
+const organizer = isOrganizer(row);
+const choice = duesChoiceFor(row);
+const customVal = choice === 'custom' ? centsToInput(row?.dues_cents) : '';
+const leagueAmount = formatDuesCents(leagueDuesCents) ?? 'no dues';
+---
+
+<section class="card own" id="participation" data-league={leagueId}>
+  {mode === 'prompt' ? (
+    <>
+      <span class="chip">One question</span>
+      <h3 class="own__h">Are you playing in this league?</h3>
+      <p class="own__p">
+        As the owner you run it either way. If you play, you’re in the
+        pairings and standings and owe dues like everyone else. If you’re
+        only organizing, you still get league messages but stay out of
+        pairings, standings and dues.
+      </p>
+      <div class="own__btns">
+        <button type="button" class="btn btn--primary" data-answer="player">Yes, I’m playing</button>
+        <button type="button" class="btn btn--ghost" data-answer="organizer">No, I’m only organizing</button>
+      </div>
+      <p class="own__msg small muted" data-msg></p>
+    </>
+  ) : (
+    <form class="own__form" data-form>
+      <span class="chip">Your participation</span>
+      <fieldset class="own__fs">
+        <legend class="own__lg">In this league I’m…</legend>
+        <label class="own__opt">
+          <input type="radio" name="role" value="player" checked={!organizer} />
+          <span><strong>Playing</strong> — in pairings, standings and dues.</span>
+        </label>
+        <label class="own__opt">
+          <input type="radio" name="role" value="organizer" checked={organizer} />
+          <span><strong>Only organizing</strong> — I get league messages, but I’m not in pairings, standings or dues.</span>
+        </label>
+      </fieldset>
+      <fieldset class="own__fs" data-dues hidden={organizer}>
+        <legend class="own__lg">My dues</legend>
+        <label class="own__opt">
+          <input type="radio" name="dues" value="league" checked={choice === 'league'} />
+          <span>League amount ({leagueAmount})</span>
+        </label>
+        <label class="own__opt">
+          <input type="radio" name="dues" value="custom" checked={choice === 'custom'} />
+          <span>Custom</span>
+          <span class="own__amt">$ <input type="number" name="custom" min="0" step="0.01"
+                inputmode="decimal" value={customVal} aria-label="My dues in dollars" /></span>
+        </label>
+        <label class="own__opt">
+          <input type="radio" name="dues" value="none" checked={choice === 'none'} />
+          <span>None — I don’t pay dues</span>
+        </label>
+        <p class="small muted">Only your own amount. Everyone else pays the league amount.</p>
+      </fieldset>
+      <div class="own__btns">
+        <button type="submit" class="btn btn--primary">Save</button>
+        <span class="own__msg small muted" data-msg></span>
+      </div>
+    </form>
+  )}
+</section>
+
+<script is:inline>
+  (() => {
+    const root = document.getElementById('participation');
+    if (!root) return;
+    const leagueId = root.dataset.league;
+    const msg = root.querySelector('[data-msg]');
+    const say = (t, bad) => {
+      if (!msg) return;
+      msg.textContent = t;
+      msg.className = 'own__msg small ' + (bad ? 'own__err' : 'muted');
+    };
+    async function send(payload) {
+      say('Saving…');
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/participation`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) { say(out.error || 'Could not save.', true); return false; }
+        say('Saved.');
+        // The roster, Pay section and prompt all read this row.
+        window.location.reload();
+        return true;
+      } catch {
+        say('Could not reach the server.', true);
+        return false;
+      }
+    }
+
+    for (const b of root.querySelectorAll('[data-answer]')) {
+      b.addEventListener('click', () => send({ role: b.dataset.answer, dues_cents: null }));
+    }
+
+    const form = root.querySelector('[data-form]');
+    if (!form) return;
+    const duesBox = form.querySelector('[data-dues]');
+    for (const r of form.querySelectorAll('input[name="role"]')) {
+      r.addEventListener('change', () => { if (duesBox) duesBox.hidden = r.value === 'organizer' && r.checked; });
+    }
+    const custom = form.querySelector('input[name="custom"]');
+    custom?.addEventListener('focus', () => {
+      const c = form.querySelector('input[name="dues"][value="custom"]');
+      if (c) c.checked = true;
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const role = form.querySelector('input[name="role"]:checked')?.value || 'player';
+      const dues = form.querySelector('input[name="dues"]:checked')?.value || 'league';
+      let dues_cents = null;
+      if (role === 'player' && dues === 'none') dues_cents = 0;
+      if (role === 'player' && dues === 'custom') {
+        const s = String(custom?.value ?? '').replace(/[^0-9.]/g, '');
+        if (s === '') { say('Enter an amount, or pick League amount.', true); return; }
+        // Typed in dollars, stored in cents; rounded, not truncated.
+        dues_cents = Math.max(0, Math.round(Number(s) * 100));
+      }
+      send({ role, dues_cents });
+    });
+  })();
+</script>
+
+<style>
+  .own { margin: 0 0 20px; }
+  .own__h { font-size: 1.0625rem; color: var(--brand-green-dark, #1f5133); margin: 8px 0 6px; }
+  .own__p { margin: 0 0 12px; color: var(--ink-muted, #4b5b54); font-size: 0.9375rem; line-height: 1.5; }
+  .own__btns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .own__fs { border: 0; padding: 0; margin: 10px 0; display: grid; gap: 6px; }
+  .own__fs[hidden] { display: none; }
+  .own__lg { font-weight: 600; font-size: 0.9375rem; margin-bottom: 4px; }
+  .own__opt { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.9375rem; }
+  .own__amt { display: inline-flex; align-items: center; gap: 4px; }
+  .own__amt input { width: 7em; padding: 4px 8px; border: 1px solid #cfdad4; border-radius: 8px; font-size: 0.9375rem; }
+  .own__err { color: #a3261f; }
+  .small { font-size: 0.8125rem; }
+  .muted { color: var(--ink-muted, #4b5b54); }
+</style>
