@@ -61,7 +61,31 @@ export default defineConfig({
       // `PUBLIC_*` is Astro's convention for exposing env vars to the
       // client. When unset (local dev without a Sentry project), the
       // integration no-ops silently — matches the app's own guard.
-      dsn: process.env.PUBLIC_SENTRY_DSN,
+      // Falls back to the literal below when PUBLIC_SENTRY_DSN is not in
+      // the build environment.
+      //
+      // WHY THE LITERAL IS COMMITTED, in a PUBLIC repo. This value is
+      // compiled into the browser bundle and served from
+      // bagpipegolf.com — anyone can already read it with View Source,
+      // so committing it adds discoverability, not exposure. A Sentry
+      // DSN is also write-only: it can submit events, never read them.
+      //
+      // It is here because the integration reads `process.env` at BUILD
+      // time, which means the value has to exist in the Workers Builds
+      // environment, not just the Worker's runtime bindings. That is a
+      // separate dashboard field people reliably miss — and when it is
+      // missing the SDK no-ops in silence, which is exactly how this
+      // sat unwired while looking finished. A committed default cannot
+      // be forgotten.
+      //
+      // Setting PUBLIC_SENTRY_DSN in the environment still overrides
+      // this, so a staging project can point elsewhere without a code
+      // change.
+      //
+      // Project `javascript-astro`, org `taybuta`. Added 2026-10-12.
+      dsn:
+        process.env.PUBLIC_SENTRY_DSN ||
+        'https://c8936f9d6342be934fbd73f18c6ff79e@o4512243792805888.ingest.us.sentry.io/4512244106461184',
       // Errors only. Performance / session-replay flipped off; enable
       // per-need later. Mirrors the app's `tracesSampleRate: 0.0`.
       tracesSampleRate: 0,
