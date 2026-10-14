@@ -31,3 +31,18 @@ export function classifyJoinParam(raw: string | null | undefined): JoinKind {
   if (CODE_SHAPE.test(v)) return 'code';
   return 'invalid';
 }
+
+/**
+ * Is this an invite token (as opposed to a 6-char join code)?
+ *
+ * Exists so the page and the accept proxy cannot drift. They already
+ * did: #163 widened the PAGE to accept the 32-hex token the API mints,
+ * and `/api/invites/[token]/accept` kept its own `/^[0-9a-fA-F-]{36}$/`
+ * gate. The result was a page that rendered "You're invited" correctly
+ * and an Accept button that returned "Missing or malformed invite
+ * token" — a half-fix, which reads worse to a user than the original
+ * break because it looks like it should work.
+ */
+export function isInviteToken(raw: string | null | undefined): boolean {
+  return classifyJoinParam(raw) === 'invite';
+}

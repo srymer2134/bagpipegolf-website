@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../../lib/railway';
+import { isInviteToken } from '../../../../lib/inviteTokenShape';
 
 // POST /api/invites/[token]/accept
 //
@@ -9,12 +10,19 @@ import { callRailway, RailwayApiError } from '../../../../lib/railway';
 // SECURITY DEFINER RPC and flips the invite to accepted. Idempotent
 // upstream — a second click returns 200 without a duplicate row.
 //
-// Same-origin fetch from `/join/[code]` when the code is a UUID invite
-// token. Signed-out visitors never reach this route: the page sends
-// them through /login?next=/join/<token> first.
+// Same-origin fetch from `/join/[code]` when the parameter is an invite
+// token (32-hex as minted today, or a legacy UUID). Signed-out visitors
+// never reach this route: the page sends them through
+// /login?next=/join/<token> first.
 export const POST: APIRoute = async (ctx) => {
   const token = ctx.params.token;
-  if (typeof token !== 'string' || !/^[0-9a-fA-F-]{36}$/.test(token)) {
+  // Shared with /join/[code] via isInviteToken, deliberately. This gate
+  // used to be its own `/^[0-9a-fA-F-]{36}$/` — a UUID length — while
+  // the API mints `randomBytes(16).toString('hex')`, 32 characters.
+  // #163 widened the PAGE and left this behind, so the invite rendered
+  // perfectly and Accept answered "Missing or malformed invite token".
+  // One predicate now, so the two cannot drift again.
+  if (!isInviteToken(token)) {
     return json({ error: 'Missing or malformed invite token.' }, 400);
   }
 
