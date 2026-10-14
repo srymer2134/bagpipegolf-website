@@ -1,0 +1,326 @@
+---
+// Phase 1 — invite players to a league by email, from the director's
+// desk. Owner-only; the page decides that and simply does not render
+// this for anyone else.
+//
+// THE COPY RULE, WHICH IS THE WHOLE POINT OF THIS COMPONENT'S SHAPE.
+// `POST /api/leagues/:id/invites` writes the invite row and then calls
+// SendGrid — and `sendInviteEmail` is a graceful no-op when
+// `SENDGRID_API_KEY` is unset: it logs a warning, returns false, and
+// the route still answers 201. So "the request succeeded" and "the
+// player got an email" are two different facts, and this panel reports
+// them separately. It never says "sent" or "emailed" on its own
+// authority; it says "Invite created", and then says per address
+// whether the email was handed to our mail provider, using the `sent`
+// flag the API returns for exactly that purpose.
+//
+// When an invite was created but not emailed, the panel offers its
+// join link to copy. Without that, an un-emailed invite is a row
+// nobody can reach — and a director with no way to deliver it would
+// have no idea anything was wrong.
+//
+// There is no revoke button. Revoking is a write, every membership
+// write on this surface goes through the Railway API (plan D2), and
+// Railway has no revoke endpoint for league invites. Offering a button
+// that went Supabase-direct would quietly break the rule the rest of
+// this panel follows, so the panel says where revoking happens
+// instead. See the header of src/pages/api/leagues/[id]/invites.ts.
+
+type PendingInvite = {
+  id: string;
+  email: string;
+  status: string;
+  created_at: string | null;
+};
+
+interface Props {
+  leagueId: string;
+  /** Non-accepted invites, loaded server-side so the list is on the
+   *  first paint rather than after a fetch. */
+  invites: PendingInvite[];
+}
+
+const { leagueId, invites } = Astro.props;
+const pending = invites.filter((i) => i.status === 'pending');
+const other = invites.filter((i) => i.status !== 'pending');
+---
+
+<section class="card rinv" id="invite" data-league-id={leagueId}>
+  <div class="rinv__head">
+    <span class="chip">Add players</span>
+  </div>
+  <h3 class="rinv__h">Invite players by email.</h3>
+  <p class="rinv__p">
+    Each address gets its own invite link. Tapping it joins this league
+    — on the web or in the app — so nobody has to be handed a join
+    code. Inviting the same address twice reuses its existing invite
+    rather than making a second one.
+  </p>
+
+  <form id="rinvForm">
+    <label class="rinv__lab" for="rinvEmails">
+      Email addresses — one per line, or separated by commas
+    </label>
+    <textarea
+      id="rinvEmails"
+      rows="4"
+      placeholder={'jamie@example.com\nclaire@example.com'}
+      autocomplete="off"
+      spellcheck="false"></textarea>
+    <p class="rinv__hint" id="rinvCount"></p>
+    <div class="rinv__bar">
+      <button type="submit" id="rinvBtn" class="btn btn--primary">Create invites</button>
+      <span class="small muted" id="rinvMsg"></span>
+    </div>
+  </form>
+
+  <div id="rinvResults" class="rinv__results" hidden></div>
+
+  <div class="rinv__pending">
+    <h4 class="rinv__h4">
+      Waiting to join
+      <span class="rinv__badge" id="rinvPendingCount">{pending.length}</span>
+    </h4>
+    <ul class="rinv__chips" id="rinvPendingList">
+      {pending.length === 0 && (
+        <li class="rinv__none">Nobody invited yet.</li>
+      )}
+      {pending.map((i) => (
+        <li class="rinv__chip">{i.email}</li>
+      ))}
+    </ul>
+    {other.length > 0 && (
+      <p class="rinv__hint">
+        {other.length} earlier {other.length === 1 ? 'invite is' : 'invites are'} revoked
+        or expired. Inviting that address again re-opens it.
+      </p>
+    )}
+    <p class="rinv__hint">
+      To withdraw an invite, use the league's roster in the app — that's
+      still the only surface that can revoke one.
+    </p>
+  </div>
+</section>
+
+<script>
+  import { parseEmailList } from '../../lib/leagueRosterImport';
+  import { sendInvites, unsentCount, type InviteResult } from '../../lib/inviteClient';
+
+  const root = document.getElementById('invite');
+  const form = document.getElementById('rinvForm');
+  if (root instanceof HTMLElement && form instanceof HTMLFormElement) {
+    const leagueId = root.dataset.leagueId ?? '';
+    const box = document.getElementById('rinvEmails') as HTMLTextAreaElement;
+    const btn = document.getElementById('rinvBtn') as HTMLButtonElement;
+    const msg = document.getElementById('rinvMsg') as HTMLElement;
+    const count = document.getElementById('rinvCount') as HTMLElement;
+    const results = document.getElementById('rinvResults') as HTMLElement;
+
+    // Live feedback while typing. The useful number is how many
+    // addresses we could actually read out of the box, not how many
+    // lines are in it.
+    const retally = () => {
+      const { emails, invalid } = parseEmailList(box.value);
+      if (emails.length === 0 && invalid.length === 0) {
+        count.textContent = '';
+        return;
+      }
+      const parts = [`${emails.length} address${emails.length === 1 ? '' : 'es'}`];
+      if (invalid.length > 0) {
+        parts.push(`can’t read: ${invalid.slice(0, 3).join(', ')}`);
+      }
+      count.textContent = parts.join(' · ');
+    };
+    box.addEventListener('input', retally);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const { emails } = parseEmailList(box.value);
+      if (emails.length === 0) {
+        msg.textContent = 'Type at least one email address.';
+        msg.className = 'small rinv__err';
+        return;
+      }
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Working…';
+      msg.textContent = '';
+      msg.className = 'small muted';
+      try {
+        const out = await sendInvites(leagueId, emails);
+        renderResults(results, out.invites);
+        if (out.failed) {
+          msg.textContent = out.failed;
+          msg.className = 'small rinv__err';
+        } else {
+          box.value = '';
+          retally();
+        }
+        await refreshPending(leagueId);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+
+    // The CSV panel creates invites too. Rather than reach into this
+    // component it fires an event, and this listener re-reads the list
+    // from the server, so "waiting to join" has exactly one renderer.
+    document.addEventListener('bpg:invites-changed', () => {
+      void refreshPending(leagueId);
+    });
+  }
+
+  /** Per-address outcome. "Created" is the claim; delivery is stated
+   *  separately and only where the API confirmed it. */
+  function renderResults(host: HTMLElement, invites: InviteResult[]) {
+    if (invites.length === 0) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    host.replaceChildren();
+
+    const ul = document.createElement('ul');
+    ul.className = 'rinv__out';
+    for (const r of invites) {
+      const li = document.createElement('li');
+
+      const addr = document.createElement('span');
+      addr.className = 'rinv__out-email';
+      addr.textContent = r.email;
+      li.append(addr);
+
+      const state = document.createElement('span');
+      if (r.error) {
+        state.className = 'rinv__out-bad';
+        state.textContent = `Not created — ${r.error}`;
+      } else if (r.sent) {
+        state.className = 'rinv__out-ok';
+        state.textContent = 'Invite created · email on its way';
+      } else {
+        state.className = 'rinv__out-warn';
+        state.textContent = 'Invite created · not emailed';
+      }
+      li.append(state);
+
+      // An invite that was created but not emailed is unreachable
+      // unless the director can deliver the link themselves.
+      if (!r.error && !r.sent && r.token) {
+        const url = `https://bagpipegolf.com/join/${r.token}`;
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'rinv__copy';
+        copy.textContent = 'Copy link';
+        copy.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(url);
+            copy.textContent = 'Copied';
+          } catch {
+            // No clipboard permission (or no secure context). Show the
+            // link itself rather than fail silently: it is the only
+            // way this invite reaches anyone.
+            copy.replaceWith(Object.assign(document.createElement('code'), { textContent: url }));
+          }
+        });
+        li.append(copy);
+      }
+      ul.append(li);
+    }
+    host.append(ul);
+
+    const unsent = unsentCount(invites);
+    if (unsent > 0) {
+      const note = document.createElement('p');
+      note.className = 'rinv__hint';
+      note.textContent =
+        `${unsent} invite${unsent === 1 ? ' was' : 's were'} saved but no email went out. ` +
+        'They can still join with the link above, or with the league join code.';
+      host.append(note);
+    }
+  }
+
+  /** Re-read the pending list from the server. Cheap, and it means the
+   *  chips reflect the database rather than what this tab just did. */
+  async function refreshPending(leagueId: string) {
+    const list = document.getElementById('rinvPendingList');
+    const badge = document.getElementById('rinvPendingCount');
+    if (!list || !badge) return;
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/invites`);
+      if (!res.ok) return;
+      const body = (await res.json()) as {
+        invites?: Array<{ email: string; status: string }>;
+      };
+      const pending = (body.invites ?? []).filter((i) => i.status === 'pending');
+      badge.textContent = String(pending.length);
+      list.replaceChildren();
+      if (pending.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'rinv__none';
+        li.textContent = 'Nobody invited yet.';
+        list.append(li);
+        return;
+      }
+      for (const i of pending) {
+        const li = document.createElement('li');
+        li.className = 'rinv__chip';
+        li.textContent = i.email;
+        list.append(li);
+      }
+    } catch {
+      // Leave the server-rendered list alone. A failed refresh is not
+      // a reason to blank what we know.
+    }
+  }
+</script>
+
+<style>
+  .rinv { margin: 20px 0 0; }
+  .rinv__head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .rinv__h { font-size: 1.0625rem; color: var(--brand-green-dark, #1f5133); margin: 8px 0 6px; }
+  .rinv__h4 {
+    font-size: 0.8125rem; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--ink-muted, #4b5b54); margin: 18px 0 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .rinv__badge {
+    background: #eef3f0; border-radius: 999px; padding: 1px 8px;
+    font-size: 0.75rem; letter-spacing: 0; font-variant-numeric: tabular-nums;
+  }
+  .rinv__p { margin: 0 0 12px; color: var(--ink-muted, #4b5b54); font-size: 0.9375rem; }
+  .rinv__lab {
+    display: block; font-size: 0.84375rem; color: var(--ink-muted, #4b5b54);
+    margin-bottom: 4px;
+  }
+  .rinv textarea {
+    width: 100%; padding: 8px 10px; font-size: 0.9375rem; font-family: inherit;
+    border: 1px solid #cfdad4; border-radius: 8px; background: #fff; resize: vertical;
+  }
+  .rinv__bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+  .rinv__hint {
+    font-size: 0.78125rem; color: var(--ink-muted, #4b5b54);
+    line-height: 1.45; margin: 6px 0 0;
+  }
+  .rinv__err { color: #a3261f; }
+  .rinv__results { margin-top: 14px; }
+  .rinv__out { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .rinv__out li {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 0.84375rem; padding: 6px 10px; border-radius: 8px; background: #f4f7f5;
+  }
+  .rinv__out-email { font-weight: 600; }
+  .rinv__out-ok { color: var(--brand-green-dark, #1f5133); }
+  .rinv__out-warn { color: #7a5600; }
+  .rinv__out-bad { color: #a3261f; }
+  .rinv__copy {
+    margin-left: auto; font: inherit; font-size: 0.78125rem; cursor: pointer;
+    border: 1px solid #cfdad4; background: #fff; border-radius: 999px; padding: 2px 10px;
+  }
+  .rinv__chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .rinv__chip {
+    font-size: 0.8125rem; background: #eef3f0; border-radius: 999px; padding: 3px 10px;
+    color: var(--ink-muted, #4b5b54);
+  }
+  .rinv__none { font-size: 0.8125rem; color: var(--ink-muted, #4b5b54); }
+</style>

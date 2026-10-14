@@ -1,0 +1,343 @@
+---
+// Phase 2 — import a roster from a CSV. Owner-only; the page decides.
+//
+// THE TEMPLATE IS GENERATED, NOT STORED. The download link points at
+// /roster-template.csv, whose body is built from `ROSTER_COLUMNS` —
+// the same list the parser recognises, and the column set of
+// `public.league_pending_members`. A file checked into /public would
+// be a second definition of the roster shape and would drift from the
+// importer the first time a column changed. A test round-trips the
+// generated template back through the parser, so the file we hand a
+// director is provably a file we accept.
+//
+// PREVIEW BEFORE COMMIT, ALWAYS. Choosing a file parses it and shows
+// every row with its own errors; nothing is written until the director
+// presses Import. A 40-row file with three bad lines imports the other
+// 37 and says which three were skipped — rather than refusing the file
+// and making them bisect it, or importing silently and leaving them to
+// find out.
+//
+// ONE PATH WORKS TODAY, AND THE OTHER IS DISABLED ON PURPOSE.
+//   * A row WITH an email becomes a league invite, through the same
+//     Railway route the panel above uses.
+//   * A row WITHOUT an email has to become a `league_pending_members`
+//     row — a player with no account, who `league_members.user_id
+//     NOT NULL` makes it impossible to add as a member. That table
+//     exists (20260815) and its RLS would permit the write, but there
+//     is NO API endpoint for it: `fairwayiq-api` routes/leagues.ts has
+//     three POSTs (invites, notify, sub-accept) and none of them
+//     touches it. Every membership write on this surface goes through
+//     the API (plan D2), so rather than open a Supabase-direct write
+//     path we count those rows, tell the director plainly that they
+//     will not be imported, and leave the button to the rows that can
+//     be. The missing endpoint is the backend ask in the PR body.
+
+import { ROSTER_COLUMNS } from '../../lib/leagueRosterImport';
+
+interface Props {
+  leagueId: string;
+}
+
+const { leagueId } = Astro.props;
+const required = ROSTER_COLUMNS.filter((c) => c.required);
+const optional = ROSTER_COLUMNS.filter((c) => !c.required);
+---
+
+<section class="card rcsv" id="import" data-league-id={leagueId}>
+  <div class="rcsv__head">
+    <span class="chip">Import a roster</span>
+  </div>
+  <h3 class="rcsv__h">Upload a spreadsheet of players.</h3>
+  <p class="rcsv__p">
+    Export your spreadsheet as <strong>CSV</strong> — in Excel or
+    Numbers that's <em>File → Save as</em> / <em>Export to</em> and
+    picking CSV. We'll show you what we read before anything is saved.
+  </p>
+
+  <p class="rcsv__p">
+    <a class="btn btn--ghost" href="/roster-template.csv" download>
+      Download the template
+    </a>
+  </p>
+
+  <dl class="rcsv__cols">
+    <dt>Required</dt>
+    <dd>{required.map((c) => <code>{c.name}</code>)}</dd>
+    <dt>Optional</dt>
+    <dd>{optional.map((c) => <code>{c.name}</code>)}</dd>
+  </dl>
+  <p class="rcsv__hint">
+    Columns can be in any order, and a column we don't recognise is
+    ignored rather than rejected. <code>grade</code>,
+    <code>gender</code> and <code>team</code> are for school teams —
+    leave them blank for a club league.
+  </p>
+
+  <p class="rcsv__file">
+    <!-- Input first so the focus ring on the real control can reach
+         the label that stands in for it (`:focus-visible + .rcsv__pick`). -->
+    <input id="rcsvFile" type="file" accept=".csv,text/csv" class="rcsv__input" />
+    <label class="btn btn--primary rcsv__pick" for="rcsvFile">Choose a CSV file</label>
+    <span class="small muted" id="rcsvName"></span>
+  </p>
+
+  <div id="rcsvPreview" hidden></div>
+</section>
+
+<script>
+  import {
+    importableRows,
+    invitableRows,
+    parseRosterCsv,
+    pendingOnlyRows,
+    type RosterImportResult,
+    type RosterImportRow,
+  } from '../../lib/leagueRosterImport';
+  import {
+    emailedCount, failedCount, sendInvites, unsentCount,
+  } from '../../lib/inviteClient';
+
+  const root = document.getElementById('import');
+  const input = document.getElementById('rcsvFile');
+  if (root instanceof HTMLElement && input instanceof HTMLInputElement) {
+    const leagueId = root.dataset.leagueId ?? '';
+    const host = document.getElementById('rcsvPreview') as HTMLElement;
+    const fileName = document.getElementById('rcsvName') as HTMLElement;
+
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      fileName.textContent = file.name;
+      let text: string;
+      try {
+        text = await file.text();
+      } catch {
+        showFatal(host, 'That file could not be read.');
+        return;
+      }
+      renderPreview(host, leagueId, parseRosterCsv(text));
+    });
+  }
+
+  function showFatal(host: HTMLElement, message: string) {
+    host.hidden = false;
+    host.replaceChildren(el('p', 'rcsv__bad', message));
+  }
+
+  /** A preview is a statement of what WILL happen, split by what can
+   *  happen. Three numbers, a table, and one button. */
+  function renderPreview(host: HTMLElement, leagueId: string, out: RosterImportResult) {
+    host.hidden = false;
+    host.replaceChildren();
+
+    if (out.fatal) {
+      host.append(el('p', 'rcsv__bad', out.fatal));
+      return;
+    }
+
+    const good = importableRows(out.rows);
+    const invitable = invitableRows(out.rows);
+    const pendingOnly = pendingOnlyRows(out.rows);
+    const bad = out.rows.length - good.length;
+
+    const summary = el(
+      'p',
+      'rcsv__sum',
+      `Read ${out.rows.length} row${out.rows.length === 1 ? '' : 's'}. ` +
+        `${invitable.length} can be invited by email` +
+        (pendingOnly.length > 0 ? `, ${pendingOnly.length} have no email` : '') +
+        (bad > 0 ? `, ${bad} need${bad === 1 ? 's' : ''} fixing` : '') +
+        '.',
+    );
+    host.append(summary);
+
+    if (out.ignored.length > 0) {
+      host.append(
+        el(
+          'p',
+          'rcsv__hint',
+          `Ignored ${out.ignored.length === 1 ? 'a column' : 'columns'} we don’t ` +
+            `use: ${out.ignored.join(', ')}.`,
+        ),
+      );
+    }
+
+    host.append(buildTable(out.rows));
+
+    // The honest version of "we can't do this yet". A director who is
+    // not told would import 25 of 40 players and assume the other 15
+    // were on the roster.
+    if (pendingOnly.length > 0) {
+      host.append(
+        el(
+          'p',
+          'rcsv__warn',
+          `${pendingOnly.length} player${pendingOnly.length === 1 ? '' : 's'} ` +
+            `on this list ${pendingOnly.length === 1 ? 'has' : 'have'} no email, ` +
+            'and the web can’t add a player without one yet. Add them from the ' +
+            'league roster in the app, or put an email in the spreadsheet and ' +
+            'upload it again.',
+        ),
+      );
+    }
+
+    if (invitable.length === 0) {
+      host.append(el('p', 'rcsv__hint', 'Nothing here can be imported from the web.'));
+      return;
+    }
+
+    const bar = el('div', 'rcsv__bar', '');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn--primary';
+    btn.textContent = `Import ${invitable.length} player${invitable.length === 1 ? '' : 's'}`;
+    const msg = el('span', 'small muted', '');
+    bar.append(btn, msg);
+    host.append(bar);
+
+    btn.addEventListener('click', async () => {
+      // Disabled for the whole call, and it never re-enables on
+      // success. Re-importing the same file writes nothing new (the
+      // route is idempotent per (league, email)), but a button that
+      // invites you to press it again is a button that says the first
+      // press might not have worked.
+      btn.disabled = true;
+      btn.textContent = 'Importing…';
+      msg.textContent = '';
+      msg.className = 'small muted';
+
+      const emails = invitable.map((r) => r.email as string);
+      const result = await sendInvites(leagueId, emails);
+      const failed = failedCount(result.invites);
+      const created = result.invites.length - failed;
+      const emailed = emailedCount(result.invites);
+      const unsent = unsentCount(result.invites);
+
+      // THREE SEPARATE FACTS, REPORTED SEPARATELY. "Created" is what
+      // the API's success actually means: the invite row exists.
+      // "Emailed" is only ever the count the API confirmed with `sent`,
+      // because `sendInviteEmail` no-ops when the mail provider is
+      // unconfigured and the route still answers 201. Collapsing the
+      // two would make this panel claim deliveries it cannot see.
+      const lines = [
+        `${created} invite${created === 1 ? '' : 's'} created.`,
+        emailed > 0 ? `${emailed} emailed.` : '',
+        unsent > 0
+          ? `${unsent} ${unsent === 1 ? 'was' : 'were'} not emailed — ` +
+            'those players need the league join code, or a link sent from the ' +
+            'Add players panel above.'
+          : '',
+        failed > 0 ? `${failed} failed.` : '',
+        result.failed ?? '',
+      ].filter(Boolean);
+      msg.textContent = lines.join(' ');
+      if (result.failed || failed > 0) msg.className = 'small rcsv__bad';
+
+      btn.textContent = `Imported ${created} of ${emails.length}`;
+      // Let the panel above re-read the pending list from the server.
+      document.dispatchEvent(new CustomEvent('bpg:invites-changed'));
+    });
+  }
+
+  function buildTable(rows: RosterImportRow[]): HTMLElement {
+    const wrap = el('div', 'rcsv__scroll', '');
+    const table = document.createElement('table');
+    table.className = 'rcsv__tbl';
+    const thead = document.createElement('thead');
+    const hr = document.createElement('tr');
+    for (const h of ['Line', 'Name', 'Email', 'HCP', 'Team', 'Status']) {
+      const th = document.createElement('th');
+      th.textContent = h;
+      hr.append(th);
+    }
+    thead.append(hr);
+    table.append(thead);
+
+    const tbody = document.createElement('tbody');
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      if (r.errors.length > 0) tr.className = 'rcsv__row--bad';
+      const cells = [
+        String(r.line),
+        r.name || '—',
+        r.email ?? '—',
+        r.handicap_index === null ? '—' : String(r.handicap_index),
+        r.team ?? '—',
+        r.errors.length > 0
+          ? r.errors.join(' ')
+          : r.email
+            ? 'Will be invited'
+            : 'No email — skipped',
+      ];
+      cells.forEach((c, i) => {
+        const td = document.createElement('td');
+        td.textContent = c;
+        // The status column carries the per-row reason, which is the
+        // thing a director actually reads.
+        if (i === 5 && r.errors.length > 0) td.className = 'rcsv__cell-bad';
+        else if (i === 5 && !r.email) td.className = 'rcsv__cell-warn';
+        tr.append(td);
+      });
+      tbody.append(tr);
+    }
+    table.append(tbody);
+    wrap.append(table);
+    return wrap;
+  }
+
+  function el(tag: string, className: string, text: string): HTMLElement {
+    const n = document.createElement(tag);
+    if (className) n.className = className;
+    if (text) n.textContent = text;
+    return n;
+  }
+</script>
+
+<style>
+  .rcsv { margin: 20px 0 0; }
+  .rcsv__head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .rcsv__h { font-size: 1.0625rem; color: var(--brand-green-dark, #1f5133); margin: 8px 0 6px; }
+  .rcsv__p { margin: 0 0 12px; color: var(--ink-muted, #4b5b54); font-size: 0.9375rem; }
+  .rcsv__hint {
+    font-size: 0.78125rem; color: var(--ink-muted, #4b5b54);
+    line-height: 1.45; margin: 6px 0 0;
+  }
+  .rcsv__cols {
+    display: grid; grid-template-columns: auto 1fr; gap: 4px 12px;
+    margin: 12px 0 0; font-size: 0.84375rem;
+  }
+  .rcsv__cols dt { color: var(--ink-muted, #4b5b54); font-weight: 600; }
+  .rcsv__cols dd { margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+  .rcsv__cols code {
+    background: #eef3f0; padding: .1em .4em; border-radius: 4px; font-size: 0.8125rem;
+  }
+  .rcsv__file { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0 0; }
+  /* The native file input is unstyleable across browsers; the label is
+     the control and the input stays reachable by keyboard + a11y tree. */
+  .rcsv__input {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .rcsv__pick { cursor: pointer; }
+  .rcsv__input:focus-visible + .rcsv__pick, .rcsv__pick:focus-visible { outline: 2px solid var(--brand-green-dark, #1f5133); outline-offset: 2px; }
+  .rcsv__sum { margin: 16px 0 6px; font-size: 0.9375rem; font-weight: 600; }
+  .rcsv__bad { color: #a3261f; font-size: 0.875rem; margin: 8px 0 0; }
+  .rcsv__warn {
+    background: #fff4dc; border: 1px solid #f0d58a; border-radius: 10px;
+    padding: 10px 12px; margin: 12px 0 0; font-size: 0.84375rem; line-height: 1.5;
+  }
+  .rcsv__scroll { overflow-x: auto; margin: 10px 0 0; }
+  .rcsv__tbl { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+  .rcsv__tbl th, .rcsv__tbl td {
+    text-align: left; padding: 5px 8px; border-bottom: 1px solid #e3e9e5;
+    vertical-align: top;
+  }
+  .rcsv__tbl th {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--ink-muted, #4b5b54);
+  }
+  .rcsv__row--bad { background: #fdf3f2; }
+  .rcsv__cell-bad { color: #a3261f; }
+  .rcsv__cell-warn { color: #7a5600; }
+  .rcsv__bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+</style>
