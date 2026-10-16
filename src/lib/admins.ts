@@ -13,6 +13,9 @@ export const ADMIN_EMAILS: readonly string[] = [
   'cjkeefe@comcast.net',
   'yerapat@gmail.com',
   'nwrymer10@gmail.com',
+  // Sam 2026-10-16: website admin pages. Already in the app's list
+  // (2026-10-02) and in env-diag.ts — this list had drifted.
+  'chrisschroeder.hq@gmail.com',
 ];
 
 /**
