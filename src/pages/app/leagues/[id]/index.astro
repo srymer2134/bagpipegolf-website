@@ -8,7 +8,10 @@ import {
 } from '../../../../lib/leaguePortal';
 import { dateLabel, fmtPts } from '../../../../lib/leaguePublic';
 import PayButton from '../../../../components/payments/PayButton.astro';
-import { formatDuesLine } from '../../../../lib/leagueDues';
+import OwnerParticipation from '../../../../components/OwnerParticipation.astro';
+import {
+  loadOwnMembership, needsParticipationPrompt, payDisplayFor, payStateFor, type OwnMembership,
+} from '../../../../lib/leagueParticipation';
 import { checkoutNotice, payNoticeCode, settledRowFor } from '../../../../lib/payments';
 import { fixtureParam, listPayments, modeFor } from '../../../../lib/paymentsServer';
 import { loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
@@ -46,20 +49,50 @@ const played = d ? d.weeks.filter((w) => w.week_of < new Date().toISOString().sl
 // league takes payments: the payments read is the per-league gate
 // (paymentsGate.ts) — `payments_disabled`, any error or a timeout →
 // no Pay control at all.
-const payMode = modeFor(Astro.locals as App.Locals);
-let pay: { amountLabel: string; paid: boolean; action: string; notice: ReturnType<typeof checkoutNotice> } | null = null;
-if (payMode !== 'off' && d && id) {
+//
+// LEAGUE_OWNER_PARTICIPATION_PLAN §2: the amount is the VIEWER'S own —
+// `league_members.dues_cents ?? leagues.dues_cents` — and Pay is hidden
+// for an organizer (or an owner who has not answered the D4 prompt),
+// because checkout would refuse them `not_member`. Before the backend
+// migration lands (`own.supported === false`) this behaves as it did.
+
+// The viewer's own row — read regardless of the payments flag, because
+// the D4 prompt below does not depend on payments.
+let own: OwnMembership | null = null;
+let payable: Awaited<ReturnType<typeof loadPayable>> = null;
+if (d && id && user?.id) {
   try {
-    const payable = await loadPayable(supabaseFor(Astro as unknown as RouteCtx), 'league', id);
-    const amountLabel = formatDuesLine(payable?.duesCents, payable?.duesDueDate);
-    if (amountLabel) {
+    const sb = supabaseFor(Astro as unknown as RouteCtx);
+    [own, payable] = await Promise.all([
+      loadOwnMembership(sb, id, user.id),
+      loadPayable(sb, 'league', id),
+    ]);
+  } catch (err) {
+    console.error('[app/league] own membership load failed', err);
+  }
+}
+const isLeagueOwner = Boolean(payable?.ownerId && user?.id && payable.ownerId === user.id);
+const showPrompt = own !== null && needsParticipationPrompt({
+  supported: own.supported, isOwner: isLeagueOwner, row: own.row,
+});
+
+const payMode = modeFor(Astro.locals as App.Locals);
+let pay: { amountLabel: string | null; nothing: boolean; paid: boolean; action: string; notice: ReturnType<typeof checkoutNotice> } | null = null;
+if (payMode !== 'off' && d && id && own && payable) {
+  try {
+    const display = payDisplayFor(
+      payStateFor({ supported: own.supported, row: own.row, leagueDuesCents: payable.duesCents }),
+      payable.duesDueDate,
+    );
+    if (display) {
       const fixture = fixtureParam(payMode, Astro.url);
       const gate = await paymentsGate(payMode, () =>
         listPayments({ locals: Astro.locals as App.Locals }, payMode, 'league', id,
           payMode === 'fixtures' ? Astro.url.searchParams.get('payments') : null));
       const list = gate.enabled ? gate.result : null;
       pay = !list || !list.ok ? null : {
-        amountLabel,
+        amountLabel: display.amountLabel,
+        nothing: display.nothing,
         paid: settledRowFor(list.data.payments, 'season_dues') !== null,
         action: withQuery('/api/payments/checkout-session', { fixture }),
         notice: checkoutNotice(payNoticeCode(Astro.url.searchParams.get('pay')), 'league'),
@@ -94,8 +127,14 @@ if (payMode !== 'off' && d && id) {
         </p>
         <LeagueSubnav id={d.league.id} active="overview" />
 
+        {showPrompt && (
+          <OwnerParticipation leagueId={d.league.id} mode="prompt" row={null}
+            leagueDuesCents={payable?.duesCents ?? null} />
+        )}
+
         {pay && (
           <PayButton
+            nothing={pay.nothing}
             scope="league"
             id={d.league.id}
             amountLabel={pay.amountLabel}

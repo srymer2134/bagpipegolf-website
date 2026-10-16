@@ -25,9 +25,13 @@ interface Props {
   notice: CheckoutNotice | null;
   /** `/api/payments/checkout-session`, plus `?fixture=` in dev fixture mode. */
   action: string;
+  /** This member owes nothing (their own dues override is 0) — show
+   *  "Nothing to pay" and no button. LEAGUE_OWNER_PARTICIPATION_PLAN §2:
+   *  checkout would answer `no_fee_set`. */
+  nothing?: boolean;
 }
 
-const { scope, id, amountLabel, paid, notice, action } = Astro.props;
+const { scope, id, amountLabel, paid, notice, action, nothing = false } = Astro.props;
 const kind = kindFor(scope);
 const label = scope === 'league' ? 'Pay season dues' : 'Pay entry fee';
 const showPaid = paid || notice?.code === 'already_paid';
@@ -39,6 +43,11 @@ const showPaid = paid || notice?.code === 'already_paid';
     <>
       <h3 class="paybox__h">You’re paid.</h3>
       <p class="paybox__p">There’s nothing more to pay here.</p>
+    </>
+  ) : nothing ? (
+    <>
+      <h3 class="paybox__h">Nothing to pay.</h3>
+      <p class="paybox__p">You don’t owe season dues in this league.</p>
     </>
   ) : (
     <>
