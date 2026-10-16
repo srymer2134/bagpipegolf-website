@@ -165,6 +165,13 @@ const playerNames = (b: BetRow) =>
           <h3>Leagues</h3>
           <p>Weekly standings, schedule, sub assignments.</p>
           <a class="btn btn--ghost btn--sm" href="/app/leagues">Open</a>
+          <!-- Direct entry to card-payments setup. Before this, finishing
+               setup meant: Leagues list -> pick one -> Manage -> hunt for
+               the button. /app/payments/setup skips straight through when
+               you own exactly one league, and shows a picker when you own
+               several. Harmless when payments are off for this account:
+               that route 404s like every other payments surface. -->
+          <a class="btn btn--ghost btn--sm" href="/app/payments/setup">Card payments</a>
         </article>
         <article class="card">
           <h3>Profile</h3>

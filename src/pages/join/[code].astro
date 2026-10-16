@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { callRailwayPublic } from '../../lib/railway';
+import { classifyJoinParam } from '../../lib/inviteTokenShape';
 
 // Join landing page — `https://bagpipegolf.com/join/<id>`.
 //
@@ -53,14 +54,12 @@ type Preview = {
 };
 
 const raw = (Astro.params.code ?? '').trim();
-const uuidShape = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const codeShape = /^[A-Za-z0-9]{6}$/;
-
-const kind: 'invite' | 'code' | 'invalid' = uuidShape.test(raw)
-  ? 'invite'
-  : codeShape.test(raw)
-    ? 'code'
-    : 'invalid';
+// Shape classification lives in src/lib/inviteTokenShape.ts so it can
+// be unit-tested — a server-rendered .astro cannot be. This branch
+// silently rejected EVERY invite link we ever emailed (it accepted only
+// the UUID shape while the API mints 32 hex chars), and a page that
+// cannot be tested is how that survived to a real user's click.
+const kind = classifyJoinParam(raw);
 
 const token = kind === 'invite' ? raw.toLowerCase() : '';
 const code = kind === 'code' ? raw.toUpperCase() : '';
@@ -436,8 +435,24 @@ const title =
             return;
           }
           if (doneLink) {
-            if (body && body.league_id) {
-              doneLink.setAttribute('href', '/app/leagues');
+            // Land on the league you just joined, not the list.
+            //
+            // 2026-10-13: this sent league accepts to '/app/leagues' —
+            // the LIST — while tournament accepts went to the specific
+            // tournament, even though `league_id` is right here in the
+            // response. A new member finished on a page that neither
+            // names the league they joined nor carries "Pay season
+            // dues", which lives on /app/leagues/<id>.
+            //
+            // Kept inline rather than imported from src/lib: this
+            // script is `is:inline`, so Astro does not bundle it and ES
+            // imports are not available. test/joinRedirect guards the
+            // shape instead.
+            if (body && typeof body.league_id === 'string' && body.league_id) {
+              doneLink.setAttribute(
+                'href',
+                `/app/leagues/${encodeURIComponent(body.league_id)}`,
+              );
             } else if (body && body.tournament_id) {
               doneLink.setAttribute('href', `/app/tournaments/${body.tournament_id}`);
             }
