@@ -139,14 +139,15 @@ describe('rosterPayments — joins league_members to §2.4', () => {
     expect(r).toMatchObject({ name: 'Ann', status: null, label: 'Unpaid', canRecord: true, amountLabel: null });
   });
 
-  it('settled rows (Paid, Paid (cash), Waived) offer no actions; the rest do', () => {
+  it('settled and refunded rows offer no actions; the rest do', () => {
     const statuses = ['succeeded', 'paid_offline', 'waived', 'pending', 'failed', 'refunded'];
     const rows = statuses.map((s, i) => row({ id: `r${i}`, profile_id: P(i), status: s }));
     const members = statuses.map((_, i) => ({ user_id: P(i), display_name: `M${i}` }));
     const can = Object.fromEntries(rosterPayments(members, rows, 'season_dues').map((r) => [r.status, r.canRecord]));
     expect(can).toEqual({
       succeeded: false, paid_offline: false, waived: false,
-      pending: true, failed: true, refunded: true,
+      // Refunded owes nothing (Sam, 2026-10-21) — nothing to record.
+      pending: true, failed: true, refunded: false,
     });
   });
 

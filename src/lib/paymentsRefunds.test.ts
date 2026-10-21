@@ -29,9 +29,10 @@ vi.mock('./supabase', () => ({
 }));
 
 import { callRailway, RailwayApiError } from './railway';
-import { errorCodeOf, pollOutcome, settledRowFor, type PaymentRow } from './payments';
+import { errorCodeOf, memberPayState, pollOutcome, settledRowFor, type PaymentRow } from './payments';
 import {
   canRefund,
+  duesState,
   parseDisputeStatus,
   parseRefundAction,
   refundConfirmCopy,
@@ -144,6 +145,69 @@ describe('rowSettled — open dispute is paid, lost dispute is not', () => {
     expect(pollOutcome({ payments: [byId(24)] }, I(24))).toBe('failed');
     expect(pollOutcome({ payments: [base({ dispute_status: 'lost' })] }, I(21))).not.toBe('paid');
     expect(pollOutcome({ payments: [byId(22)] }, I(22))).toBe('paid');
+  });
+});
+
+// ── Refunded owes nothing (Sam, 2026-10-21) ─────────────────────
+
+describe('refunded is a third state — neither owed nor paid', () => {
+  it('duesState per fixture row', () => {
+    expect(rows().map((r) => duesState(r))).toEqual([
+      'paid', 'paid', 'paid', 'owes', 'paid', 'refunded', 'paid', 'paid',
+    ]);
+    expect(duesState(null)).toBe('owes');
+    expect(duesState(base({ status: 'pending' }))).toBe('owes');
+    expect(duesState(base({ status: 'failed' }))).toBe('owes');
+  });
+
+  it('member Pay: refunded → no Pay button and not "paid"; lost dispute → Pay again', () => {
+    expect(memberPayState([byId(26)], 'season_dues')).toBe('refunded');
+    expect(memberPayState([byId(24)], 'season_dues')).toBe('owes');
+    expect(memberPayState([byId(22)], 'season_dues')).toBe('paid');
+    expect(memberPayState([], 'season_dues')).toBe('owes');
+    // Paid again after a refund → paid.
+    expect(memberPayState([byId(26), base({ id: I(41), profile_id: P(26) })], 'season_dues')).toBe('paid');
+    // Pre-Phase-5 row shape (fields absent) behaves the same.
+    const old = (fixture('payments_roster').body.payments as PaymentRow[]).find((r) => r.status === 'refunded')!;
+    expect(memberPayState([old], 'season_dues')).toBe('refunded');
+  });
+
+  it('the success page says refunded, never paid', () => {
+    expect(pollOutcome({ payments: [byId(26)] }, I(26))).toBe('refunded');
+  });
+
+  it('roster header and member Pay use the same rule for every row', () => {
+    const members = rows().map((r) => ({ user_id: r.profile_id, display_name: 'x' }));
+    for (const line of rosterPayments(members, rows(), 'season_dues')) {
+      const own = rows().filter((r) => r.profile_id === line.profileId);
+      expect(line.dues, line.profileId).toBe(memberPayState(own, 'season_dues'));
+      expect(line.canRecord).toBe(line.dues === 'owes');
+    }
+  });
+
+  it('signup dues step: refunded shows no Pay and does not claim paid', async () => {
+    const { signupDuesStep } = await import('./paymentsSignup');
+    const out = await signupDuesStep({
+      mode: 'live',
+      payParam: null,
+      slotParam: null,
+      fixture: null,
+      listFixture: null,
+      loadDues: async () => ({ duesCents: 5000, duesDueDate: null }),
+      listPayments: async () => ({ ok: true, status: 200, data: { payments: [byId(26)] } }),
+      withQuery: (p) => p,
+    });
+    expect(out).toMatchObject({ paid: false, refunded: true });
+  });
+
+  it('PayButton renders the refunded branch before any Pay form', () => {
+    const src = readFileSync('src/components/payments/PayButton.astro', 'utf8');
+    expect(src.indexOf(') : refunded ? (')).toBeGreaterThan(0);
+    expect(src.indexOf(') : refunded ? (')).toBeLessThan(src.indexOf('<form'));
+    expect(src).toContain('You were refunded.');
+    for (const page of ['src/pages/app/leagues/[id]/index.astro', 'src/pages/app/tournaments/[id]/index.astro', 'src/pages/app/leagues/[id]/signup.astro']) {
+      expect(readFileSync(page, 'utf8'), page).toMatch(/refunded=\{(pay|dues)\.refunded\}/);
+    }
   });
 });
 
@@ -383,12 +447,19 @@ describe('POST /api/payments/refund', () => {
 // ── Fixtures match the frozen wire ──────────────────────────────
 
 describe('Phase 5 fixtures are contract-shaped', () => {
-  it('refund errors: the frozen `{error: "<code>"}` body at the frozen status', () => {
+  it('refund errors: the API\'s `{error: "<code>", code: "<code>"}` body (api #169) at the frozen status', () => {
     const http = { not_owner: 403, not_found: 404, not_refundable: 409, stripe_error: 502 } as const;
     for (const c of REFUND_ERROR_CODES) {
       const f = fixture(`error_${c}`);
       expect(f.http).toBe(http[c]);
-      expect(f.body).toEqual({ error: c });
+      expect(f.body).toEqual({ error: c, code: c });
+    }
+  });
+
+  it('the parser accepts both shapes: {error, code} and the bare {error}', () => {
+    for (const c of REFUND_ERROR_CODES) {
+      expect(errorCodeOf({ error: c, code: c }, 'x')).toBe(c);
+      expect(errorCodeOf({ error: c }, 'x')).toBe(c);
     }
   });
 

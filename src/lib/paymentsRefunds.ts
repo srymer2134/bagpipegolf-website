@@ -63,6 +63,61 @@ export function rowSettled(row: RowLike | null | undefined): boolean {
   return isSettled(parsePaymentStatus(row.status));
 }
 
+// ── Does this player owe? ONE rule, roster header and member Pay ──
+
+/**
+ * Sam, 2026-10-21: three states, not two.
+ *
+ *   paid     — `rowSettled`: card, cash, comp, or an OPEN dispute.
+ *   refunded — the money went back, usually because the player dropped
+ *              out. They owe NOTHING: no Pay button, and nothing says
+ *              "paid" either. Neither owed nor collected.
+ *   owes     — no row, pending, failed, or a LOST dispute (owes again).
+ */
+export type DuesState = 'paid' | 'refunded' | 'owes';
+
+export function duesState(row: RowLike | null | undefined): DuesState {
+  if (!row) return 'owes';
+  if (rowSettled(row)) return 'paid';
+  if (parsePaymentStatus(row.status) === 'refunded' && parseDisputeStatus(row.dispute_status) !== 'lost') {
+    return 'refunded';
+  }
+  return 'owes';
+}
+
+function stamp(r: Partial<PaymentRow>): string {
+  return String(r.updated_at ?? r.created_at ?? '');
+}
+
+/**
+ * Of several rows for ONE player and kind, the one that decides their
+ * line: a settled row if there is one (never "Failed" for someone who
+ * has since paid), otherwise the most recently updated. The roster and
+ * the member's Pay section both pick through this, so they cannot
+ * disagree about whether someone owes.
+ */
+export function betterRow<T extends RowLike>(cur: T | null | undefined, r: T): T {
+  if (!cur) return r;
+  const curSettled = rowSettled(cur);
+  const newSettled = rowSettled(r);
+  if (newSettled && !curSettled) return r;
+  if (newSettled === curSettled && stamp(r) > stamp(cur)) return r;
+  return cur;
+}
+
+/** The member's own dues state for a kind, from the rows the server
+ *  returned for them (RLS: only their own). */
+export function memberDuesState(
+  rows: readonly PaymentRow[] | null | undefined,
+  kind: PaymentRow['kind'],
+): DuesState {
+  let pick: PaymentRow | null = null;
+  for (const r of rows ?? []) {
+    if (r?.kind === kind) pick = betterRow(pick, r);
+  }
+  return duesState(pick);
+}
+
 export type RowStatusView = {
   label: string;
   tone: StatusTone;

@@ -27,7 +27,7 @@
 //      fixtures can only ever answer in `astro dev`.
 
 import { parsePaymentStatus, type PaymentStatus } from './paymentStatus';
-import { rowSettled } from './paymentsRefunds';
+import { duesState, memberDuesState, rowSettled, type DuesState } from './paymentsRefunds';
 
 // ── Shared types (contract §1) ──────────────────────────────────
 
@@ -475,9 +475,19 @@ export function settledRowFor(rows: readonly PaymentRow[] | null | undefined, ki
   return null;
 }
 
+/**
+ * The member's Pay section: `paid` → "You're paid", `refunded` → "You
+ * were refunded" (no Pay button — Sam, 2026-10-21: a refunded player
+ * owes nothing), `owes` → the Pay button. Same rule as the roster
+ * header (`duesState` / `betterRow` in paymentsRefunds.ts).
+ */
+export function memberPayState(rows: readonly PaymentRow[] | null | undefined, kind: PaymentKind): DuesState {
+  return memberDuesState(rows, kind);
+}
+
 // ── W4 — the /pay/success poll ──────────────────────────────────
 
-export type PollOutcome = 'paid' | 'failed' | 'waiting';
+export type PollOutcome = 'paid' | 'refunded' | 'failed' | 'waiting';
 
 /**
  * Decide what the success page may say from ONE server response.
@@ -502,9 +512,12 @@ export function pollOutcome(
     | undefined;
   if (!row) return 'waiting';
   const status: PaymentStatus | null = parsePaymentStatus(row.status);
-  if (rowSettled({ status: String(row.status ?? ''), dispute_status: row.dispute_status as string | null })) return 'paid';
+  const state = duesState({ status: String(row.status ?? ''), dispute_status: row.dispute_status as string | null });
+  if (state === 'paid') return 'paid';
+  // Refunded owes nothing (Sam, 2026-10-21) — say so, never "paid".
+  if (state === 'refunded') return 'refunded';
   if (status === 'failed') return 'failed';
-  // pending, refunded (not a fresh outcome of this checkout), unknown.
+  // pending, unknown.
   return 'waiting';
 }
 

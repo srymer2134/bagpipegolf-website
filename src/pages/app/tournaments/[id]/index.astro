@@ -13,7 +13,7 @@ import {
 } from '../../../../lib/tournamentQueries';
 import { leagueEventFor, type LeagueEventContext } from '../../../../lib/leagueEvents';
 import PayButton from '../../../../components/payments/PayButton.astro';
-import { checkoutNotice, payNoticeCode, settledRowFor } from '../../../../lib/payments';
+import { checkoutNotice, payNoticeCode, memberPayState } from '../../../../lib/payments';
 import { fixtureParam, listPayments, modeFor } from '../../../../lib/paymentsServer';
 import { withQuery } from '../../../../lib/paymentsRoutes';
 import { paymentsGate } from '../../../../lib/paymentsGate';
@@ -94,14 +94,15 @@ const joinNext = `/app/tournaments/${id}`;
 // (paymentsGate.ts) — `payments_disabled`, any error or a timeout →
 // no Pay control at all.
 const payMode = modeFor(Astro.locals as App.Locals);
-let pay: { paid: boolean; action: string; notice: ReturnType<typeof checkoutNotice> } | null = null;
+let pay: { paid: boolean; refunded: boolean; action: string; notice: ReturnType<typeof checkoutNotice> } | null = null;
 if (payMode !== 'off' && t && id && viewerOnRoster && !viewerIsHost && !kiosk && !completed) {
   const gate = await paymentsGate(payMode, () =>
     listPayments({ locals: Astro.locals as App.Locals }, payMode, 'tournament', id,
       payMode === 'fixtures' ? url.searchParams.get('payments') : null));
   const list = gate.enabled ? gate.result : null;
   pay = !list || !list.ok ? null : {
-    paid: settledRowFor(list.data.payments, 'entry_fee') !== null,
+    paid: memberPayState(list.data.payments, 'entry_fee') === 'paid',
+        refunded: memberPayState(list.data.payments, 'entry_fee') === 'refunded',
     action: withQuery('/api/payments/checkout-session', { fixture: fixtureParam(payMode, url) }),
     notice: checkoutNotice(payNoticeCode(url.searchParams.get('pay')), 'tournament'),
   };
@@ -237,6 +238,7 @@ const sortedPlayers = [...players].sort((a, b) => {
             id={id!}
             amountLabel={null}
             paid={pay.paid}
+            refunded={pay.refunded}
             notice={pay.notice}
             action={pay.action}
           />

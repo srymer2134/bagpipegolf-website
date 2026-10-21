@@ -25,7 +25,7 @@ import {
   type PaymentStatus,
   type StatusTone,
 } from './paymentStatus';
-import { canRefund, centsOf, rowSettled, rowStatusView } from './paymentsRefunds';
+import { betterRow, canRefund, centsOf, duesState, rowSettled, rowStatusView } from './paymentsRefunds';
 import { isOrganizer } from './leagueParticipation';
 import {
   parseEntityId,
@@ -55,6 +55,8 @@ export type RosterPaymentRow = {
   /** False for a payment row whose payer is no longer on the roster —
    *  still shown, because the money is still in the league's books. */
   onRoster: boolean;
+  /** paid / refunded / owes — `duesState`, shared with member Pay. */
+  dues: 'paid' | 'refunded' | 'owes';
   /** Null = no row at all = never attempted ("Unpaid"). */
   status: PaymentStatus | null;
   label: string;
@@ -81,10 +83,6 @@ export type RosterPaymentRow = {
   canRecord: boolean;
 };
 
-function stamp(r: PaymentRow): string {
-  return String(r.updated_at ?? r.created_at ?? '');
-}
-
 /**
  * Join the league roster to the §2.4 payments list for ONE kind.
  *
@@ -104,15 +102,8 @@ export function rosterPayments(
   const best = new Map<string, PaymentRow>();
   for (const r of payments ?? []) {
     if (!r || r.kind !== kind || typeof r.profile_id !== 'string') continue;
-    const cur = best.get(r.profile_id);
-    if (!cur) {
-      best.set(r.profile_id, r);
-      continue;
-    }
-    const curSettled = rowSettled(cur);
-    const newSettled = rowSettled(r);
-    if (newSettled && !curSettled) best.set(r.profile_id, r);
-    else if (newSettled === curSettled && stamp(r) > stamp(cur)) best.set(r.profile_id, r);
+    // `betterRow` — the same pick the member's Pay section makes.
+    best.set(r.profile_id, betterRow(best.get(r.profile_id), r));
   }
 
   const line = (profileId: string, name: string, onRoster: boolean): RosterPaymentRow => {
@@ -120,6 +111,7 @@ export function rosterPayments(
     const status = row ? parsePaymentStatus(row.status) : null;
     const view = rowStatusView(row ?? { status: null as unknown as string });
     const settled = rowSettled(row);
+    const state = duesState(row);
     return {
       profileId,
       name,
@@ -129,6 +121,7 @@ export function rosterPayments(
       tone: view.tone,
       note: view.note,
       settled,
+      dues: state,
       refundPaymentId: row && canRefund(row) ? row.id : null,
       amountCents: row ? centsOf(row.amount_cents) : 0,
       applicationFeeCents: row ? centsOf(row.application_fee_cents) : 0,
@@ -136,7 +129,10 @@ export function rosterPayments(
       // reads like a payment.
       amountLabel: row && status !== 'waived' ? formatAmountCents(row.amount_cents) : null,
       waivedReason: status === 'waived' ? (row?.waived_reason ?? null) : null,
-      canRecord: !settled,
+      // Only while they OWE (`duesState`): not on a settled row, and not
+      // on a refunded one — a refunded player owes nothing (Sam,
+      // 2026-10-21), the same rule as the member's Pay section.
+      canRecord: state === 'owes',
     };
   };
 
@@ -181,8 +177,8 @@ export function rosterSummary(rows: readonly RosterPaymentRow[]): { settled: num
   let settled = 0;
   let refunded = 0;
   for (const r of rows) {
-    if (r.settled) settled += 1;
-    else if (r.status === 'refunded') refunded += 1;
+    if (r.dues === 'paid') settled += 1;
+    else if (r.dues === 'refunded') refunded += 1;
   }
   return { settled, refunded, owing: rows.length - settled - refunded };
 }
