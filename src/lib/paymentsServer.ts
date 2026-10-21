@@ -14,6 +14,7 @@
 
 import { callRailway, RailwayApiError } from './railway';
 import {
+  errorCodeOf,
   paymentsMode,
   type CheckoutRequest,
   type CheckoutSessionBody,
@@ -71,7 +72,7 @@ export function pickFixture(
 function fromFixture<T>(f: Fixture): ApiResult<T> {
   if (f.http >= 200 && f.http < 300) return { ok: true, status: f.http, data: f.body as T };
   const body = f.body as PaymentsErrorBody;
-  return { ok: false, status: f.http, code: body.code, error: body.error, body };
+  return { ok: false, status: f.http, code: errorCodeOf(body, 'upstream_error'), error: body.error, body };
 }
 
 const ERROR_FIXTURES = FIXTURE_NAMES.filter((n) => n.startsWith('error_'));
@@ -86,14 +87,15 @@ async function live<T>(ctx: Ctx, init: Parameters<typeof callRailway>[1]): Promi
     return { ok: true, status: 200, data };
   } catch (err) {
     if (err instanceof RailwayApiError) {
-      const body =
-        err.body && typeof err.body === 'object' && 'code' in (err.body as object)
-          ? (err.body as PaymentsErrorBody)
-          : null;
+      // `errorCodeOf` reads both the `{error, code}` envelope and the
+      // refund endpoint's `{error: "<code>"}` bodies.
+      const fallback = err.status === 401 ? 'unauthenticated' : 'upstream_error';
+      const code = errorCodeOf(err.body, fallback);
+      const body = code !== fallback ? (err.body as PaymentsErrorBody) : null;
       return {
         ok: false,
         status: err.status,
-        code: body?.code ?? (err.status === 401 ? 'unauthenticated' : 'upstream_error'),
+        code,
         error: body?.error ?? err.message,
         body,
       };
@@ -220,6 +222,33 @@ export function waive(
   const body: WaiveRequest = { scope: req.scope, id: req.id, profile_id: req.profile_id };
   if (req.reason) body.reason = req.reason;
   return live(ctx, { method: 'POST', path: '/api/payments/waive', body });
+}
+
+const REFUND_FIXTURES = FIXTURE_NAMES.filter((n) => n.startsWith('refund_'));
+
+/**
+ * Phase 5 — `POST /api/payments/:id/refund`. NO BODY: the server
+ * refunds the full amount it charged (Sam, 2026-10-21: full refunds
+ * only), so there is nothing for the website to name — least of all an
+ * amount. The id is our row id, validated as a uuid by the route.
+ *
+ * 200 `{payment}` — `status: "refunded"` when Stripe settled it at
+ * once, otherwise the row unchanged (the webhook finishes it).
+ * Refusals: `not_owner` 403, `not_found` 404, `not_refundable` 409,
+ * `stripe_error` 502.
+ */
+export function refundPayment(
+  ctx: Ctx,
+  mode: PaymentsMode,
+  paymentId: string,
+  fixture?: string | null,
+): Promise<ApiResult<{ payment: PaymentRow }>> {
+  if (mode === 'fixtures') {
+    return Promise.resolve(
+      fromFixture(pickFixture(fixture, [...REFUND_FIXTURES, ...ERROR_FIXTURES], 'refund_refunded')),
+    );
+  }
+  return live(ctx, { method: 'POST', path: `/api/payments/${encodeURIComponent(paymentId)}/refund` });
 }
 
 /** 404 the way the repo's other gated surfaces do (`env-diag`, the

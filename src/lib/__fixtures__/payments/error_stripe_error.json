@@ -1,0 +1,6 @@
+{
+  "http": 502,
+  "body": {
+    "error": "stripe_error"
+  }
+}

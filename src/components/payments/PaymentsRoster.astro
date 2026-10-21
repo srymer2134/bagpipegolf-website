@@ -17,6 +17,7 @@
 import type { RosterPaymentRow } from '../../lib/paymentsRoster';
 import { rosterNotice, rosterSummary, ROSTER_TEXT_MAX } from '../../lib/paymentsRoster';
 import type { PaymentScope } from '../../lib/payments';
+import { refundConfirmCopy, refundNotice } from '../../lib/paymentsRefunds';
 
 interface Props {
   scope: PaymentScope;
@@ -30,19 +31,43 @@ interface Props {
   markOfflineAction: string;
   /** `/api/payments/waive` (+ `?fixture=` in dev fixture mode). */
   waiveAction: string;
+  /** Phase 5 — `/api/payments/refund` (+ `?fixture=` in dev). Omitted →
+   *  no Refund buttons render. */
+  refundAction?: string | null;
+  /** `?refund=<code>` after a refund. */
+  refundCode?: string | null;
 }
 
-const { scope, id, rows, loadFailed = false, resultCode = null, markOfflineAction, waiveAction } = Astro.props;
-const notice = rosterNotice(resultCode);
+const {
+  scope, id, rows, loadFailed = false, resultCode = null, markOfflineAction, waiveAction,
+  refundAction = null, refundCode = null,
+} = Astro.props;
+const notice = refundNotice(refundCode) ?? rosterNotice(resultCode);
 const summary = rosterSummary(rows);
 const host = scope === 'league' ? 'league' : 'tournament';
+// Phase 5 — the Refund confirm step, only for rows `canRefund` allowed
+// (a settled card payment with no open dispute). Opening the
+// <details> IS the confirm: the copy states the amount, the player,
+// and that the fees are not returned, before the only submit button.
+const confirmFor = new Map(
+  rows
+    .filter((r) => r.refundPaymentId)
+    .map((r) => [r.profileId, refundConfirmCopy({
+      name: r.name,
+      amountCents: r.amountCents,
+      applicationFeeCents: r.applicationFeeCents,
+      scope,
+    })]),
+);
 ---
 
 <section class="card roster" id="roster">
   <div class="roster__head">
     <span class="chip">{scope === 'league' ? 'Season dues' : 'Entry fees'} · roster</span>
     {!loadFailed && rows.length > 0 && (
-      <span class="roster__count">{summary.settled} settled · {summary.owing} still owe</span>
+      <span class="roster__count">
+        {summary.settled} settled · {summary.owing} still owe{summary.refunded > 0 && ` · ${summary.refunded} refunded`}
+      </span>
     )}
   </div>
 
@@ -63,11 +88,26 @@ const host = scope === 'league' ? 'league' : 'tournament';
           <div class="roster__who">
             <span class="roster__name">{r.name}</span>
             {r.waivedReason && <span class="roster__why">{r.waivedReason}</span>}
+            {r.note && <span class="roster__why">{r.note}</span>}
           </div>
           <div class="roster__state">
             {r.amountLabel && <span class="roster__amt">{r.amountLabel}</span>}
             <span class:list={['roster__pill', `roster__pill--${r.tone}`]}>{r.label}</span>
           </div>
+          {refundAction && r.refundPaymentId && confirmFor.get(r.profileId) && (
+            <details class="roster__actions">
+              <summary>Refund…</summary>
+              <form method="post" action={refundAction} class="roster__form roster__form--confirm">
+                <input type="hidden" name="scope" value={scope} />
+                <input type="hidden" name="id" value={id} />
+                <input type="hidden" name="payment_id" value={r.refundPaymentId} />
+                <p class="roster__confirm">
+                  <strong>{confirmFor.get(r.profileId)!.title}</strong> {confirmFor.get(r.profileId)!.body}
+                </p>
+                <button type="submit" class="btn btn--ghost">{confirmFor.get(r.profileId)!.button}</button>
+              </form>
+            </details>
+          )}
           {r.canRecord && r.onRoster && (
             <details class="roster__actions">
               <summary>Record a payment</summary>
@@ -109,10 +149,13 @@ const host = scope === 'league' ? 'league' : 'tournament';
     you keep — Bagpipe moves no money for either. <strong>Paid</strong>
     means Stripe confirmed a card payment.
   </p>
-  <!-- W7 / plan §2.3 S9 — PENDING CASEY'S REVIEW. -->
+  <!-- W7 / plan §2.3 S9 — PENDING CASEY'S REVIEW. Phase 5 (Sam,
+       2026-10-21): full refunds only; Bagpipe keeps its fee too. -->
   <p class="roster__fine" id="refunds">
-    <strong>Refunds cost the {host} Stripe’s processing fee.</strong>
-    Stripe keeps its fee on a card payment even when you refund it.
+    <strong>Refunds cost the {host} the fees.</strong>
+    A refund returns the full payment to the player. Stripe keeps its
+    processing fee and Bagpipe keeps its fee, so the {host} doesn’t get
+    those back.
   </p>
 </section>
 
@@ -141,6 +184,8 @@ const host = scope === 'league' ? 'league' : 'tournament';
   .roster__form label { flex: 1 1 200px; display: flex; flex-direction: column; font-size: 0.8125rem; }
   .roster__form label em { font-style: normal; opacity: 0.7; }
   .roster__form input[type='text'] { font-size: 1rem; padding: 7px 8px; box-sizing: border-box; width: 100%; }
+  .roster__form--confirm { flex-direction: column; align-items: flex-start; }
+  .roster__confirm { margin: 0; font-size: 0.875rem; }
   .roster__fine { margin: 8px 0 0; color: var(--ink-muted, #4b5b54); font-size: 0.8125rem; }
   .roster__notice { border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; font-size: 0.875rem; }
   .roster__notice--warn { background: #fff4dc; border: 1px solid #f0d58a; }

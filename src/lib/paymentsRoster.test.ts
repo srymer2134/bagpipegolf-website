@@ -171,10 +171,12 @@ describe('rosterPayments — joins league_members to §2.4', () => {
     expect(out[1]).toMatchObject({ name: 'Not on the roster', onRoster: false });
   });
 
-  it('summary counts settled vs owing', () => {
+  it('summary counts settled vs owing — a refunded row is neither (Phase 5)', () => {
     const rows = fixture('payments_roster').body.payments as PaymentRow[];
     const members = rows.map((r) => ({ user_id: r.profile_id, display_name: 'x' }));
-    expect(rosterSummary(rosterPayments(members, rows, 'season_dues'))).toEqual({ settled: 3, owing: 3 });
+    // succeeded, waived, paid_offline settled; pending + failed owe;
+    // refunded is its own bucket.
+    expect(rosterSummary(rosterPayments(members, rows, 'season_dues'))).toEqual({ settled: 3, owing: 2, refunded: 1 });
   });
 });
 

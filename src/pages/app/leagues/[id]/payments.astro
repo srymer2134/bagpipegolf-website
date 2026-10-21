@@ -15,6 +15,7 @@
 // W5 — the dues roster below it: every `league_members` row joined to
 // GET /api/payments (§2.4), with "Mark paid in cash" / "Waive" POSTs
 // (§2.6 / §2.7). Same owner-only gate as the rest of the page.
+// Phase 5: "Refund" on settled card rows (POST /api/payments/refund).
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
 import MerchantSetup from '../../../../components/payments/MerchantSetup.astro';
@@ -25,6 +26,7 @@ import { merchantView, parseEntityId } from '../../../../lib/payments';
 import { fixtureParam, getMerchant, listPayments, modeFor, notFound } from '../../../../lib/paymentsServer';
 import { isOwner, loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
 import { paymentsGate } from '../../../../lib/paymentsGate';
+import { refundResultCode } from '../../../../lib/paymentsRefunds';
 
 const locals = Astro.locals as App.Locals;
 const mode = modeFor(locals);
@@ -105,6 +107,8 @@ const rosterRows = list.ok ? rosterPayments(members, list.data.payments, 'season
       resultCode={rosterResultCode(Astro.url.searchParams.get('roster'))}
       markOfflineAction={withQuery('/api/payments/mark-offline', { fixture })}
       waiveAction={withQuery('/api/payments/waive', { fixture })}
+      refundAction={withQuery('/api/payments/refund', { fixture })}
+      refundCode={refundResultCode(Astro.url.searchParams.get('refund'))}
     />
     <p class="pagewrap__sub"><a href={`/app/leagues/${encodeURIComponent(id)}/manage`}>Back to Manage</a></p>
   </main>

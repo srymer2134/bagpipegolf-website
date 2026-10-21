@@ -14,8 +14,9 @@ import {
   type PaymentScope,
   type PaymentsMode,
 } from './payments';
-import { fixtureParam, markOffline, modeFor, notFound, onboard, waive } from './paymentsServer';
+import { fixtureParam, markOffline, modeFor, notFound, onboard, refundPayment, waive } from './paymentsServer';
 import { parseRosterAction, type RosterAction } from './paymentsRoster';
+import { parseRefundAction, refundOutcome } from './paymentsRefunds';
 
 /** What every handler needs from Astro — satisfied by both an
  *  `APIContext` and the `Astro` global. */
@@ -205,6 +206,51 @@ export async function recordRosterAction(ctx: RouteCtx, action: RosterAction): P
       : await waive(ctx, mode, req as Parameters<typeof waive>[2], fixture);
   const code = res.ok ? (action === 'mark_offline' ? 'recorded_offline' : 'recorded_waived') : res.code;
   return redirect(withQuery(setup, { roster: code, fixture }) + '#roster');
+}
+
+/**
+ * Phase 5 — the roster's "Refund" (POST `/api/payments/refund`), the
+ * owner's confirm step already passed. Same guard order as
+ * `recordRosterAction`:
+ *
+ *   1. flag off → 404 before the body or session is read;
+ *   2. the form is EXACTLY `{scope, id, payment_id}` — no amount, no
+ *      reason (`parseRefundAction`), else 400;
+ *   3. signed in, else login;
+ *   4. the caller OWNS the league/tournament, else back to the event
+ *      page and Railway is never called. The API checks ownership of
+ *      the PAYMENT's league itself (`not_owner`), so a row id from some
+ *      other league is refused there;
+ *   5. Railway gets no body at all — the server refunds the full amount.
+ *
+ * Lands back on the payments page with `?refund=<code>`:
+ * `refunded`, `refund_pending`, or the error code.
+ */
+export async function refundRosterPayment(ctx: RouteCtx): Promise<Response> {
+  const mode: PaymentsMode = modeFor(ctx.locals);
+  if (mode === 'off') return notFound();
+
+  let form: FormData;
+  try {
+    form = await ctx.request.formData();
+  } catch {
+    return new Response('Bad request', { status: 400 });
+  }
+  const parsed = parseRefundAction(form.entries());
+  if (!parsed.ok) return new Response(`Bad request: ${parsed.reason}`, { status: 400 });
+  const req = parsed.value;
+  const setup = paymentsSetupPath(req.scope, req.id);
+
+  const user = ctx.locals.user;
+  if (!user) return redirect(`/login?next=${encodeURIComponent(setup)}`);
+
+  const payable = await loadPayable(supabaseFor(ctx), req.scope, req.id);
+  if (!isOwner(payable, user.id)) return redirect(eventPath(req.scope, req.id));
+
+  const fixture = fixtureParam(mode, ctx.url);
+  const res = await refundPayment(ctx, mode, req.payment_id, fixture);
+  const code = res.ok ? refundOutcome(res.data?.payment) : res.code;
+  return redirect(withQuery(setup, { refund: code, fixture }) + '#roster');
 }
 
 export { isKindAllowed, withQuery, redirect };

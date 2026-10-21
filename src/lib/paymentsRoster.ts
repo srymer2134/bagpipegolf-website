@@ -21,13 +21,11 @@
 
 import {
   formatAmountCents,
-  isSettled,
   parsePaymentStatus,
-  statusLabel,
-  statusTone,
   type PaymentStatus,
   type StatusTone,
 } from './paymentStatus';
+import { canRefund, centsOf, rowSettled, rowStatusView } from './paymentsRefunds';
 import { isOrganizer } from './leagueParticipation';
 import {
   parseEntityId,
@@ -65,6 +63,17 @@ export type RosterPaymentRow = {
   amountLabel: string | null;
   /** The director's reason, for a waived row. */
   waivedReason: string | null;
+  /** Phase 5 — a second line, e.g. "Card payment auto-refunded $50". */
+  note: string | null;
+  /** Obligation satisfied by THIS row (`rowSettled`: a lost dispute is
+   *  not, an open one is). */
+  settled: boolean;
+  /** Phase 5 — the row id the Refund form posts, set only when
+   *  `canRefund` (a settled card payment, no open dispute). */
+  refundPaymentId: string | null;
+  /** For the refund confirm copy. */
+  amountCents: number;
+  applicationFeeCents: number;
   /** "Mark paid in cash" / "Waive" are offered only while the player
    *  still owes — never on a settled row (that would be a second
    *  obligation-satisfying row, which the API refuses with
@@ -100,8 +109,8 @@ export function rosterPayments(
       best.set(r.profile_id, r);
       continue;
     }
-    const curSettled = isSettled(parsePaymentStatus(cur.status));
-    const newSettled = isSettled(parsePaymentStatus(r.status));
+    const curSettled = rowSettled(cur);
+    const newSettled = rowSettled(r);
     if (newSettled && !curSettled) best.set(r.profile_id, r);
     else if (newSettled === curSettled && stamp(r) > stamp(cur)) best.set(r.profile_id, r);
   }
@@ -109,18 +118,25 @@ export function rosterPayments(
   const line = (profileId: string, name: string, onRoster: boolean): RosterPaymentRow => {
     const row = best.get(profileId) ?? null;
     const status = row ? parsePaymentStatus(row.status) : null;
+    const view = rowStatusView(row ?? { status: null as unknown as string });
+    const settled = rowSettled(row);
     return {
       profileId,
       name,
       onRoster,
       status,
-      label: row && status === null ? 'Unknown' : statusLabel(status),
-      tone: statusTone(status),
+      label: row && status === null ? 'Unknown' : view.label,
+      tone: view.tone,
+      note: view.note,
+      settled,
+      refundPaymentId: row && canRefund(row) ? row.id : null,
+      amountCents: row ? centsOf(row.amount_cents) : 0,
+      applicationFeeCents: row ? centsOf(row.application_fee_cents) : 0,
       // No amount beside "Waived": no money moved, and a figure there
       // reads like a payment.
       amountLabel: row && status !== 'waived' ? formatAmountCents(row.amount_cents) : null,
       waivedReason: status === 'waived' ? (row?.waived_reason ?? null) : null,
-      canRecord: !isSettled(status),
+      canRecord: !settled,
     };
   };
 
@@ -148,11 +164,27 @@ export function rosterPayments(
   return out;
 }
 
-/** The roster's header count: how many still owe. */
-export function rosterSummary(rows: readonly RosterPaymentRow[]): { settled: number; owing: number } {
+/**
+ * The roster's header count. Every line lands in exactly one bucket:
+ *
+ *   settled  — `rowSettled`: card, cash or comp. An OPEN dispute is
+ *              still settled; a LOST one is not (Sam, 2026-10-21).
+ *   refunded — the money went back. Neither collected nor owed: the
+ *              director refunded it on purpose, so it is not a debt
+ *              to chase.
+ *   owing    — everything else, including never-attempted, pending,
+ *              failed, and a lost dispute (they owe again).
+ *
+ * `settled + refunded + owing === rows.length`, always.
+ */
+export function rosterSummary(rows: readonly RosterPaymentRow[]): { settled: number; owing: number; refunded: number } {
   let settled = 0;
-  for (const r of rows) if (isSettled(r.status)) settled += 1;
-  return { settled, owing: rows.length - settled };
+  let refunded = 0;
+  for (const r of rows) {
+    if (r.settled) settled += 1;
+    else if (r.status === 'refunded') refunded += 1;
+  }
+  return { settled, refunded, owing: rows.length - settled - refunded };
 }
 
 // ── W5 — the two owner actions: exactly the contract's fields ───
