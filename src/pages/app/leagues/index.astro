@@ -2,6 +2,10 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { createSupabaseClient } from '../../../lib/supabase';
 import { myLeagues, visibilityLabel, type MyLeague } from '../../../lib/leaguePortal';
+import { fixtureParam, getMerchant, modeFor } from '../../../lib/paymentsServer';
+import { paymentsGate } from '../../../lib/paymentsGate';
+import { merchantView } from '../../../lib/payments';
+import { cardPaymentsLink, type CardPaymentsLink } from '../../../lib/cardPaymentsLink';
 
 // `/app/leagues` — the member's league list.
 //
@@ -27,6 +31,23 @@ try {
 const active = leagues.filter((l) => !l.completed_at);
 const done = leagues.filter((l) => l.completed_at);
 const running = leagues.filter((l) => l.role === 'commissioner');
+
+// Card-payments links (Sam, 2026-10-21): only for leagues the viewer OWNS
+// and the API says take payments — see lib/cardPaymentsLink.ts. One
+// merchant read per owned, running league, in parallel; paymentsGate
+// makes no call at all when payments are off, and a timeout or error just
+// means no link.
+const payMode = modeFor(Astro.locals as App.Locals);
+const payLinks = new Map<string, CardPaymentsLink>();
+await Promise.all(
+  active.filter((l) => l.is_owner).map(async (l) => {
+    const gate = await paymentsGate(payMode, () =>
+      getMerchant({ locals: Astro.locals as App.Locals }, payMode, 'league', l.id, fixtureParam(payMode, Astro.url)));
+    const ready = gate.enabled && gate.result.ok && merchantView(gate.result.data).state === 'ready';
+    const link = cardPaymentsLink(l, gate.enabled, ready);
+    if (link) payLinks.set(l.id, link);
+  }),
+);
 ---
 
 <BaseLayout title="Leagues · Bagpipe Golf">
@@ -78,6 +99,12 @@ const running = leagues.filter((l) => l.role === 'commissioner');
                   <a class="btn btn--ghost" href={`/app/leagues/${l.id}/manage`}>Manage</a>
                 )}
               </div>
+              {payLinks.get(l.id) && (
+                <p class="paylinks">
+                  <a class="paylinks__setup" href={payLinks.get(l.id)!.href}>{payLinks.get(l.id)!.label}</a>
+                  <a class="paylinks__howto" href={payLinks.get(l.id)!.guide}>How to</a>
+                </p>
+              )}
             </article>
           ))}
         </div>
@@ -110,6 +137,10 @@ const running = leagues.filter((l) => l.role === 'commissioner');
 </BaseLayout>
 
 <style>
+  .paylinks { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; margin: 0.5rem 0 0; }
+  .paylinks__setup { font-weight: 700; color: var(--brand-green); }
+  .paylinks__howto { font-size: 0.8125rem; color: var(--ink-muted); }
+  .paylinks__howto:hover { color: var(--brand-green); }
   .lsec { margin-top: 28px; }
   .lsec__h {
     font-size: 0.9375rem;

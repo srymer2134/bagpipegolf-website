@@ -86,6 +86,12 @@ export type MyLeague = {
    * because a coach is not a director — see [hasCoachAccess].
    */
   coach_access: boolean;
+  /**
+   * Is the viewer the league's OWNER (`leagues.user_id`)? Narrower than
+   * `role === 'commissioner'`, which also covers co-directors. Only the
+   * owner can connect the league's Stripe account (F5).
+   */
+  is_owner: boolean;
   member_count: number;
 };
 
@@ -239,6 +245,7 @@ export async function myLeagues(
       isOwner: r.user_id === userId || ownedIds.has(String(r.id)),
       rawRole: memberOf.get(String(r.id)),
     }),
+    is_owner: r.user_id === userId || ownedIds.has(String(r.id)),
     member_count: tally.get(String(r.id)) ?? 0,
   }));
 }
