@@ -204,7 +204,7 @@ if (payMode !== 'off' && detail && id) {
       <>
         <p class="pagewrap__eyebrow">{league.name}</p>
         <h1 class="pagewrap__title">Sign up for this event.</h1>
-        <LeagueSubnav id={id!} active="signup" />
+        <LeagueSubnav id={id!} active="signup" coachAccess={detail?.league.coach_access ?? false} />
 
         <div class="notice notice--warn ph">
           <strong>Placeholder.</strong> Shows the shape of signing up for one

@@ -252,7 +252,7 @@ const visibleGroups = groups
     ) : (
       <>
         <p class="pagewrap__sub">{d.league.name}</p>
-        <LeagueSubnav id={d.league.id} active="manage" />
+        <LeagueSubnav id={d.league.id} active="manage" coachAccess={d.league.coach_access} />
 
         {showPrompt && (
           <OwnerParticipation leagueId={d.league.id} mode="prompt" row={null}

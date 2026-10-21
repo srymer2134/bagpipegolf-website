@@ -52,7 +52,7 @@ const caveat = d ? mixedFormatCaveat(d.league.points_model, d.schedule?.formats)
     ) : (
       <>
         <p class="pagewrap__sub">{d.league.name}</p>
-        <LeagueSubnav id={d.league.id} active="standings" />
+        <LeagueSubnav id={d.league.id} active="standings" coachAccess={d.league.coach_access} />
 
         {caveat && (
           <div class="notice notice--caveat">
