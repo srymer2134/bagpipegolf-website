@@ -1,0 +1,210 @@
+---
+// Coach Dashboard — the web half.
+//
+// The app has had `/league/:id/coach` since the Bad Birdie High pilot.
+// The website advertised it on /leagues ("Owner or coach role sees a
+// roster-first dashboard") and on /leagues/schools ("a Coach Portal"),
+// and had no such page. This is it.
+//
+// ACCESS is re-checked here, server-side. `LeagueSubnav` hides the tab
+// from people who should not see it, but a hidden link is not an
+// access control and a coach may well share the URL.
+//
+// WHAT IT DOES NOT SHOW, and why: the app's dashboard carries average
+// gross, best gross, form dots and FIR/GIR/putts. Those come from
+// `LeaderboardBuilder` running across the league's bound tournaments
+// on the device. The website reads the published standings snapshot,
+// which carries points and attendance only. Rather than compute a
+// second, differently-wrong version of a golfer's scoring average,
+// this page shows what the snapshot can answer and says plainly where
+// the rest lives. The app renders several of the same cells as "—"
+// for the same reason (COACH_DASHBOARD_PLAN.md, TODO(coach-metric)).
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
+import { createSupabaseClient } from '../../../../lib/supabase';
+import { leagueDetail, type PortalDetail } from '../../../../lib/leaguePortal';
+import { fmtPts, computedAgo } from '../../../../lib/leaguePublic';
+
+const { id } = Astro.params;
+const user = (Astro.locals as App.Locals).user;
+
+let d: PortalDetail | null = null;
+let failed = false;
+try {
+  const supabase = createSupabaseClient({
+    request: Astro.request,
+    cookies: Astro.cookies,
+    locals: Astro.locals as App.Locals,
+  });
+  if (id && user?.id) d = await leagueDetail(supabase, id, user.id);
+} catch (err) {
+  console.error('[app/league/coach] load failed', err);
+  failed = true;
+}
+
+// Server-side gate. `d` is already null for a non-member.
+const allowed = !!d && d.league.coach_access;
+
+const players = allowed ? (d!.snapshot?.standings?.players ?? []) : [];
+const ranked = [...players].sort((a, b) => b.total - a.total);
+const computedAt = d?.snapshot?.computed_at ?? null;
+
+// Team average across the roster, on the one metric the snapshot can
+// answer honestly. Null when nobody has played, so the card reads "—"
+// rather than "0.0".
+const played = ranked.filter((p) => p.weeks_played > 0);
+const teamAvgPts =
+  played.length > 0
+    ? played.reduce((a, p) => a + p.total, 0) / played.length
+    : null;
+const totalWeeksPlayed = ranked.reduce((a, p) => a + p.weeks_played, 0);
+const totalAbsences = ranked.reduce((a, p) => a + p.weeks_absent, 0);
+const subAppearances = ranked.reduce((a, p) => a + p.weeks_as_sub, 0);
+---
+
+<BaseLayout title={d ? `${d.league.name} coach · Bagpipe Golf` : 'Coach · Bagpipe Golf'}>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">League · coach</p>
+    <h1 class="pagewrap__title">Coach Dashboard.</h1>
+
+    {!d ? (
+      <section class="card">
+        <h3>{failed ? "Couldn't load this league" : 'Not your league'}</h3>
+        <a class="btn btn--primary" href="/app/leagues">Your leagues</a>
+      </section>
+    ) : !allowed ? (
+      <section class="card">
+        <h3>Not available</h3>
+        <p>
+          The Coach Dashboard is open to the league owner and anyone added
+          to the roster as a coach. Ask your commissioner to set your role
+          to coach.
+        </p>
+        <a class="btn btn--primary" href={`/app/leagues/${d.league.id}`}>Back to the league</a>
+      </section>
+    ) : (
+      <>
+        <p class="pagewrap__sub">{d.league.name}</p>
+        <LeagueSubnav id={d.league.id} active="coach" coachAccess={true} />
+
+        {ranked.length === 0 ? (
+          <div class="notice">
+            No standings published yet. The roster appears here once a week
+            has been scored and a member has opened the league's standings
+            in the app.
+          </div>
+        ) : (
+          <>
+            <section class="cstats">
+              <div class="cstat">
+                <span class="cstat__k">Players</span>
+                <span class="cstat__v">{ranked.length}</span>
+              </div>
+              <div class="cstat">
+                <span class="cstat__k">Team average</span>
+                <span class="cstat__v">{teamAvgPts === null ? '—' : fmtPts(teamAvgPts)}</span>
+                <span class="cstat__n">points, players who have played</span>
+              </div>
+              <div class="cstat">
+                <span class="cstat__k">Rounds played</span>
+                <span class="cstat__v">{totalWeeksPlayed}</span>
+              </div>
+              <div class="cstat">
+                <span class="cstat__k">Absences</span>
+                <span class="cstat__v">{totalAbsences}</span>
+                <span class="cstat__n">{subAppearances} sub {subAppearances === 1 ? 'appearance' : 'appearances'}</span>
+              </div>
+            </section>
+
+            <section class="lsec">
+              <h2 class="lsec__h">Roster</h2>
+              <div class="scroll">
+                <table class="tbl">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Player</th><th>Total</th><th>Points</th>
+                      <th>Attend.</th><th>Played</th><th>Absent</th><th>As sub</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ranked.map((p, i) => (
+                      <tr>
+                        <td>{i + 1}</td>
+                        <td>{p.display_name}</td>
+                        <td><strong>{fmtPts(p.total)}</strong></td>
+                        <td>{fmtPts(p.points)}</td>
+                        <td>{fmtPts(p.attendance)}</td>
+                        <td>{p.weeks_played}</td>
+                        <td>{p.weeks_absent === 0 ? '—' : p.weeks_absent}</td>
+                        <td>{p.weeks_as_sub === 0 ? '—' : p.weeks_as_sub}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {computedAt && (
+                <p class="small">Standings computed {computedAgo(computedAt)}.</p>
+              )}
+            </section>
+
+            <div class="notice">
+              <strong>Scoring averages are in the app.</strong> Average and
+              best gross, form over the last five, and fairways, greens and
+              putts are computed from each player's scorecards across the
+              league's tournaments — work the phone does, not the published
+              standings this page reads. Open <em>{d.league.name}</em> in
+              Bagpipe Golf and tap Coach Dashboard. Showing a second,
+              differently-derived average here would be worse than not
+              showing one.
+            </div>
+          </>
+        )}
+      </>
+    )}
+  </main>
+</BaseLayout>
+
+<style>
+  /* These classes are defined per-page across the portal (standings,
+     schedule, manage each carry their own copy). Matching them here
+     rather than inventing a parallel look. */
+  .card h3 { font-size: 1.0625rem; color: var(--brand-green-dark); margin: 8px 0 6px; }
+  .lsec { margin-top: 28px; }
+  .lsec__h {
+    font-size: 0.9375rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-muted, #4b5b54); margin: 0 0 10px;
+  }
+  .scroll { overflow-x: auto; }
+  .tbl { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+  .tbl th, .tbl td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #e3e9e5; white-space: nowrap; }
+  .tbl th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted, #4b5b54); }
+  .tbl td { font-variant-numeric: tabular-nums; }
+  .notice { padding: 14px 16px; border-radius: 12px; margin: 16px 0; line-height: 1.5; font-size: 0.875rem;
+            background: var(--brand-green-soft, #f0f7f2); border: 1px solid #d7e5dc; }
+  .small { font-size: 0.78125rem; color: var(--ink-muted, #4b5b54); }
+
+  .cstats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: #e3e9e5;
+    border: 1px solid #e3e9e5;
+    margin-bottom: 4px;
+  }
+  .cstat {
+    background: #fff;
+    padding: 14px 16px 16px;
+    display: grid;
+    gap: 2px;
+    align-content: start;
+  }
+  .cstat__k {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--ink-muted, #4b5b54);
+  }
+  .cstat__v {
+    font-size: 1.75rem; font-weight: 700; line-height: 1.1;
+    color: var(--brand-green-dark); font-variant-numeric: tabular-nums;
+  }
+  .cstat__n { font-size: 0.75rem; color: var(--ink-muted, #4b5b54); }
+</style>

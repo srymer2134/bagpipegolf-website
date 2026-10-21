@@ -125,7 +125,7 @@ if (payMode !== 'off' && d && id && own && payable) {
           {d.league.role === 'commissioner' ? 'You run this league. ' : ''}
           {d.weeks.length} {d.weeks.length === 1 ? 'event' : 'events'} · {played} played
         </p>
-        <LeagueSubnav id={d.league.id} active="overview" />
+        <LeagueSubnav id={d.league.id} active="overview" coachAccess={d.league.coach_access} />
 
         {showPrompt && (
           <OwnerParticipation leagueId={d.league.id} mode="prompt" row={null}

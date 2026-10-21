@@ -115,7 +115,7 @@ if (d) {
     ) : (
       <>
         <p class="pagewrap__sub">{d.league.name} · your RSVP shown per event</p>
-        <LeagueSubnav id={d.league.id} active="schedule" />
+        <LeagueSubnav id={d.league.id} active="schedule" coachAccess={d.league.coach_access} />
 
         {all.length === 0 && !isDirector && (
           <div class="notice">
