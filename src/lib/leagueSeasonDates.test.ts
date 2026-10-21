@@ -8,6 +8,7 @@ import {
   spaceDates,
   validateSeasonDates,
   weekRowsFor,
+  planWeekWrites,
 } from './leagueSeasonDates';
 
 describe('parseIsoDate', () => {
@@ -152,5 +153,36 @@ describe('seedFromDates — the jsonb every existing reader still gets', () => {
 
   it('counts the events asked for, even when most are undated', () => {
     expect(seedFromDates(['2026-04-07', '', '', '', ''], 5)?.eventCount).toBe(5);
+  });
+});
+
+describe('planWeekWrites — no upsert on league_weeks (2026-10-21)', () => {
+  it('a brand-new season is all inserts, whole rows', () => {
+    const rows = weekRowsFor('L1', ['2026-11-07', '2026-11-28', '2027-01-16']);
+    const { inserts, updates } = planWeekWrites(rows, []);
+    expect(inserts).toEqual(rows);
+    expect(updates).toEqual([]);
+  });
+
+  it('existing slots become updates WITHOUT the key columns', () => {
+    const rows = weekRowsFor('L1', ['2026-11-07', '2026-12-05'], { courseId: 'c1' });
+    const { inserts, updates } = planWeekWrites(rows, [1]);
+    expect(inserts).toEqual([rows[0]]);
+    expect(updates).toEqual([{ slot: 1, fields: { week_of: '2026-12-05', course_id: 'c1' } }]);
+    for (const u of updates) {
+      expect(u.fields).not.toHaveProperty('league_id');
+      expect(u.fields).not.toHaveProperty('slot_index');
+    }
+  });
+});
+
+describe('the schedule route never upserts league_weeks', () => {
+  it('has no .upsert( call', async () => {
+    const fs = await import('node:fs');
+    const src = fs.readFileSync('src/pages/api/leagues/[id]/schedule.ts', 'utf8');
+    // The upsert re-sets league_id/slot_index, which the database refuses
+    // for signed-in users: "permission denied for table league_weeks".
+    expect(src).not.toMatch(/\.upsert\(/);
+    expect(src).toMatch(/planWeekWrites\(/);
   });
 });

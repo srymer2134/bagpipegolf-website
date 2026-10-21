@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import type { LeagueSchedule } from '../../../../lib/leaguePortal';
 import {
-  seedFromDates, validateSeasonDates, weekRowsFor,
+  planWeekWrites, seedFromDates, validateSeasonDates, weekRowsFor,
 } from '../../../../lib/leagueSeasonDates';
 import { namesToMap } from '../../../../lib/leagueEventNames';
 
@@ -146,9 +146,34 @@ export const POST: APIRoute = async (ctx) => {
   let weeksError: string | null = null;
   const rows = weekRowsFor(id, dates);
   if (rows.length) {
-    const { error: wErr } = await supabase
+    // Insert new slots, update existing ones — never an upsert (see
+    // `planWeekWrites`: the upsert re-sets key columns the database does
+    // not let a signed-in user write).
+    let wErr: { code?: string; message?: string } | null = null;
+    const { data: have, error: haveErr } = await supabase
       .from('league_weeks')
-      .upsert(rows, { onConflict: 'league_id,slot_index' });
+      .select('slot_index')
+      .eq('league_id', id);
+    if (haveErr) {
+      wErr = haveErr;
+    } else {
+      const { inserts, updates } = planWeekWrites(
+        rows,
+        (have ?? []).map((r: { slot_index: number }) => r.slot_index),
+      );
+      for (const u of updates) {
+        const { error } = await supabase
+          .from('league_weeks')
+          .update(u.fields)
+          .eq('league_id', id)
+          .eq('slot_index', u.slot);
+        if (error) { wErr = error; break; }
+      }
+      if (!wErr && inserts.length) {
+        const { error } = await supabase.from('league_weeks').insert(inserts);
+        if (error) wErr = error;
+      }
+    }
     if (wErr) {
       console.error('[api/leagues/schedule:weeks]', wErr);
       weeksError = wErr.code === '23505'

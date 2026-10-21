@@ -130,6 +130,41 @@ export function weekRowsFor(
   }));
 }
 
+/** Split `weekRowsFor` rows into the writes the database will accept.
+ *
+ *  Not an upsert. PostgREST turns `.upsert(..., {onConflict:
+ *  'league_id,slot_index'})` into ON CONFLICT DO UPDATE SET <every payload
+ *  column>, which re-sets `league_id` and `slot_index` — and `league_weeks`
+ *  withholds UPDATE on those two columns from signed-in users (20261013, so
+ *  a stale client cannot repoint a row). Every website date save failed
+ *  with "permission denied for table league_weeks" until 2026-10-21.
+ *
+ *  So: rows for slots that don't exist yet are INSERTed whole; rows for
+ *  slots that do are UPDATEd with only the non-key fields, addressed by
+ *  (league_id, slot_index). */
+export function planWeekWrites(
+  rows: Array<Record<string, unknown>>,
+  existingSlots: Iterable<number>,
+): {
+  inserts: Array<Record<string, unknown>>;
+  updates: Array<{ slot: number; fields: Record<string, unknown> }>;
+} {
+  const have = new Set(existingSlots);
+  const inserts: Array<Record<string, unknown>> = [];
+  const updates: Array<{ slot: number; fields: Record<string, unknown> }> = [];
+  for (const row of rows) {
+    const slot = row.slot_index as number;
+    if (have.has(slot)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { league_id, slot_index, ...fields } = row;
+      updates.push({ slot, fields });
+    } else {
+      inserts.push(row);
+    }
+  }
+  return { inserts, updates };
+}
+
 /** The seed still written to `leagues.schedule`, so every existing
  *  reader keeps working while `league_weeks` becomes the authority.
  *  The interval is INFERRED from the first two dates rather than asked
