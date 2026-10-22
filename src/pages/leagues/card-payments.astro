@@ -17,7 +17,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const title = 'League Card Payments · Bagpipe Golf';
 const description =
-  'Step-by-step: connect your league to Stripe so members can pay season dues by card in the Bagpipe Golf app. What you need, every screen, and what each status means.';
+  'Step-by-step: connect your league to Stripe so members can pay season dues by card in the Bagpipe Golf app or on bagpipegolf.com. What you need, every screen, and what each status means.';
 ---
 
 <BaseLayout title={title} description={description}>
@@ -27,7 +27,7 @@ const description =
     <a class="back" href="/leagues">&larr; Leagues</a>
     <span class="eyebrow">For League Directors</span>
     <h1>Collect season dues by card</h1>
-    <p class="lede">Connect your league to Stripe once, and your members can pay their season dues with a card from the Bagpipe Golf app. The money goes to your league's own bank account. Here is every step, with what you'll see on screen.</p>
+    <p class="lede">Connect your league to Stripe once, and your members can pay their season dues with a card in the Bagpipe Golf app or on bagpipegolf.com. The money goes to your league's own bank account. Here is every step, with what you'll see on screen.</p>
   </header>
 
   <section class="prep" aria-labelledby="prep-h">
@@ -87,11 +87,10 @@ const description =
     <li class="step">
       <div class="step-text">
         <span class="num"><b>2</b> Open card payments</span>
-        <span class="where"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/></svg>Bagpipe Golf app</span>
-        <h3>Tap “Set up card payments”</h3>
-        <p>On your league screen, just under the season dues line, tap <span class="ui">Set up card payments</span>. It shows <span class="chip grey">Not set up</span> until you finish. Only the league's owner sees this row.</p>
-        <p>Setup opens bagpipegolf.com in your phone's browser. Stripe needs a real browser, so this part never happens inside the app.</p>
-        <p class="tip">On a computer instead? Go to bagpipegolf.com, sign in, open <span class="ui">Leagues</span>, then <span class="ui">Manage</span> on your league, then the card payments link.</p>
+        <span class="where"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/></svg>App or website</span>
+        <h3>Open “Set up card payments”</h3>
+        <p><strong>In the app:</strong> on your league screen, just under the season dues line, tap <span class="ui">Set up card payments</span>. It shows <span class="chip grey">Not set up</span> until you finish. Only the league's owner sees this row. Setup opens bagpipegolf.com in your phone's browser — Stripe needs a real browser, so this part never happens inside the app.</p>
+        <p><strong>On the website:</strong> go to bagpipegolf.com, sign in, open <span class="ui">Leagues</span>, then <span class="ui">Manage</span> on your league, then the card payments link. This works on a phone or a computer.</p>
       </div>
       <div class="mock phone" aria-label="Example: the league screen with the Set up card payments row highlighted">
         <div class="screen">
