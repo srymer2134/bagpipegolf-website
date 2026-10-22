@@ -1,11 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
-import {
-  LEAGUE_CONFIG_FIELDS,
-  validateLeagueConfigRow,
-  type CreateLeagueProblem,
-} from '../../../../lib/leagueCreate';
-import { buildConfigPatch } from '../../../../lib/leagueConfigForm';
+import { saveLeagueConfig } from '../../../../lib/leagueConfigSave';
 
 // POST /api/leagues/[id]/config
 //
@@ -32,6 +27,18 @@ import { buildConfigPatch } from '../../../../lib/leagueConfigForm';
 // treat "no row" as 403 — otherwise a non-director gets a cheerful 200
 // and no change. (Verified live 2026-10-05.)
 //
+// SEASON DUES (`dues_cents`, `dues_due_date`) are two of the generated
+// columns, so the form's "Season dues" section saves here too — the
+// web half of the app's "Set season dues…" sheet (Sam, 2026-10-22).
+// They get their own server check (`validateDuesPatch`), because their
+// CHECK is not among the generated cross-field rules.
+//
+// The owner check is explicit too (`leagues.user_id`), ahead of
+// validation; RLS stays the second lock.
+//
+// All of the logic is in `saveLeagueConfig` (lib/leagueConfigSave.ts)
+// so it is unit-tested; this file only wires it.
+//
 // THE AMOUNT OF TRUST PLACED IN THE CLIENT IS ZERO. Only generated
 // column names are accepted, values are coerced by type, the patch is
 // diffed against the CURRENT row server-side, and the merged result is
@@ -43,11 +50,6 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-/** Every column this route will ever write. Anything else in the body
- *  is ignored — not rejected, because a future client sending a field
- *  this deploy does not know about should not fail the whole save. */
-const WRITABLE = new Set(LEAGUE_CONFIG_FIELDS.map((f) => f.name));
-
 export const POST: APIRoute = async (ctx) => {
   const locals = ctx.locals as App.Locals;
   const user = locals.user;
@@ -55,22 +57,11 @@ export const POST: APIRoute = async (ctx) => {
   if (!user?.id) return json({ error: 'Sign in first.' }, 401);
   if (!id) return json({ error: 'Missing league.' }, 400);
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
-    body = (await ctx.request.json()) as Record<string, unknown>;
+    body = await ctx.request.json();
   } catch {
     return json({ error: 'Malformed request.' }, 400);
-  }
-  if (!body || typeof body !== 'object') {
-    return json({ error: 'Malformed request.' }, 400);
-  }
-
-  const submitted: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(body)) {
-    if (WRITABLE.has(k)) submitted[k] = v;
-  }
-  if (Object.keys(submitted).length === 0) {
-    return json({ error: 'Nothing to save.' }, 400);
   }
 
   const supabase = createSupabaseClient({
@@ -78,66 +69,11 @@ export const POST: APIRoute = async (ctx) => {
     cookies: ctx.cookies,
     locals,
   });
-
-  // Read the current row first. Two reasons, both load-bearing: the
-  // patch is a DIFF (so a save never rewrites a column the director
-  // did not touch), and the cross-field rules have to be checked
-  // against the MERGED row — `absent_rule` alone is legal or illegal
-  // only in the company of `week_format`.
-  const cols = [...WRITABLE].join(', ');
-  const { data: current, error: readErr } = await supabase
-    .from('leagues')
-    .select(cols)
-    .eq('id', id)
-    .maybeSingle();
-  if (readErr) {
-    console.error('[api/leagues/config:read]', readErr);
-    return json({ error: 'Could not read this league.' }, 500);
-  }
-  if (!current) return json({ error: 'League not found.' }, 404);
-
-  const currentRow = current as unknown as Record<string, unknown>;
-  const patch = buildConfigPatch(submitted, currentRow);
-  if (Object.keys(patch).length === 0) {
-    return json({ ok: true, changed: [], message: 'No changes.' });
-  }
-
-  const problems: CreateLeagueProblem[] = validateLeagueConfigRow({
-    ...currentRow,
-    ...patch,
-  });
-  if (problems.length) {
-    return json({ error: problems[0].message, problems }, 400);
-  }
-
-  const { data, error } = await supabase
-    .from('leagues')
-    .update(patch)
-    .eq('id', id)
-    .select('id')
-    .maybeSingle();
-
-  if (error) {
-    console.error('[api/leagues/config:write]', error);
-    // 23514 = a CHECK we did not mirror. It should be unreachable —
-    // validateLeagueConfigRow implements the same constraints — so it
-    // means the generated schema is behind the database. Say that,
-    // rather than "something went wrong".
-    if (error.code === '23514') {
-      return json({
-        error:
-          'The database rejected these settings. The web form may be out of ' +
-          'date with the league rules — please set this in the app and tell us.',
-      }, 400);
-    }
-    if (error.code === '23502') {
-      return json({ error: 'A required setting cannot be blank.' }, 400);
-    }
+  try {
+    const res = await saveLeagueConfig(supabase, id, user.id, body);
+    return json(res.body, res.status);
+  } catch (err) {
+    console.error('[api/leagues/config]', err);
     return json({ error: 'Could not save these settings.' }, 500);
   }
-  if (!data) {
-    return json({ error: 'Only the league commissioner can change settings.' }, 403);
-  }
-
-  return json({ ok: true, changed: Object.keys(patch).sort() });
 };

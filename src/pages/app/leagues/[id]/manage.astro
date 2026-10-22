@@ -54,6 +54,11 @@ import {
 //      them. One definition rendered twice. See
 //      src/pages/api/leagues/[id]/config.ts.
 //
+//      SEASON DUES live in that form (group `dues`, anchor
+//      `#settings-dues`): the web half of the app's "Set season dues…"
+//      sheet, linked from the payments panel and the card-payments
+//      guide. Server-checked by `validateDuesPatch` (lib/leagueDues.ts).
+//
 //   2. MEMBERSHIP, OWNER-ONLY — invite by email and CSV import (Sam,
 //      2026-10-13; fairwayiq-flutter docs/plans/
 //      LD_ROSTER_MANAGEMENT_PLAN.md D1 + D2). Emailing a roster and
@@ -277,7 +282,7 @@ const visibleGroups = groups
 
         <form id="cfgForm" class="cfg">
           {visibleGroups.map((g) => (
-            <fieldset class="card cfg__g">
+            <fieldset class="card cfg__g" id={`settings-${g.key}`}>
               <legend class="chip">{g.title}</legend>
               <p class="small muted">{g.blurb}</p>
               {sectionEmptyReason(g.key, snapshot) && (
