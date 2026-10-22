@@ -33,6 +33,10 @@ const { scope, id, name, view, loadFailed = false, setupCode = null, action, nex
 const here = Astro.url.pathname + Astro.url.search;
 const noun = scope === 'league' ? 'league' : 'tournament';
 const charges = scope === 'league' ? 'season dues' : 'entry fees';
+// The Manage page's "Season dues" section (the generated settings form,
+// group `dues` → `#settings-dues`). League scope only — that is the
+// only scope `nextSteps` is passed for.
+const duesHref = `/app/leagues/${encodeURIComponent(id)}/manage#settings-dues`;
 const notice = setupNotice(setupCode);
 const state = view?.state ?? null;
 ---
@@ -72,8 +76,8 @@ const state = view?.state ?? null;
             <li>
               <strong>Season dues:</strong>{' '}
               {nextSteps.duesLine
-                ? <>{nextSteps.duesLine}. Change it in the app (League → menu → Set season dues).</>
-                : <>not set yet — set them in the app (League → menu → Set season dues). Members can’t pay until you do.</>}
+                ? <>{nextSteps.duesLine}. Change it in the app (League → menu → Set season dues) or here on the website (<a href={duesHref}>Manage → Season dues</a>).</>
+                : <>not set yet — set them in the app (League → menu → Set season dues) or here on the website (<a href={duesHref}>Manage → Season dues</a>). Members can’t pay until you do.</>}
             </li>
             <li>
               <strong>Invite members</strong>

@@ -8,14 +8,25 @@
 // where `season_dues` is one of the two kinds a card may be charged
 // for).
 //
-// The app sets dues; this site shows them. That split is the manage
-// page's own stated rule ("This page reads; the app writes"), not an
-// oversight — a second editor would mean two validation paths into one
-// league's configuration.
+// WHO WRITES THEM. Both clients. The app's League → ☰ → "Set season
+// dues…" sheet, and the Manage page's generated settings form, whose
+// "Season dues" section (`#settings-dues`) posts to
+// `/api/leagues/[id]/config` (Sam approved the web half 2026-10-22).
+// That route checks the two columns with `validateDuesPatch` below
+// before the write, because the generated rules do not carry
+// `leagues_dues_cents_chk` and a bad value would otherwise surface as
+// a raw Postgres error.
 //
 // Mirrors the Dart helpers in
 // `lib/features/leagues/widgets/league_dues_dialog.dart` so the two
 // surfaces render the same league the same way.
+
+/** Ceiling on a typed dues amount: $100,000. A sanity bound, not a
+ *  business rule — it stops a fat-fingered extra zero (or six), and it
+ *  keeps the value well inside Postgres `integer`. Used for both the
+ *  league amount (`leagues.dues_cents`) and a member's own override
+ *  (`league_members.dues_cents`). */
+export const MAX_DUES_CENTS = 10_000_000;
 
 /** `4500` → `"$45"`, `4550` → `"$45.50"`. Null when there are no dues,
  *  so a caller can drop the whole row instead of rendering `$0`. */
@@ -54,4 +65,55 @@ export function formatDuesLine(cents: unknown, iso: unknown): string | null {
   if (amount === null) return null;
   const due = formatDuesDueDate(iso);
   return due === null ? amount : `${amount} · due ${due}`;
+}
+
+/**
+ * Server-side check of the two dues columns in a settings patch — the
+ * same rules the app applies, plus the database's.
+ *
+ *   dues_cents     integer cents, 0…MAX_DUES_CENTS. 0 = no season dues
+ *                  (what a blank box means, in the app and here).
+ *                  `leagues_dues_cents_chk` is `>= 0`; the app's
+ *                  `duesCentsFromInput` rounds dollars to whole cents
+ *                  and clamps at 0, so a fraction of a cent or a
+ *                  negative never reaches the database from either
+ *                  client.
+ *   dues_due_date  null (no date — distinct from "due now", per the
+ *                  column comment) or a real `yyyy-MM-dd` calendar day.
+ *
+ * Returns the first problem (its column and a sentence), or null when
+ * the patch is fine. Keys other than these two are not looked at.
+ */
+export function validateDuesPatch(
+  patch: Record<string, unknown>,
+): { field: 'dues_cents' | 'dues_due_date'; message: string } | null {
+  const cents = (message: string) => ({ field: 'dues_cents' as const, message });
+  if ('dues_cents' in patch) {
+    const c = patch.dues_cents;
+    if (typeof c !== 'number' || !Number.isFinite(c)) {
+      return cents('Season dues must be an amount in dollars.');
+    }
+    if (!Number.isInteger(c)) return cents('Season dues must be a whole number of cents.');
+    if (c < 0) return cents('Season dues cannot be negative.');
+    if (c > MAX_DUES_CENTS) return cents('That season dues amount is too large.');
+  }
+  if ('dues_due_date' in patch) {
+    const d = patch.dues_due_date;
+    if (d !== null && !isCalendarDate(d)) {
+      return { field: 'dues_due_date', message: 'The dues date is not a real date.' };
+    }
+  }
+  return null;
+}
+
+/** `"2026-04-15"` and nothing else: four-digit year, and a day that
+ *  exists (no Feb 30). */
+function isCalendarDate(v: unknown): boolean {
+  if (typeof v !== 'string') return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return false;
+  const [y, mo, da] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (y < 1900 || mo < 1 || mo > 12 || da < 1) return false;
+  const t = new Date(Date.UTC(y, mo - 1, da));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === da;
 }

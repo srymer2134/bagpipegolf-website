@@ -9,7 +9,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 // src/lib/payments.ts merchantView (Not set up / Finishing setup / Stripe is
 // verifying / Ready), "You're set up." / "Back from Stripe." from
 // app/payments/return.astro, and the "Before you start" facts from
-// MerchantSetup.astro. Keep them in step if any of those change.
+// MerchantSetup.astro. Step 1's two paths are the app's "Set season dues…"
+// sheet and the Manage page's "Season dues" section (the generated
+// settings form, `#settings-dues`, saved by "Save settings"). Keep them in
+// step if any of those change.
 //
 // Stripe's pages are drawn as plain, unbranded forms on purpose.
 // Fees: Bagpipe 2% (F2, 2026-10-09). Stripe 2.9% + 30¢ is Stripe's standard
@@ -61,9 +64,10 @@ const description =
     <li class="step">
       <div class="step-text">
         <span class="num"><b>1</b> Set your dues</span>
-        <span class="where"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/></svg>Bagpipe Golf app</span>
+        <span class="where"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/></svg>App or website</span>
         <h3>Tell members what they owe</h3>
-        <p>Open your league, tap the <span class="ui">☰</span> menu in the top right, and choose <span class="ui">Set season dues…</span>. Enter the amount and, if you like, a due date.</p>
+        <p><strong>In the app:</strong> open your league, tap the <span class="ui">☰</span> menu in the top right, and choose <span class="ui">Set season dues…</span>. Enter the amount and, if you like, a due date.</p>
+        <p><strong>On the website:</strong> go to bagpipegolf.com, sign in, open <span class="ui">Leagues</span>, then <span class="ui">Manage</span> on your league, and fill in <span class="ui">Season dues</span> — the amount and, if you like, a due date — then <span class="ui">Save settings</span>. Leave the amount blank for no dues.</p>
         <p class="tip">Members can't pay until dues are set, so do this first.</p>
       </div>
       <div class="mock phone" aria-label="Example: the league menu in the app with Set season dues highlighted">
