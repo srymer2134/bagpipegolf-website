@@ -32,7 +32,7 @@
 // `leagueParticipation.test.ts` with a fake client.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { formatDuesLine } from './leagueDues';
+import { MAX_DUES_CENTS, formatDuesLine } from './leagueDues';
 
 export type ParticipationRole = 'player' | 'organizer';
 export const PARTICIPATION_ROLES: readonly ParticipationRole[] = ['player', 'organizer'];
@@ -45,9 +45,9 @@ export type MemberRow = {
   dues_cents?: number | null;
 };
 
-/** Ceiling on a typed dues override: $100,000. A sanity bound, not a
- *  business rule — it stops a fat-fingered extra zero (or six). */
-export const MAX_DUES_CENTS = 10_000_000;
+/** Ceiling on a typed dues override — one bound for the league amount
+ *  and a member's own, defined beside the dues formatting. */
+export { MAX_DUES_CENTS };
 
 // ── "Who plays" ─────────────────────────────────────────────────
 

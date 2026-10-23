@@ -1,16 +1,28 @@
 ---
 interface Props {
   id: string;
-  active: 'overview' | 'standings' | 'schedule' | 'signup' | 'manage';
+  active: 'overview' | 'standings' | 'schedule' | 'signup' | 'manage' | 'coach';
+  /**
+   * Show the Coach tab. Owner, director or `role='coach'` — pass
+   * `league.coach_access`, which is `hasCoachAccess()` in
+   * `lib/leaguePortal.ts`.
+   *
+   * Defaults FALSE: a page that forgets to pass it hides the tab
+   * rather than advertising a page the viewer cannot open. Hiding the
+   * link is cosmetic either way — `coach.astro` re-checks server-side,
+   * because a nav that omits a link is not an access control.
+   */
+  coachAccess?: boolean;
 }
 
-const { id, active } = Astro.props;
+const { id, active, coachAccess = false } = Astro.props;
 
 const links: Array<{ key: Props['active']; label: string }> = [
   { key: 'overview',  label: 'Overview' },
   { key: 'standings', label: 'Standings' },
   { key: 'schedule',  label: 'Schedule' },
   { key: 'signup',    label: 'Sign-up' },
+  ...(coachAccess ? [{ key: 'coach' as const, label: 'Coach' }] : []),
   { key: 'manage',    label: 'Manage (Director)' },
 ];
 

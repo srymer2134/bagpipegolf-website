@@ -86,7 +86,10 @@ const rosterRows = list.ok ? rosterPayments(members, list.data.payments, 'season
     <p class="pagewrap__eyebrow">League · owner</p>
     <h1 class="pagewrap__title">Card payments.</h1>
     <p class="pagewrap__sub">{payable!.name}</p>
-    <LeagueSubnav id={id} active="manage" />
+    {/* Owner-only page (line 44 redirects anyone else), and an owner
+        always has coach access — so this is true by construction
+        rather than by another query. See hasCoachAccess(). */}
+    <LeagueSubnav id={id} active="manage" coachAccess={true} />
     <MerchantSetup
       scope="league"
       id={id}

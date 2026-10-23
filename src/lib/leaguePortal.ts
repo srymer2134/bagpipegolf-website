@@ -40,6 +40,37 @@ export type LeagueRole = 'commissioner' | 'member';
 /** Raw `league_members.role` values that mean "runs this league". */
 const DIRECTOR_ROLES = new Set(['commissioner', 'director', 'owner']);
 
+/**
+ * Raw roles that reach the COACH portal without running the league.
+ *
+ * Deliberately separate from [DIRECTOR_ROLES]. A coach is not a
+ * director: they see the roster-first stats view, not "Manage
+ * (Director)". Folding 'coach' into the director set would have been
+ * one character less code and would have handed them the management
+ * surface.
+ *
+ * Mirrors the app's `LeagueMember.isCoachOrOwner`, which is
+ * `role == 'owner' || role == 'coach'` plus the league's creator. Keep
+ * the two in step — `coach_dashboard_gate_test.dart` guards the app
+ * half, `leagueCoach.test.ts` guards this one.
+ */
+const COACH_ROLES = new Set(['coach']);
+
+/**
+ * Owner, a director, or an explicit coach.
+ *
+ * Exported so the page and the subnav ask the same question. Takes the
+ * RAW `league_members.role`, not [LeagueRole] — the derived type
+ * collapses to commissioner|member and would lose a coach.
+ */
+export function hasCoachAccess(opts: {
+  isOwner: boolean;
+  rawRole: string | null | undefined;
+}): boolean {
+  const r = (opts.rawRole ?? '').trim().toLowerCase();
+  return opts.isOwner || DIRECTOR_ROLES.has(r) || COACH_ROLES.has(r);
+}
+
 export type MyLeague = {
   id: string;
   name: string;
@@ -49,6 +80,18 @@ export type MyLeague = {
   completed_at: string | null;
   page_visibility: string | null;
   role: LeagueRole;
+  /**
+   * May this viewer open the Coach Dashboard? True for the owner, a
+   * director, or a `role='coach'` member. Separate from [role]
+   * because a coach is not a director — see [hasCoachAccess].
+   */
+  coach_access: boolean;
+  /**
+   * Is the viewer the league's OWNER (`leagues.user_id`)? Narrower than
+   * `role === 'commissioner'`, which also covers co-directors. Only the
+   * owner can connect the league's Stripe account (F5).
+   */
+  is_owner: boolean;
   member_count: number;
 };
 
@@ -198,6 +241,11 @@ export async function myLeagues(
            DIRECTOR_ROLES.has((memberOf.get(String(r.id)) ?? '').toLowerCase()))
       ? 'commissioner'
       : 'member',
+    coach_access: hasCoachAccess({
+      isOwner: r.user_id === userId || ownedIds.has(String(r.id)),
+      rawRole: memberOf.get(String(r.id)),
+    }),
+    is_owner: r.user_id === userId || ownedIds.has(String(r.id)),
     member_count: tally.get(String(r.id)) ?? 0,
   }));
 }
