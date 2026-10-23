@@ -132,6 +132,10 @@ const fixture = fixtureParam(mode, Astro.url);
               settle('You’re paid', 'Stripe confirmed it. Your entry is updated.');
               return;
             }
+            if (outcome === 'refunded') {
+              settle('Refunded', 'This payment was refunded, so there’s nothing to pay.');
+              return;
+            }
             if (outcome === 'failed') {
               settle(
                 'Your card didn’t go through',

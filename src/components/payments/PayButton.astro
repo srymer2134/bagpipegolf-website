@@ -12,7 +12,7 @@
 // total the player actually pays.
 //
 // "You're paid" appears only when the server's own payment list has a
-// settled row for this kind (`settledRowFor`), or when checkout itself
+// settled row for this kind (`memberPayState`), or when checkout itself
 // refused with `already_paid`. Never from a URL.
 import type { CheckoutNotice, PaymentScope } from '../../lib/payments';
 import { kindFor } from '../../lib/payments';
@@ -29,9 +29,13 @@ interface Props {
    *  "Nothing to pay" and no button. LEAGUE_OWNER_PARTICIPATION_PLAN §2:
    *  checkout would answer `no_fee_set`. */
   nothing?: boolean;
+  /** Their payment was refunded (`memberPayState` → 'refunded'). They
+   *  owe nothing — no Pay button — and nothing here says "paid"
+   *  (Sam, 2026-10-21). */
+  refunded?: boolean;
 }
 
-const { scope, id, amountLabel, paid, notice, action, nothing = false } = Astro.props;
+const { scope, id, amountLabel, paid, notice, action, nothing = false, refunded = false } = Astro.props;
 const kind = kindFor(scope);
 const label = scope === 'league' ? 'Pay season dues' : 'Pay entry fee';
 const showPaid = paid || notice?.code === 'already_paid';
@@ -43,6 +47,11 @@ const showPaid = paid || notice?.code === 'already_paid';
     <>
       <h3 class="paybox__h">You’re paid.</h3>
       <p class="paybox__p">There’s nothing more to pay here.</p>
+    </>
+  ) : refunded ? (
+    <>
+      <h3 class="paybox__h">You were refunded.</h3>
+      <p class="paybox__p">Your payment was refunded, so there’s nothing to pay here.</p>
     </>
   ) : nothing ? (
     <>

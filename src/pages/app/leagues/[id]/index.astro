@@ -12,7 +12,7 @@ import OwnerParticipation from '../../../../components/OwnerParticipation.astro'
 import {
   loadOwnMembership, needsParticipationPrompt, payDisplayFor, payStateFor, type OwnMembership,
 } from '../../../../lib/leagueParticipation';
-import { checkoutNotice, payNoticeCode, settledRowFor } from '../../../../lib/payments';
+import { checkoutNotice, payNoticeCode, memberPayState } from '../../../../lib/payments';
 import { fixtureParam, listPayments, modeFor } from '../../../../lib/paymentsServer';
 import { loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
 import { paymentsGate } from '../../../../lib/paymentsGate';
@@ -77,7 +77,7 @@ const showPrompt = own !== null && needsParticipationPrompt({
 });
 
 const payMode = modeFor(Astro.locals as App.Locals);
-let pay: { amountLabel: string | null; nothing: boolean; paid: boolean; action: string; notice: ReturnType<typeof checkoutNotice> } | null = null;
+let pay: { amountLabel: string | null; nothing: boolean; paid: boolean; refunded: boolean; action: string; notice: ReturnType<typeof checkoutNotice> } | null = null;
 if (payMode !== 'off' && d && id && own && payable) {
   try {
     const display = payDisplayFor(
@@ -93,7 +93,8 @@ if (payMode !== 'off' && d && id && own && payable) {
       pay = !list || !list.ok ? null : {
         amountLabel: display.amountLabel,
         nothing: display.nothing,
-        paid: settledRowFor(list.data.payments, 'season_dues') !== null,
+        paid: memberPayState(list.data.payments, 'season_dues') === 'paid',
+        refunded: memberPayState(list.data.payments, 'season_dues') === 'refunded',
         action: withQuery('/api/payments/checkout-session', { fixture }),
         notice: checkoutNotice(payNoticeCode(Astro.url.searchParams.get('pay')), 'league'),
       };
@@ -139,6 +140,7 @@ if (payMode !== 'off' && d && id && own && payable) {
             id={d.league.id}
             amountLabel={pay.amountLabel}
             paid={pay.paid}
+            refunded={pay.refunded}
             notice={pay.notice}
             action={pay.action}
           />

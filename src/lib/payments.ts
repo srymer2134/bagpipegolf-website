@@ -26,7 +26,8 @@
 //   3. Everything is OFF unless `PAYMENTS_ENABLED` says otherwise, and
 //      fixtures can only ever answer in `astro dev`.
 
-import { isSettled, parsePaymentStatus, type PaymentStatus } from './paymentStatus';
+import { parsePaymentStatus, type PaymentStatus } from './paymentStatus';
+import { duesState, memberDuesState, rowSettled, type DuesState } from './paymentsRefunds';
 
 // ── Shared types (contract §1) ──────────────────────────────────
 
@@ -109,6 +110,16 @@ export type PaymentRow = {
   waived_reason: string | null;
   created_at: string;
   updated_at: string;
+  // Phase 5 (frozen 2026-10-21) — always present on a current API,
+  // ABSENT on an older one, so optional here and read through the
+  // tolerant helpers in `paymentsRefunds.ts`.
+  /** null | "open" | "won" | "lost". Lost = status "failed" + "lost". */
+  dispute_status?: string | null;
+  disputed_at?: string | null;
+  refunded_cents?: number;
+  /** A card payment that landed after the row was already
+   *  paid_offline / waived, auto-refunded by the server. */
+  duplicate_refunded_cents?: number;
 };
 
 export type PaymentsListBody = { payments: PaymentRow[] };
@@ -116,7 +127,9 @@ export type PaymentsListBody = { payments: PaymentRow[] };
 /** The contract's error envelope. */
 export type PaymentsErrorBody = {
   error: string;
-  code: string;
+  /** Absent on the refund endpoint's frozen bodies (`{error: "not_owner"}`),
+   *  where the machine code IS `error` — see `errorCodeOf`. */
+  code?: string;
   /** Present on `already_paid`. */
   payment?: PaymentRow;
   // No `onboarding_url`, on any code. The contract carried one on
@@ -125,6 +138,25 @@ export type PaymentsErrorBody = {
   // the league's own Stripe onboarding. Only the owner-only onboard
   // call (§2.1) ever returns one.
 };
+
+/**
+ * The machine code of an error body, whichever shape it came in:
+ *
+ *   - the contract envelope `{error: "human sentence", code: "no_fee_set"}`;
+ *   - the refund endpoint's frozen bodies (2026-10-21), where the code
+ *     rides in `error` itself: `{error: "not_refundable"}`.
+ *
+ * `error` is only read as a code when it LOOKS like one (lower_snake),
+ * so a human sentence is never mistaken for a code. Anything else →
+ * the fallback.
+ */
+export function errorCodeOf(body: unknown, fallback: string): string {
+  if (!body || typeof body !== 'object') return fallback;
+  const b = body as { code?: unknown; error?: unknown };
+  if (typeof b.code === 'string' && b.code !== '') return b.code;
+  if (typeof b.error === 'string' && /^[a-z][a-z0-9_]{1,63}$/.test(b.error)) return b.error;
+  return fallback;
+}
 
 // ── The flag gate ───────────────────────────────────────────────
 
@@ -434,15 +466,28 @@ export function payNoticeCode(raw: string | null | undefined): string | null {
  *  Pay button for "You're paid" — read from the server's list, never
  *  assumed. */
 export function settledRowFor(rows: readonly PaymentRow[] | null | undefined, kind: PaymentKind): PaymentRow | null {
+  // `rowSettled`, not bare `isSettled`: a LOST dispute never counts as
+  // paid, so the Pay button comes back (Sam, 2026-10-21). An open one
+  // still does.
   for (const r of rows ?? []) {
-    if (r?.kind === kind && isSettled(parsePaymentStatus(r.status))) return r;
+    if (r?.kind === kind && rowSettled(r)) return r;
   }
   return null;
 }
 
+/**
+ * The member's Pay section: `paid` → "You're paid", `refunded` → "You
+ * were refunded" (no Pay button — Sam, 2026-10-21: a refunded player
+ * owes nothing), `owes` → the Pay button. Same rule as the roster
+ * header (`duesState` / `betterRow` in paymentsRefunds.ts).
+ */
+export function memberPayState(rows: readonly PaymentRow[] | null | undefined, kind: PaymentKind): DuesState {
+  return memberDuesState(rows, kind);
+}
+
 // ── W4 — the /pay/success poll ──────────────────────────────────
 
-export type PollOutcome = 'paid' | 'failed' | 'waiting';
+export type PollOutcome = 'paid' | 'refunded' | 'failed' | 'waiting';
 
 /**
  * Decide what the success page may say from ONE server response.
@@ -463,13 +508,16 @@ export function pollOutcome(
   const rows = (body as { payments?: unknown } | null)?.payments;
   if (!Array.isArray(rows)) return 'waiting';
   const row = rows.find((r) => (r as { id?: unknown } | null)?.id === paymentId) as
-    | { status?: unknown }
+    | { status?: unknown; dispute_status?: unknown }
     | undefined;
   if (!row) return 'waiting';
   const status: PaymentStatus | null = parsePaymentStatus(row.status);
-  if (isSettled(status)) return 'paid';
+  const state = duesState({ status: String(row.status ?? ''), dispute_status: row.dispute_status as string | null });
+  if (state === 'paid') return 'paid';
+  // Refunded owes nothing (Sam, 2026-10-21) — say so, never "paid".
+  if (state === 'refunded') return 'refunded';
   if (status === 'failed') return 'failed';
-  // pending, refunded (not a fresh outcome of this checkout), unknown.
+  // pending, unknown.
   return 'waiting';
 }
 

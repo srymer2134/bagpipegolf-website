@@ -12,7 +12,7 @@
 // exactly as it did before the step existed.
 
 import { payDisplayFor, payStateFor, type OwnMembership } from './leagueParticipation';
-import { checkoutNotice, payNoticeCode, settledRowFor, type CheckoutNotice, type PaymentsMode } from './payments';
+import { checkoutNotice, memberPayState, payNoticeCode, type CheckoutNotice, type PaymentsMode } from './payments';
 import type { ApiResult } from './paymentsServer';
 import type { PaymentsListBody } from './payments';
 import { showSignupDuesStep } from './paymentsRoster';
@@ -24,6 +24,8 @@ export type SignupDues = {
   /** The viewer's own dues override is 0 → "Nothing to pay". */
   nothing: boolean;
   paid: boolean;
+  /** Their payment was refunded: they owe nothing, no Pay button. */
+  refunded: boolean;
   /** The checkout form's action — `/api/payments/checkout-session`
    *  with `from=signup` (+ slot, + fixture in dev). Never an amount. */
   action: string;
@@ -78,7 +80,8 @@ export async function signupDuesStep(d: SignupDuesDeps): Promise<SignupDues | nu
   return {
     amountLabel: display.amountLabel,
     nothing: display.nothing,
-    paid: list.ok ? settledRowFor(list.data.payments, 'season_dues') !== null : false,
+    paid: list.ok ? memberPayState(list.data.payments, 'season_dues') === 'paid' : false,
+    refunded: list.ok ? memberPayState(list.data.payments, 'season_dues') === 'refunded' : false,
     action: d.withQuery('/api/payments/checkout-session', {
       from: 'signup',
       slot: d.slotParam,

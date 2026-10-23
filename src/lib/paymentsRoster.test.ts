@@ -139,14 +139,15 @@ describe('rosterPayments — joins league_members to §2.4', () => {
     expect(r).toMatchObject({ name: 'Ann', status: null, label: 'Unpaid', canRecord: true, amountLabel: null });
   });
 
-  it('settled rows (Paid, Paid (cash), Waived) offer no actions; the rest do', () => {
+  it('settled and refunded rows offer no actions; the rest do', () => {
     const statuses = ['succeeded', 'paid_offline', 'waived', 'pending', 'failed', 'refunded'];
     const rows = statuses.map((s, i) => row({ id: `r${i}`, profile_id: P(i), status: s }));
     const members = statuses.map((_, i) => ({ user_id: P(i), display_name: `M${i}` }));
     const can = Object.fromEntries(rosterPayments(members, rows, 'season_dues').map((r) => [r.status, r.canRecord]));
     expect(can).toEqual({
       succeeded: false, paid_offline: false, waived: false,
-      pending: true, failed: true, refunded: true,
+      // Refunded owes nothing (Sam, 2026-10-21) — nothing to record.
+      pending: true, failed: true, refunded: false,
     });
   });
 
@@ -171,10 +172,12 @@ describe('rosterPayments — joins league_members to §2.4', () => {
     expect(out[1]).toMatchObject({ name: 'Not on the roster', onRoster: false });
   });
 
-  it('summary counts settled vs owing', () => {
+  it('summary counts settled vs owing — a refunded row is neither (Phase 5)', () => {
     const rows = fixture('payments_roster').body.payments as PaymentRow[];
     const members = rows.map((r) => ({ user_id: r.profile_id, display_name: 'x' }));
-    expect(rosterSummary(rosterPayments(members, rows, 'season_dues'))).toEqual({ settled: 3, owing: 3 });
+    // succeeded, waived, paid_offline settled; pending + failed owe;
+    // refunded is its own bucket.
+    expect(rosterSummary(rosterPayments(members, rows, 'season_dues'))).toEqual({ settled: 3, owing: 2, refunded: 1 });
   });
 });
 

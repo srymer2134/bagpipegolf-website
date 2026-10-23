@@ -21,13 +21,11 @@
 
 import {
   formatAmountCents,
-  isSettled,
   parsePaymentStatus,
-  statusLabel,
-  statusTone,
   type PaymentStatus,
   type StatusTone,
 } from './paymentStatus';
+import { betterRow, canRefund, centsOf, duesState, rowSettled, rowStatusView } from './paymentsRefunds';
 import { isOrganizer } from './leagueParticipation';
 import {
   parseEntityId,
@@ -57,6 +55,8 @@ export type RosterPaymentRow = {
   /** False for a payment row whose payer is no longer on the roster —
    *  still shown, because the money is still in the league's books. */
   onRoster: boolean;
+  /** paid / refunded / owes — `duesState`, shared with member Pay. */
+  dues: 'paid' | 'refunded' | 'owes';
   /** Null = no row at all = never attempted ("Unpaid"). */
   status: PaymentStatus | null;
   label: string;
@@ -65,16 +65,23 @@ export type RosterPaymentRow = {
   amountLabel: string | null;
   /** The director's reason, for a waived row. */
   waivedReason: string | null;
+  /** Phase 5 — a second line, e.g. "Card payment auto-refunded $50". */
+  note: string | null;
+  /** Obligation satisfied by THIS row (`rowSettled`: a lost dispute is
+   *  not, an open one is). */
+  settled: boolean;
+  /** Phase 5 — the row id the Refund form posts, set only when
+   *  `canRefund` (a settled card payment, no open dispute). */
+  refundPaymentId: string | null;
+  /** For the refund confirm copy. */
+  amountCents: number;
+  applicationFeeCents: number;
   /** "Mark paid in cash" / "Waive" are offered only while the player
    *  still owes — never on a settled row (that would be a second
    *  obligation-satisfying row, which the API refuses with
    *  `already_paid` anyway). */
   canRecord: boolean;
 };
-
-function stamp(r: PaymentRow): string {
-  return String(r.updated_at ?? r.created_at ?? '');
-}
 
 /**
  * Join the league roster to the §2.4 payments list for ONE kind.
@@ -95,32 +102,37 @@ export function rosterPayments(
   const best = new Map<string, PaymentRow>();
   for (const r of payments ?? []) {
     if (!r || r.kind !== kind || typeof r.profile_id !== 'string') continue;
-    const cur = best.get(r.profile_id);
-    if (!cur) {
-      best.set(r.profile_id, r);
-      continue;
-    }
-    const curSettled = isSettled(parsePaymentStatus(cur.status));
-    const newSettled = isSettled(parsePaymentStatus(r.status));
-    if (newSettled && !curSettled) best.set(r.profile_id, r);
-    else if (newSettled === curSettled && stamp(r) > stamp(cur)) best.set(r.profile_id, r);
+    // `betterRow` — the same pick the member's Pay section makes.
+    best.set(r.profile_id, betterRow(best.get(r.profile_id), r));
   }
 
   const line = (profileId: string, name: string, onRoster: boolean): RosterPaymentRow => {
     const row = best.get(profileId) ?? null;
     const status = row ? parsePaymentStatus(row.status) : null;
+    const view = rowStatusView(row ?? { status: null as unknown as string });
+    const settled = rowSettled(row);
+    const state = duesState(row);
     return {
       profileId,
       name,
       onRoster,
       status,
-      label: row && status === null ? 'Unknown' : statusLabel(status),
-      tone: statusTone(status),
+      label: row && status === null ? 'Unknown' : view.label,
+      tone: view.tone,
+      note: view.note,
+      settled,
+      dues: state,
+      refundPaymentId: row && canRefund(row) ? row.id : null,
+      amountCents: row ? centsOf(row.amount_cents) : 0,
+      applicationFeeCents: row ? centsOf(row.application_fee_cents) : 0,
       // No amount beside "Waived": no money moved, and a figure there
       // reads like a payment.
       amountLabel: row && status !== 'waived' ? formatAmountCents(row.amount_cents) : null,
       waivedReason: status === 'waived' ? (row?.waived_reason ?? null) : null,
-      canRecord: !isSettled(status),
+      // Only while they OWE (`duesState`): not on a settled row, and not
+      // on a refunded one — a refunded player owes nothing (Sam,
+      // 2026-10-21), the same rule as the member's Pay section.
+      canRecord: state === 'owes',
     };
   };
 
@@ -148,11 +160,27 @@ export function rosterPayments(
   return out;
 }
 
-/** The roster's header count: how many still owe. */
-export function rosterSummary(rows: readonly RosterPaymentRow[]): { settled: number; owing: number } {
+/**
+ * The roster's header count. Every line lands in exactly one bucket:
+ *
+ *   settled  — `rowSettled`: card, cash or comp. An OPEN dispute is
+ *              still settled; a LOST one is not (Sam, 2026-10-21).
+ *   refunded — the money went back. Neither collected nor owed: the
+ *              director refunded it on purpose, so it is not a debt
+ *              to chase.
+ *   owing    — everything else, including never-attempted, pending,
+ *              failed, and a lost dispute (they owe again).
+ *
+ * `settled + refunded + owing === rows.length`, always.
+ */
+export function rosterSummary(rows: readonly RosterPaymentRow[]): { settled: number; owing: number; refunded: number } {
   let settled = 0;
-  for (const r of rows) if (isSettled(r.status)) settled += 1;
-  return { settled, owing: rows.length - settled };
+  let refunded = 0;
+  for (const r of rows) {
+    if (r.dues === 'paid') settled += 1;
+    else if (r.dues === 'refunded') refunded += 1;
+  }
+  return { settled, refunded, owing: rows.length - settled - refunded };
 }
 
 // ── W5 — the two owner actions: exactly the contract's fields ───
