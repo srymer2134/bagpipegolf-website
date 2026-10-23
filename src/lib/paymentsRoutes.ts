@@ -99,7 +99,11 @@ export function isOwner(p: Payable | null, userId: string | null | undefined): b
 /** A Stripe-hosted URL, and nothing else, may be a redirect target.
  *  The API is trusted, but a payments route that would 302 anywhere a
  *  response told it to is an open redirect one bug away. */
-export function isStripeUrl(raw: unknown, host: 'connect' | 'checkout'): boolean {
+/// `billing` is the Billing Portal host, used by Rail 1's portal-session
+/// route (the league subscription). It is listed explicitly rather than the
+/// check being loosened to `*.stripe.com`, because the point of this
+/// function is that the set of acceptable hosts is enumerated.
+export function isStripeUrl(raw: unknown, host: 'connect' | 'checkout' | 'billing'): boolean {
   if (typeof raw !== 'string') return false;
   try {
     const u = new URL(raw);

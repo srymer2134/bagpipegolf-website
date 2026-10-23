@@ -1,0 +1,200 @@
+---
+// /app/billing — the league subscription ($2,000/yr).
+//
+// Plan: LEAGUE_SUBSCRIPTION_AND_PLAN_GATING_PLAN.md §3.9 (flutter repo).
+//
+// WHAT THIS PAGE IS NOT. It is not the Connect setup at /app/payments — that
+// one connects a league's own Stripe account so MEMBERS can pay the host.
+// This one is the director paying Bagpipe. Opposite direction, and the copy
+// has to make that obvious or a commissioner will think they already did it.
+//
+// THE SERVER DECIDES WHETHER THIS PAGE EXISTS. `billing_available` comes from
+// GET /api/billing/entitlements, which is false unless the caller is
+// allow-listed (BILLING_ENABLED, or billing.config.gate_profiles). While it
+// is false we 404 — because /pricing still says "every feature, no credit
+// card", and a page offering a $2,000 subscription alongside that is us
+// telling two stories at once.
+//
+// Rendering only READS. The Checkout Session and the Portal link are both
+// minted by POSTs (the two /api/billing/* routes), never here: a
+// link-preview bot following this URL must not spend a single-use link.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { callRailway } from '../../../lib/railway';
+import {
+  LEAGUE_DIRECTOR_PRICE_COPY,
+  billingErrorMessage,
+  offersPortal,
+  rowDetail,
+  rowState,
+  type BillingListResponse,
+  type BillingLeagueRow,
+} from '../../../lib/billing';
+import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
+
+const locals = Astro.locals as App.Locals;
+const user = locals.user;
+if (!user) {
+  return Astro.redirect(`/login?next=${encodeURIComponent('/app/billing')}`, 302);
+}
+
+let state: BillingListResponse | null = null;
+let loadFailed = false;
+try {
+  state = await callRailway<BillingListResponse>(Astro, {
+    method: 'GET',
+    path: '/api/billing/entitlements',
+  });
+} catch {
+  loadFailed = true;
+}
+
+// Not admitted → this page does not exist for you. A 404 rather than an
+// explanation: there is nothing useful to say to someone who cannot buy it,
+// and "you're not on the list" invites a request we are not ready for.
+if (!loadFailed && state && !state.billing_available) {
+  return new Response('Not found', { status: 404 });
+}
+
+const rows: BillingLeagueRow[] = state?.leagues ?? [];
+
+// League names are not in the entitlements response — it is keyed by id — so
+// they come from the same read /app/payments/setup uses.
+const supabase = supabaseFor(Astro as unknown as RouteCtx);
+const { data: leagueRows } = await supabase
+  .from('leagues')
+  .select('id, name')
+  .eq('user_id', user.id);
+const nameFor = new Map<string, string>(
+  ((leagueRows ?? []) as Array<{ id: string; name: string | null }>).map((l) => [
+    l.id,
+    (l.name ?? '').trim() || l.id,
+  ]),
+);
+
+const notice = billingErrorMessage(Astro.url.searchParams.get('billing'));
+const showPortal = offersPortal(rows);
+const sorted = [...rows].sort((a, b) =>
+  (nameFor.get(a.league_id) ?? a.league_id).localeCompare(nameFor.get(b.league_id) ?? b.league_id),
+);
+---
+
+<BaseLayout title="League subscription · Bagpipe Golf">
+  <section class="pagewrap">
+    <p class="pagewrap__eyebrow">Billing</p>
+    <h1 class="pagewrap__title">Your league subscription.</h1>
+
+    {notice && <p class="notice" role="status">{notice}</p>}
+
+    {loadFailed && (
+      <p class="pagewrap__sub">
+        We couldn’t load your billing just now. Nothing has changed — try
+        again in a moment.
+      </p>
+    )}
+
+    {!loadFailed && sorted.length === 0 && (
+      <>
+        <p class="pagewrap__sub">
+          A subscription covers one league for twelve months. You don’t own a
+          league yet, and only the person who created a league can subscribe
+          it.
+        </p>
+        <p><a class="btn btn--primary" href="/app/leagues">Your leagues</a></p>
+      </>
+    )}
+
+    {!loadFailed && sorted.length > 0 && (
+      <>
+        <p class="pagewrap__sub">
+          {LEAGUE_DIRECTOR_PRICE_COPY}, per league, renewing annually. This is
+          separate from <a href="/app/payments/setup">card payments</a>, which
+          is how your <em>members</em> pay <em>you</em>.
+        </p>
+
+        <ul class="billlist">
+          {sorted.map((row) => {
+            const state = rowState(row);
+            const name = nameFor.get(row.league_id) ?? row.league_id;
+            return (
+              <li class="billlist__row">
+                <div class="billlist__text">
+                  <span class="billlist__name">{name}</span>
+                  <span class={`chip chip--${state}`}>
+                    {state === 'active' && 'Subscribed'}
+                    {state === 'ending' && 'Ending'}
+                    {state === 'comped' && 'No charge'}
+                    {state === 'subscribe' && 'Not subscribed'}
+                  </span>
+                  <span class="billlist__detail">{rowDetail(row)}</span>
+                </div>
+                {state === 'subscribe' ? (
+                  <form method="POST" action="/api/billing/checkout-session">
+                    <input type="hidden" name="league_id" value={row.league_id} />
+                    <button class="btn btn--primary btn--sm" type="submit">
+                      Subscribe
+                    </button>
+                  </form>
+                ) : (
+                  <span class="billlist__done" aria-hidden="true">✓</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        {showPortal && (
+          <form method="POST" action="/api/billing/portal-session" class="portal">
+            <button class="btn btn--ghost btn--sm" type="submit">
+              Manage subscription
+            </button>
+            <span class="portal__hint">
+              Update your card, download invoices, or cancel at the end of the
+              term.
+            </span>
+          </form>
+        )}
+
+        <p class="pagewrap__fine">
+          Payment is taken by Stripe — card details never reach Bagpipe.
+          Applicable sales tax is calculated at checkout.
+        </p>
+      </>
+    )}
+  </section>
+</BaseLayout>
+
+<style>
+  .billlist { list-style: none; margin: 1.25rem 0 0; padding: 0; }
+  .billlist__row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: 0.95rem 0;
+    border-bottom: 1px solid var(--rule, #e5e7eb);
+  }
+  .billlist__row:last-child { border-bottom: 0; }
+  .billlist__text { display: flex; flex-direction: column; gap: 0.25rem; }
+  .billlist__name { font-weight: 600; }
+  .billlist__detail { font-size: 0.9rem; opacity: 0.75; }
+  .billlist__done { font-size: 1.1rem; opacity: 0.55; }
+  .chip {
+    align-self: flex-start;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.12rem 0.45rem; border-radius: 999px;
+    border: 1px solid currentColor;
+  }
+  .chip--active { color: #15803d; }
+  .chip--ending { color: #b45309; }
+  .chip--comped { color: #1d4ed8; }
+  .chip--subscribe { color: #6b7280; }
+  .notice {
+    margin: 0 0 1rem; padding: 0.7rem 0.9rem;
+    border-radius: 8px; border: 1px solid var(--rule, #e5e7eb);
+    background: rgba(180, 83, 9, 0.07);
+  }
+  .portal { margin-top: 1.5rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .portal__hint { font-size: 0.9rem; opacity: 0.75; }
+  .pagewrap__fine { margin-top: 1.5rem; font-size: 0.85rem; opacity: 0.65; }
+  @media (max-width: 520px) {
+    .billlist__row { flex-direction: column; align-items: flex-start; }
+  }
+</style>
