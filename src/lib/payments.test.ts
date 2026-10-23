@@ -475,6 +475,20 @@ describe('redirect guards', () => {
     expect(isStripeUrl('https://connect.stripe.com/x', 'checkout')).toBe(false);
     expect(isStripeUrl('/app', 'connect')).toBe(false);
   });
+  it('the billing-portal host, for Rail 1 (the league subscription)', () => {
+    // /api/billing/portal-session redirects to whatever `portal_url` the API
+    // returns, so this is the guard between a trusted API and an open
+    // redirect. The host set stays ENUMERATED — the temptation when adding
+    // billing.stripe.com is to loosen the check to *.stripe.com, which would
+    // also admit any future Stripe subdomain nobody has reasoned about.
+    expect(isStripeUrl('https://billing.stripe.com/p/session/x', 'billing')).toBe(true);
+    expect(isStripeUrl('http://billing.stripe.com/p/session/x', 'billing')).toBe(false);
+    expect(isStripeUrl('https://billing.stripe.com.evil.test/', 'billing')).toBe(false);
+    // The hosts do not substitute for one another, in either direction.
+    expect(isStripeUrl('https://checkout.stripe.com/c/pay/x', 'billing')).toBe(false);
+    expect(isStripeUrl('https://billing.stripe.com/p/session/x', 'checkout')).toBe(false);
+    expect(isStripeUrl('https://evil.test/billing.stripe.com', 'billing')).toBe(false);
+  });
   it('event paths are built from the pair', () => {
     expect(eventPath('league', 'lg_1')).toBe('/app/leagues/lg_1');
     expect(eventPath('tournament', 'tourney_1')).toBe('/app/tournaments/tourney_1');

@@ -1,0 +1,109 @@
+---
+// /app/billing/success — where Stripe sends a director after Checkout.
+//
+// THE PROBLEM THIS PAGE SOLVES. Stripe redirects the moment Checkout
+// completes, which is normally BEFORE our webhook has landed. So at the
+// instant this page renders, the subscription is paid for and our store does
+// not know it yet. A page that read the entitlement once and reported it
+// would tell a paying customer they had not paid.
+//
+// So: say "confirming", poll, and only then commit to an answer. If it is
+// still not through after the window, say THAT honestly — the money is taken
+// either way, which is the one thing the copy must never imply is in doubt.
+//
+// The success_url is set by the API (api #173) to
+// /app/billing/success?session_id={CHECKOUT_SESSION_ID}&league_id=<id>.
+// `session_id` is accepted and ignored: there is no retrieve-session route,
+// and the entitlement read is a better question anyway — "is this league
+// covered" is what the director actually wants to know, and it stays true on
+// a refresh an hour later.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const locals = Astro.locals as App.Locals;
+const leagueParam = (Astro.url.searchParams.get('league_id') ?? '').trim();
+const leagueId = leagueParam.length > 0 && leagueParam.length <= 128 ? leagueParam : '';
+
+if (!locals.user) {
+  const next = leagueId
+    ? `/app/billing/success?league_id=${encodeURIComponent(leagueId)}`
+    : '/app/billing';
+  return Astro.redirect(`/login?next=${encodeURIComponent(next)}`, 302);
+}
+if (!leagueId) return Astro.redirect('/app/billing', 302);
+
+const pollUrl = `/api/billing/entitlements?league_id=${encodeURIComponent(leagueId)}`;
+---
+
+<BaseLayout title="Confirming your subscription · Bagpipe Golf">
+  <section class="pagewrap">
+    <p class="pagewrap__eyebrow">Billing</p>
+
+    <h1 class="pagewrap__title" id="title">Confirming your subscription…</h1>
+    <p class="pagewrap__sub" id="sub">
+      Your payment went through. We’re waiting for Stripe to confirm it, which
+      usually takes a few seconds.
+    </p>
+
+    <p id="actions" hidden>
+      <a class="btn btn--primary" href="/app/billing">Your subscription</a>
+    </p>
+
+    <noscript>
+      <p class="pagewrap__sub">
+        Your payment went through.
+        <a href="/app/billing">Open your subscription</a> to see it — it may
+        take a few seconds to appear.
+      </p>
+    </noscript>
+  </section>
+</BaseLayout>
+
+<script define:vars={{ pollUrl }}>
+  // Back off rather than hammer: ~30s of attempts, widening gaps.
+  const DELAYS = [700, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000];
+  const title = document.getElementById('title');
+  const sub = document.getElementById('sub');
+  const actions = document.getElementById('actions');
+
+  function settle(heading, detail) {
+    title.textContent = heading;
+    sub.textContent = detail;
+    actions.hidden = false;
+  }
+
+  async function attempt(i) {
+    try {
+      const res = await fetch(pollUrl, {
+        headers: { accept: 'application/json' },
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body && body.entitled === true) {
+          settle(
+            'You’re subscribed.',
+            'This league is covered for the next twelve months, and it will renew automatically.',
+          );
+          return;
+        }
+      }
+    } catch {
+      // A blip is not an answer. Fall through and try again.
+    }
+
+    if (i >= DELAYS.length) {
+      // NOT a failure message. The charge succeeded; only our record is
+      // behind, and telling someone their payment did not work when it did is
+      // the worst thing this page could do.
+      settle(
+        'Payment received.',
+        'Stripe has taken the payment. Our side hasn’t caught up yet — it will shortly, and no further action is needed. Reload your subscription page in a minute.',
+      );
+      return;
+    }
+    setTimeout(() => attempt(i + 1), DELAYS[i]);
+  }
+
+  attempt(0);
+</script>
