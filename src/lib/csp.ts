@@ -13,7 +13,7 @@ export const CONTENT_SECURITY_POLICY = [
   "connect-src 'self' https:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
-  // Stripe's two hosted pages, and nothing else. The payments forms
+  // Stripe's three hosted pages, and nothing else. The payments forms
   // ("Set up card payments", "Continue setup", "Pay season dues") POST
   // to our own /api/* routes, which answer 303 → connect.stripe.com
   // (onboarding) or checkout.stripe.com (Checkout). Chrome applies
@@ -22,6 +22,9 @@ export const CONTENT_SECURITY_POLICY = [
   // appeared to do nothing (Sam, 2026-10-13 — the API had minted a valid
   // link on every click). The routes themselves only ever redirect to
   // Stripe-hosted URLs (isStripeUrl in src/lib/paymentsRoutes.ts).
-  "form-action 'self' https://connect.stripe.com https://checkout.stripe.com",
+  // billing.stripe.com is the league subscription's Customer Portal
+  // ("Manage subscription"); missing from this list, the same silent
+  // cancel hit that button on 2026-10-24.
+  "form-action 'self' https://connect.stripe.com https://checkout.stripe.com https://billing.stripe.com",
   "object-src 'none'",
 ].join('; ');
