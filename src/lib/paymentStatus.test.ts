@@ -94,20 +94,20 @@ describe('payment status vocabulary', () => {
   });
 });
 
-describe('W6 — the fee disclosure states no number it has not agreed', () => {
-  it('names no platform-fee percentage', async () => {
-    // F2 is half-decided: players never see a fee as a line item, and
-    // the PERCENTAGE is still held. `application_fee_bps` defaults to
-    // 0, so nothing is charged. A number on this page before it is
-    // agreed is a published price we are not charging — worse than
-    // stating none.
+describe('W6 — the fee disclosure states the agreed platform fee', () => {
+  it('names the same percentage as the card-payments guide', async () => {
+    // F2: the platform fee is 2% (2026-10-09; Sam re-confirmed
+    // 2026-10-23), and every merchant account carries
+    // application_fee_bps = 200. This page said "not switched on" while
+    // the fee was being charged; the two host-facing pages must agree.
     const fs = await import('node:fs/promises');
     const page = await fs.readFile('src/pages/pricing.astro', 'utf8');
+    const guide = await fs.readFile('src/pages/leagues/card-payments.astro', 'utf8');
     const block = page.slice(page.indexOf('id="collecting-money"'));
-    // Any "N%" or "N bps" in the fee block would be that number.
-    expect(block).not.toMatch(/\d+(\.\d+)?\s*%/);
-    expect(block).not.toMatch(/\d+\s*bps/i);
-    expect(block).toContain('not switched on');
+    const guideFee = guide.match(/Bagpipe platform fee \((\d+(?:\.\d+)?)%\)/);
+    expect(guideFee).not.toBeNull();
+    expect(block).toContain(`Our platform fee is ${guideFee![1]}%`);
+    expect(block).not.toContain('not switched on');
   });
 
   it('tells a host the cash route exists', async () => {

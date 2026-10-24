@@ -27,13 +27,11 @@ import { sideGames } from '../lib/sideGames';
     </section>
 
     <!-- W6 — fee disclosure for hosts who collect money through us.
-         Written now, deliberately WITHOUT a platform-fee number: F2 is
-         half-decided (players never see a fee as a line item; the
-         percentage is still held), and `application_fee_bps` defaults
-         to 0 so nothing is charged until it lands. Stating a number we
-         have not agreed would be worse than stating none, and the page
-         is more useful than silence — a host deciding whether to
-         collect through us needs to know Stripe's cut exists. -->
+         Bagpipe's platform fee is 2% (F2, 2026-10-09; Sam re-confirmed
+         2026-10-23), the same figure leagues/card-payments.astro shows.
+         It is set per connected account (`merchant_accounts.
+         application_fee_bps`, default 200), so this page states the
+         number — keep the two pages in step if it ever changes. -->
     <section class="feeblock" id="collecting-money">
       <h2 class="feeblock__h">Collecting entry fees and dues</h2>
       <p class="feeblock__p">
@@ -57,10 +55,9 @@ import { sideGames } from '../lib/sideGames';
           use us or not.
         </li>
         <li>
-          <strong>Our platform fee is not switched on.</strong> When it
-          is, we'll state it here before it applies to anyone, and your
-          players will still see one total at checkout — never a
-          line-item for us.
+          <strong>Our platform fee is 2%</strong> of each card payment,
+          taken before the money reaches you — on $50 dues that's $1.00.
+          Your players see one total at checkout, never a line item for us.
         </li>
         <li>
           <strong>Refunds are yours to issue</strong>, from our roster
