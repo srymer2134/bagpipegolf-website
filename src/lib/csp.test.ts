@@ -14,11 +14,12 @@ describe('page CSP form-action', () => {
     expect(fa).toContain("'self'");
     expect(fa).toContain('https://connect.stripe.com');
     expect(fa).toContain('https://checkout.stripe.com');
+    expect(fa).toContain('https://billing.stripe.com');
   });
 
   it('allows nothing broader than those two Stripe hosts', () => {
     const sources = directive('form-action')!.split(/\s+/).slice(1);
-    expect(sources.sort()).toEqual(["'self'", 'https://checkout.stripe.com', 'https://connect.stripe.com'].sort());
+    expect(sources.sort()).toEqual(["'self'", 'https://billing.stripe.com', 'https://checkout.stripe.com', 'https://connect.stripe.com'].sort());
   });
 
   it('keeps the rest of the policy locked down', () => {
