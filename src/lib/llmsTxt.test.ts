@@ -24,8 +24,9 @@ describe('/llms.txt', () => {
     }
   });
 
-  it('matches the pricing page: players and tournaments free, leagues $2,000 a year', () => {
-    expect(txt).toContain('Free for players. Free for tournament hosts.');
+  it('matches the pricing page: players free, $240 a tournament, $2,000 a year per league', () => {
+    expect(txt).toContain('Free for players.');
+    expect(txt).toContain('$240 per tournament');
     expect(txt).toContain('$2,000 per league');
     expect(txt).not.toMatch(/for a limited time/i);
     expect(txt).not.toMatch(/during beta/i);

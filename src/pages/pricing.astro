@@ -8,15 +8,17 @@ import { sideGames } from '../lib/sideGames';
     <!-- League plan (LEAGUE_SUBSCRIPTION_AND_PLAN_GATING_PLAN.md, flutter
          repo): $2,000 a year PER LEAGUE, card only, 12 months from the start
          date, renews yearly. Leagues that existed before the plan launched
-         get 12 months free (plan L5/L9). Tournaments stay free (L10); a
-         one-off event price is Phase 3 and is deliberately NOT stated here.
+         get 12 months free (plan L5/L9).
+         Tournaments: $240 per tournament for a one-off or charity event
+         (Sam, 2026-10-25 — replaces the plan's earlier field-size rule).
+         A tournament run inside a league is covered by that league's plan.
          llmsTxt.ts states the same figures — pricingCopy.test.ts keeps the
          two in step. -->
     <p class="pagewrap__eyebrow">Pricing</p>
-    <h1 class="pagewrap__title">Free to play. $2,000 a year to run a league.</h1>
+    <h1 class="pagewrap__title">Free to play. Simple pricing to host.</h1>
     <p class="pagewrap__sub">
-      Players and tournament hosts pay nothing. A league director pays one
-      plan per league, once a year.
+      Players pay nothing. Hosts pay per tournament, or one plan a year per
+      league.
     </p>
 
     <section class="grid grid--3">
@@ -27,13 +29,13 @@ import { sideGames } from '../lib/sideGames';
       </article>
       <article class="card">
         <span class="chip">Tournaments</span>
-        <h3>Free</h3>
-        <p>Run a tournament for any field size — pairings, live leaderboards, and card entry fees if you want them.</p>
+        <h3>$240 <span class="card__per">/ tournament</span></h3>
+        <p>For a one-off event — a charity day, a member-guest, a company outing. Pairings, live leaderboards, and card entry fees if you want them.</p>
       </article>
       <article class="card card--plan" id="league-plan">
         <span class="chip">Leagues</span>
         <h3>$2,000 <span class="card__per">/ year per league</span></h3>
-        <p>Season setup, weekly pairings and standings, league tournaments, and card dues collection.</p>
+        <p>Season setup, weekly pairings and standings, card dues collection — and every tournament your league runs is included.</p>
       </article>
     </section>
 
