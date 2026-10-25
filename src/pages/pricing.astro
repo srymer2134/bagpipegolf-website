@@ -5,25 +5,79 @@ import { sideGames } from '../lib/sideGames';
 
 <BaseLayout title="Pricing · Bagpipe Golf">
   <main class="pagewrap">
+    <!-- League plan (LEAGUE_SUBSCRIPTION_AND_PLAN_GATING_PLAN.md, flutter
+         repo): $2,000 a year PER LEAGUE, card only, 12 months from the start
+         date, renews yearly. Leagues that existed before the plan launched
+         get 12 months free (plan L5/L9).
+         Tournaments (Sam, 2026-10-25): free with a field of up to 36
+         players "for now"; $240 per tournament at 37 or more. The threshold lives in
+         billing.config, so this copy and that number change together.
+         A tournament run inside a league is covered by that league's plan.
+         llmsTxt.ts states the same figures — pricingCopy.test.ts keeps the
+         two in step. -->
     <p class="pagewrap__eyebrow">Pricing</p>
-    <h1 class="pagewrap__title">Bagpipe Pro is free for a limited time.</h1>
+    <h1 class="pagewrap__title">Free to play. Simple pricing to host.</h1>
     <p class="pagewrap__sub">
-      Every feature, no credit card. We'll publish a paid plan
-      down the road. Want a heads-up before we do?
-      <a href="mailto:hello@bagpipegolf.com?subject=Pricing%20waitlist">Email hello@bagpipegolf.com</a>.
+      Players pay nothing. Small tournaments are free; bigger ones are a
+      one-time fee, and leagues are one plan a year.
     </p>
 
-    <section class="grid grid--2">
+    <section class="grid grid--3">
       <article class="card">
         <span class="chip">Players</span>
         <h3>Free</h3>
         <p>Full scorecard, all {sideGames.length} side games, friends, spectator share, history and stats.</p>
       </article>
       <article class="card">
-        <span class="chip">Hosts</span>
-        <h3>Free for a limited time</h3>
-        <p>Run a tournament or league for any field size.</p>
+        <span class="chip">Tournaments</span>
+        <h3>Free <span class="card__per">up to 36 players</span></h3>
+        <p><strong>$240 per tournament</strong> for a field of 37 or more — a charity day, a member-guest, a company outing. Pairings, live leaderboards, and card entry fees if you want them.</p>
       </article>
+      <article class="card card--plan" id="league-plan">
+        <span class="chip">Leagues</span>
+        <h3>$2,000 <span class="card__per">/ year per league</span></h3>
+        <p>Season setup, weekly pairings and standings, card dues collection — and every tournament your league runs is included.</p>
+      </article>
+    </section>
+
+    <section class="feeblock" id="league-plan-details">
+      <h2 class="feeblock__h">How the league plan works</h2>
+      <ul class="feeblock__list">
+        <li>
+          <strong>One plan covers one league for 12 months</strong> from the
+          day you start it, and renews each year. Cancel any time and it runs
+          to the end of the year you paid for.
+        </li>
+        <li>
+          <strong>Paid by card</strong>, plus sales tax where it applies.
+          You get an invoice, and you can update your card or download
+          invoices any time.
+        </li>
+        <li>
+          <strong>Starting next season?</strong> Your plan moves to the new
+          season's league — once a year — so you don't pay twice.
+        </li>
+        <li>
+          <strong>Already running a league on Bagpipe?</strong> It stays free
+          for 12 months after the plan launches. We'll email you before
+          anything changes.
+        </li>
+        <li>
+          <strong>Smaller league?</strong> Discounted rates are available —
+          <a href="mailto:hello@bagpipegolf.com?subject=Smaller%20league%20pricing">email hello@bagpipegolf.com</a>
+          for details.
+        </li>
+        <li>
+          <strong>Running several leagues or a club?</strong>
+          <a href="mailto:hello@bagpipegolf.com?subject=League%20plan%20pricing">Email hello@bagpipegolf.com</a>
+          and we'll talk.
+        </li>
+      </ul>
+      <p class="feeblock__p">
+        Without a plan, a league keeps what it already has — its current
+        season, results and payments — but can't set up a new season, add
+        tournaments, or start taking card payments.
+      </p>
     </section>
 
     <!-- W6 — fee disclosure for hosts who collect money through us.
@@ -108,6 +162,7 @@ import { sideGames } from '../lib/sideGames';
     margin: 6px 0 4px;
   }
   .card p { margin: 0; color: var(--ink-muted); font-size: 0.9375rem; }
+  .card__per { font-size: 1rem; font-weight: 600; color: var(--ink-muted); }
   .feeblock { margin-top: 48px; }
   .feeblock__h {
     font-size: 1.375rem;
