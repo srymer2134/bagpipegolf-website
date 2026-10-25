@@ -6,7 +6,7 @@
 // A league's tournaments are covered by the league plan.
 //
 // The gate itself is Postgres (`tournaments_field_gate`, flutter migration
-// 20261113). The API turns its refusal into one answer (api #182):
+// 20261114). The API turns its refusal into one answer (api #182):
 //   402 { code: 'tournament_pass_required', error, tournament_id, free_max, billing_url }
 // on create, join, and both invite accepts; and on a roster PATCH it saves
 // everything else and answers 200 with `roster_refused`.
