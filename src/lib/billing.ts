@@ -133,6 +133,24 @@ export function billingErrorMessage(code: string | null | undefined): string | n
       return 'Subscriptions are not switched on yet. Nothing was charged.';
     case 'stripe_error':
       return 'The payment provider did not answer. Nothing was charged — try again.';
+    case 'comped':
+      return 'That league is covered at no charge — there is nothing to buy yet.';
+    // Season moves (api #177). Nothing is charged by a move.
+    case 'moved':
+      return 'Done — your plan now covers the new season. The renewal date has not changed.';
+    case 'move_already_this_term':
+      return 'This plan has already moved once this year. It can move again after it renews.';
+    case 'move_target_covered':
+    case 'league_already_subscribed':
+      return 'That season already has a plan. Nothing was moved.';
+    case 'move_not_newer':
+      return 'A plan can only move to a newer season. Nothing was moved.';
+    case 'move_not_owner':
+      return 'You need to own both leagues to move a plan.';
+    case 'move_nothing_to_move':
+      return 'That league has no plan to move.';
+    case 'move_same_league':
+      return 'Pick a different season to move to.';
     default:
       return 'Something went wrong. Nothing was charged — try again.';
   }
@@ -151,3 +169,39 @@ export function offersPortal(leagues: BillingLeagueRow[]): boolean {
 
 /** The price, as copy. One plan, so this is not fetched from Stripe. */
 export const LEAGUE_DIRECTOR_PRICE_COPY = '$2,000 / year';
+
+/** What `moveTargets` needs from each league the director owns. */
+export type OwnedLeague = {
+  id: string;
+  name: string;
+  created_at: string | null;
+  completed_at: string | null;
+};
+
+/**
+ * Where a league's plan can move: "Move to next season" (plan §3.1, §3.9).
+ *
+ * Offered only for a COMPLETED league whose plan is live (a card or a comp),
+ * and only to a NEWER league the director owns that has no plan of its own.
+ * The API is the authority — it also enforces one move per term — so this is
+ * only what the page offers, never what it allows.
+ */
+export function moveTargets(
+  row: BillingLeagueRow,
+  owned: readonly OwnedLeague[],
+  rows: readonly BillingLeagueRow[],
+): OwnedLeague[] {
+  if (rowState(row) === 'subscribe') return [];
+  const from = owned.find((l) => l.id === row.league_id);
+  if (!from || !from.completed_at || !from.created_at) return [];
+  const fromAt = Date.parse(from.created_at);
+  if (Number.isNaN(fromAt)) return [];
+  const covered = new Set(rows.filter((r) => r.entitled).map((r) => r.league_id));
+  return owned
+    .filter((l) => l.id !== from.id && !covered.has(l.id))
+    .filter((l) => {
+      const at = l.created_at ? Date.parse(l.created_at) : NaN;
+      return !Number.isNaN(at) && at > fromAt;
+    })
+    .sort((a, b) => Date.parse(b.created_at as string) - Date.parse(a.created_at as string));
+}

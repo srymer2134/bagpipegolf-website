@@ -320,6 +320,16 @@ describe('checkoutNotice — every contract code has a human sentence', () => {
     expect(payNoticeCode(null)).toBeNull();
   });
 
+  it('league_subscription_required: the PLAYER never hears about plans; the DIRECTOR gets a link', () => {
+    const player = checkoutNotice('league_subscription_required', 'league')!;
+    expect(`${player.title} ${player.body}`).not.toMatch(/plan|subscri|price|\$/i);
+    expect(player.body).toMatch(/Nothing was charged/);
+    expect(player.link).toBeUndefined();
+    const director = setupNotice('league_subscription_required')!;
+    expect(director.link).toEqual({ href: '/app/billing', label: 'See plans' });
+    expect(fixture('error_league_subscription_required').http).toBe(402);
+  });
+
   it('setup notices exist for the owner-side codes', () => {
     expect(setupNotice('not_director')!.title).toMatch(/Owner/);
     expect(setupNotice('weird')!.body).toMatch(/try again/i);

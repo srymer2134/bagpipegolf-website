@@ -48,7 +48,11 @@ export type PaymentsErrorCode =
   // Live API code beyond the original contract (amendment 3, §4b): the
   // caller isn't an active member of the league. Before 2026-10-13 the
   // site didn't know it and showed "Couldn't start checkout".
-  | 'not_member';
+  | 'not_member'
+  // Billing Phase 1c (api #178): a LEAGUE (or a league's event) with no
+  // active plan cannot take card money. 402, from onboard, entry-fee and
+  // checkout. A standalone tournament never gets it.
+  | 'league_subscription_required';
 
 export const PAYMENTS_ERROR_CODES: readonly PaymentsErrorCode[] = [
   'no_fee_set',
@@ -58,6 +62,7 @@ export const PAYMENTS_ERROR_CODES: readonly PaymentsErrorCode[] = [
   'not_director',
   'payments_disabled',
   'not_member',
+  'league_subscription_required',
 ];
 
 /** §2.2 `GET /api/merchants/{scope}/{id}` — 200 body. */
@@ -359,6 +364,8 @@ export type CheckoutNotice = {
   body: string;
   /** The contract code this notice is for, when there is one. */
   code?: string;
+  /** A same-origin next step, when there is one (e.g. the billing page). */
+  link?: { href: string; label: string };
 };
 
 /**
@@ -419,6 +426,15 @@ function checkoutNoticeText(code: string, scope: PaymentScope): CheckoutNotice {
           ? 'Only league members can pay season dues here. Join with the league\'s code (in the app: Leagues → Join), then pay. Nothing was charged.'
           : 'Only registered players can pay the entry fee here. Nothing was charged.',
       };
+    case 'league_subscription_required':
+      // A PLAYER tapped Pay. The league's plan is the director's business,
+      // so this never mentions plans, prices or subscribing — it tells the
+      // player what to do instead.
+      return {
+        tone: 'warn',
+        title: 'Card payments aren’t available',
+        body: `Card payments are paused for this league right now. Nothing was charged — pay the ${host} directly for now.`,
+      };
     case 'not_director':
       // Not a checkout code, but a stale link can land it here.
       return {
@@ -449,6 +465,14 @@ export function setupNotice(code: string | null | undefined): CheckoutNotice | n
       return { tone: 'warn', title: 'Not available yet.', body: 'Card payments aren’t switched on for this one yet.' };
     case 'no_email':
       return { tone: 'warn', title: 'No email on your account.', body: 'Stripe needs an email for the login. Add one to your profile and try again.' };
+    case 'league_subscription_required':
+      // The DIRECTOR's side (billing Phase 1c): their league has no plan.
+      return {
+        tone: 'warn',
+        title: 'This league needs a plan.',
+        body: 'Card payments for a league need an active plan. Nothing was set up.',
+        link: { href: '/app/billing', label: 'See plans' },
+      };
     default:
       return { tone: 'bad', title: 'Couldn’t reach Stripe.', body: 'Nothing was set up. Please try again in a moment.' };
   }

@@ -246,6 +246,23 @@ const PRESET_ROWS = mc
           btn.textContent = label;
           return;
         }
+        if (body.paywall && String(body.paywall).startsWith('/app/billing')) {
+          // The league exists, but it has no plan, so its season was not
+          // set up (billing Phase 1c). Say why and where to go — the
+          // schedule page would refuse the same thing.
+          err.textContent = `${body.weeksError} `;
+          const a = document.createElement('a');
+          a.href = body.paywall;
+          a.textContent = 'See plans';
+          err.appendChild(a);
+          err.hidden = false;
+          btn.textContent = 'Open the league';
+          btn.disabled = false;
+          btn.onclick = () => {
+            window.location.href = `/app/leagues/${encodeURIComponent(body.id)}`;
+          };
+          return;
+        }
         if (body.weeksError) {
           // The league exists; only its dates did not land. Say so
           // rather than navigating away as if nothing happened.
