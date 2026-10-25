@@ -163,30 +163,71 @@ const today = new Date().toISOString().slice(0, 10);
             </>
           ) : isDirector ? (
             <>
-              <p class="evb__empty">No tournament attached yet.</p>
-              {locked && myTournaments.length === 0 ? (
-                <p class="evb__help">
-                  Attaching a new tournament needs an active plan.
-                  <a href={`/app/billing?league_id=${encodeURIComponent(leagueId)}`}>See plans</a>
-                </p>
-              ) : (
-              <div class="evb__attach">
-                <select class="evb__input evb__input--pick" data-pick={r.slot}>
-                  <option value="">Choose one of yours…</option>
-                  {myTournaments.map((t) => (
-                    <option value={t.id}>
-                      {t.name}{t.completed_at ? ' (completed)' : ''}
-                    </option>
-                  ))}
-                </select>
-                <button type="button" class="evb__btn evb__btn--go" data-attach={r.slot}>
-                  Attach
-                </button>
-              </div>
-              )}
+              <p class="evb__empty">No event here yet.</p>
+
+              {/*
+                CREATING LEADS. This block used to open with the picker
+                — "Choose one of yours…" — and demote creating to help
+                text reading "then come back and attach it". That had it
+                backwards: an event of a season is normally a NEW
+                tournament, and the picker is for the rarer mid-season
+                adoption case. Sam, 2026-10-25.
+
+                The link carries the league AND the slot, so the wizard
+                binds this week itself on save and returns here. That is
+                what removes the round trip — the hierarchy flip alone
+                would only have made the dead end prettier.
+              */}
+              {/*
+                The lock takes the CREATE link away and leaves the picker
+                alone. Phase 1c's rule is "block new setup, never block
+                tidy-up", and a locked league may still move an event it
+                already owns into an empty week. The server is the one
+                that knows which is which (PT402 on a tournament the
+                league did not already have), and `save()` turns that
+                refusal into the paywall line, so offering the picker is
+                correct even while locked.
+              */}
               {!locked && (
+                <>
+                  <a
+                    class="evb__btn evb__btn--go evb__btn--wide"
+                    href={`/app/tournaments/new?league=${encodeURIComponent(leagueId)}&slot=${r.slot}`}
+                  >
+                    Create this event
+                  </a>
+                  <p class="evb__help">
+                    Sets it up and binds it to Event {r.slot + 1} — you come
+                    straight back here.
+                  </p>
+                </>
+              )}
+
+              {myTournaments.length > 0 ? (
+                <>
+                  <p class="evb__or">
+                    {locked ? 'move one of your events here' : 'or attach one you already made'}
+                  </p>
+                  <div class="evb__attach">
+                    <select class="evb__input evb__input--pick" data-pick={r.slot}>
+                      <option value="">Choose one of yours…</option>
+                      {myTournaments.map((t) => (
+                        <option value={t.id}>
+                          {t.name}{t.completed_at ? ' (completed)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="button" class="evb__btn" data-attach={r.slot}>
+                      Attach
+                    </button>
+                  </div>
+                </>
+              ) : null}
+
+              {locked && (
                 <p class="evb__help">
-                  Nothing suitable? <a href="/app/tournaments/new">Create a tournament</a>, then come back and attach it.
+                  Adding a new event needs an active plan.
+                  <a href={`/app/billing?league_id=${encodeURIComponent(leagueId)}`}>See plans</a>
                 </p>
               )}
             </>
@@ -450,6 +491,21 @@ const today = new Date().toISOString().slice(0, 10);
   .evb__btn--quiet { border-color: transparent; color: #8a6a64; }
   .evb__btn--quiet:hover { background: #fdecea; color: #7d241c; }
   .evb__btn:disabled { opacity: .55; cursor: default; }
+
+  /* The primary action on an empty event: full width, so it reads as
+     the thing to do rather than one option among several. `block` and
+     `text-align` because this one is an <a>, not a <button>. */
+  .evb__btn--wide {
+    display: block; width: 100%; box-sizing: border-box;
+    text-align: center;
+  }
+
+  /* Separates "create" from "attach" without a heading. Lower case on
+     purpose — it is a connective, not a section title. */
+  .evb__or {
+    margin: 12px 0 8px; font-size: 0.78125rem; font-weight: 600;
+    color: var(--ink-muted, #4b5b54);
+  }
 
   .evb__note { font-size: 0.78125rem; color: var(--ink-muted, #4b5b54); }
 
