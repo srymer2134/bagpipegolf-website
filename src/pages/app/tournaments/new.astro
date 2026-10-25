@@ -69,6 +69,49 @@ try {
   console.warn('[tournaments/new] director HCP fetch failed', e);
 }
 
+// ── Opened from one week of a league schedule? ───────────────
+//
+// `?league=<id>&slot=N` (LeagueEventBoard's "Create this event"). On
+// save the wizard binds the new tournament to that week and returns to
+// the schedule, instead of leaving the director to come back and attach
+// it by hand. Plan: LEAGUE_EVENT_CREATE_UX_PLAN.md slice 2 (flutter repo).
+//
+// WHY OWNERSHIP IS CHECKED HERE and not left to the bind endpoint.
+// `/api/leagues/[id]/events` enforces RLS and would refuse a league the
+// viewer does not own — but only AFTER the tournament has been created.
+// The wizard would then have promised "binds it to Event 4", created the
+// tournament, and failed the bind. Checking first means a bad or stale
+// link degrades to an ordinary standalone create, which is honest.
+const rawLeague = (Astro.url.searchParams.get('league') ?? '').trim();
+const rawSlot = Number(Astro.url.searchParams.get('slot'));
+let fromLeagueId: string | null = null;
+let fromLeagueSlot: number | null = null;
+let fromLeagueName: string | null = null;
+if (
+  rawLeague.length > 0 &&
+  rawLeague.length <= 128 &&
+  Number.isInteger(rawSlot) &&
+  rawSlot >= 0 &&
+  rawSlot <= 51 // mirrors the 2..52 event bound on /api/leagues/[id]/schedule
+) {
+  try {
+    const { data: lg } = await supabase
+      .from('leagues')
+      .select('id, name')
+      .eq('id', rawLeague)
+      .eq('user_id', user!.id)
+      .maybeSingle();
+    const row = lg as { id: string; name: string | null } | null;
+    if (row) {
+      fromLeagueId = row.id;
+      fromLeagueSlot = rawSlot;
+      fromLeagueName = (row.name ?? '').trim() || null;
+    }
+  } catch (e) {
+    console.warn('[tournaments/new] league context fetch failed', e);
+  }
+}
+
 type Friend = {
   id: string;
   display_name: string;
@@ -133,6 +176,23 @@ try {
       more advanced (flights, side games, sponsors) opens in the
       Bagpipe Golf mobile app under Events.
     </p>
+
+    {/*
+      Carries the promise the league board made ("binds it to Event N")
+      through the wizard, so the director can see on every step that
+      this is not a standalone tournament they will have to attach.
+      Also the escape hatch: the link back is to where they came from.
+    */}
+    {fromLeagueId && fromLeagueSlot !== null && (
+      <p class="fromleague">
+        This becomes <strong>Event {fromLeagueSlot + 1}</strong>
+        {fromLeagueName ? <> of {fromLeagueName}</> : <> of your league</>} —
+        it is bound to that week when you save.
+        <a href={`/app/leagues/${encodeURIComponent(fromLeagueId)}/schedule`}>
+          Back to the schedule
+        </a>
+      </p>
+    )}
 
     <ol class="wizard__steps" aria-hidden="true">
       <li data-step-pill="0" class="is-current">Template</li>
@@ -586,6 +646,10 @@ try {
     max: BANDON_ROUND_BOUNDS.max,
     default: BANDON_ROUND_BOUNDS.default,
   },
+  // Null unless this wizard was opened from a league week AND the
+  // viewer owns that league (verified server-side above).
+  fromLeagueId,
+  fromLeagueSlot,
 }}>
   // ── Wizard state ──────────────────────────────────────────
   //
@@ -2766,6 +2830,47 @@ try {
         );
       }
 
+      // Opened from a league week → bind it to that week and go back to
+      // the schedule, which is where the director was working.
+      //
+      // The create already succeeded, so a failed bind must NOT read as
+      // a failed create. The tournament exists and is in the picker, so
+      // say exactly that and still leave on the schedule page, where the
+      // picker is. Silence here is how the original round trip felt like
+      // a bug: the director came back and the week was simply empty.
+      if (fromLeagueId && fromLeagueSlot !== null) {
+        submitBtn.textContent = 'Adding to the league…';
+        let bound = false;
+        let why = '';
+        try {
+          const bindRes = await fetch(
+            `/api/leagues/${encodeURIComponent(fromLeagueId)}/events`,
+            {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ slot: fromLeagueSlot, tournamentId: id }),
+            },
+          );
+          bound = bindRes.ok;
+          if (!bound) {
+            const b = await bindRes.json().catch(() => ({}));
+            why = b && b.error ? String(b.error) : `HTTP ${bindRes.status}`;
+          }
+        } catch {
+          why = 'the network dropped';
+        }
+        if (!bound) {
+          window.alert(
+            `"${payload.name}" was created, but it wasn't added to Event ` +
+            `${fromLeagueSlot + 1} — ${why}.\n\n` +
+            `Nothing is lost: attach it to that event from the schedule.`,
+          );
+        }
+        window.location.href =
+          `/app/leagues/${encodeURIComponent(fromLeagueId)}/schedule`;
+        return;
+      }
+
       window.location.href = `/app/tournaments/${encodeURIComponent(id)}/leaderboard`;
     } catch (err) {
       showError(err && err.message ? err.message : 'Network error — try again.');
@@ -2793,6 +2898,20 @@ try {
 </script>
 
 <style>
+  /* "This becomes Event N of <league>" — the league-week context.
+     Tinted with the brand green rather than a warning colour: it is
+     information, not a problem. */
+  .fromleague {
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--brand-green) 7%, transparent);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .fromleague a { margin-left: 6px; white-space: nowrap; }
+
   .wizard__steps {
     display: flex;
     gap: 4px;
