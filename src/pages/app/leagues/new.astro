@@ -211,8 +211,19 @@ const PRESET_ROWS = mc
       });
     });
 
+    // Set once the league exists. The button is relabelled "Open the league"
+    // after a paywall or a dates error, but it is still this form's submit
+    // button — so a click on it submits again. Without this guard that
+    // second submit created a second, identical league (two "Gate Test"
+    // rows six seconds apart on dev, 2026-10-25).
+    let createdHref = null;
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (createdHref) {
+        window.location.href = createdHref;
+        return;
+      }
       err.hidden = true;
       btn.disabled = true;
       const label = btn.textContent;
@@ -258,9 +269,7 @@ const PRESET_ROWS = mc
           err.hidden = false;
           btn.textContent = 'Open the league';
           btn.disabled = false;
-          btn.onclick = () => {
-            window.location.href = `/app/leagues/${encodeURIComponent(body.id)}`;
-          };
+          createdHref = `/app/leagues/${encodeURIComponent(body.id)}`;
           return;
         }
         if (body.weeksError) {
@@ -270,9 +279,7 @@ const PRESET_ROWS = mc
           err.hidden = false;
           btn.textContent = 'Open the league';
           btn.disabled = false;
-          btn.onclick = () => {
-            window.location.href = `/app/leagues/${encodeURIComponent(body.id)}/schedule`;
-          };
+          createdHref = `/app/leagues/${encodeURIComponent(body.id)}/schedule`;
           return;
         }
         window.location.href = `/app/leagues/${encodeURIComponent(body.id)}`;
