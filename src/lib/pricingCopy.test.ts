@@ -21,6 +21,9 @@ describe('pricing copy — the league plan', () => {
     expect(d).toMatch(/Paid by card/);
     expect(d).toMatch(/once a year/);
     expect(d).toMatch(/Already running a league on Bagpipe\?<\/strong> It stays free\s+for 12 months/);
+    // Sam, 2026-10-25: discounted rates for smaller leagues, by email.
+    expect(d).toMatch(/Smaller league\?<\/strong> Discounted rates are available/);
+    expect(d).toContain('mailto:hello@bagpipegolf.com?subject=Smaller%20league%20pricing');
   });
 
   it('promises nothing about one-off event pricing (Phase 3) and drops "limited time"', () => {
