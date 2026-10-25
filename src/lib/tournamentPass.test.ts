@@ -124,6 +124,8 @@ describe('reading the entitlements answer', () => {
     const body = { standalone: true, enforced: false, entitled: true, field: { enforced: true, entitled: false, field_size: 40, free_max: 36, pass: null } };
     expect(fieldFromEntitlements(body)).toEqual({ enforced: true, entitled: false, field_size: 40, free_max: 36, pass: null });
     expect(fieldFromEntitlements({ enforced: false, entitled: true })).toBeNull(); // a league answer has no field
+    // even a top-level answer that LOOKS like a field is not one
+    expect(fieldFromEntitlements({ enforced: true, entitled: false, field_size: 40, free_max: 36 })).toBeNull();
     expect(fieldFromEntitlements(null)).toBeNull();
   });
 });
