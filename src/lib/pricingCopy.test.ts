@@ -11,9 +11,10 @@ describe('pricing copy — the league plan', () => {
   it('states players free, $240 per tournament, $2,000 a year per league (league tournaments included)', () => {
     expect(pricing).toMatch(/\$2,000 <span class="card__per">\/ year per league/);
     expect(pricing).toMatch(/<span class="chip">Players<\/span>\s*<h3>Free<\/h3>/);
-    // Sam, 2026-10-25: free under 36 players, $240 per tournament at 36+.
-    expect(pricing).toMatch(/<span class="chip">Tournaments<\/span>\s*<h3>Free <span class="card__per">under 36 players/);
-    expect(pricing).toMatch(/\$240 per tournament<\/strong> for a field of 36 or more/);
+    // Sam, 2026-10-25: free up to 36 players, $240 per tournament at 37+.
+    expect(pricing).toMatch(/<span class="chip">Tournaments<\/span>\s*<h3>Free <span class="card__per">up to 36 players/);
+    expect(pricing).toMatch(/\$240 per tournament<\/strong> for a field of 37 or more/);
+    expect(pricing).not.toMatch(/under 36|36 or more/);
     expect(pricing).toMatch(/every tournament your league runs is included/);
   });
 
