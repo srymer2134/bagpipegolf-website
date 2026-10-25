@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../../lib/railway';
+import { directorRefusal, isPassRequiredError, rosterRefusedNotice } from '../../../../lib/tournamentPass';
 
 // POST /api/tournaments/[id]/update
 //
@@ -38,13 +39,24 @@ export const POST: APIRoute = async (ctx) => {
   }
 
   try {
-    const result = await callRailway<{ tournament: { id: string } }>(ctx, {
+    const result = await callRailway<{ tournament: { id: string }; roster_refused?: unknown }>(ctx, {
       method: 'PATCH',
       path: `/api/tournaments/${encodeURIComponent(id)}`,
       body: raw,
     });
-    return json({ id: result?.tournament?.id ?? id }, 200);
+    // Field-size gate (api #182): the API saved everything EXCEPT a roster
+    // that grew past the free limit without a pass. Still a 200 — the other
+    // changes landed — but the director has to be told the roster did not.
+    const refused = rosterRefusedNotice(result, id);
+    return json(
+      refused ? { id: result?.tournament?.id ?? id, roster_refused: refused } : { id: result?.tournament?.id ?? id },
+      200,
+    );
   } catch (err) {
+    if (isPassRequiredError(err)) {
+      const r = directorRefusal(id, (err as RailwayApiError).body);
+      return json(r.body, r.status);
+    }
     if (err instanceof RailwayApiError) {
       return json({ error: err.message }, err.status);
     }

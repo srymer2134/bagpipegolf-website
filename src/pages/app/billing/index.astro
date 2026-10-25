@@ -32,6 +32,14 @@ import {
   type OwnedLeague,
 } from '../../../lib/billing';
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
+import {
+  DEFAULT_FREE_MAX,
+  NEAR_LIMIT_MARGIN,
+  TOURNAMENT_PASS_PRICE_COPY,
+  billingTournamentRows,
+  fieldFromEntitlements,
+  type BillingTournamentRow,
+} from '../../../lib/tournamentPass';
 
 const locals = Astro.locals as App.Locals;
 const user = locals.user;
@@ -75,6 +83,41 @@ const owned: OwnedLeague[] = ((leagueRows ?? []) as Array<{
   completed_at: l.completed_at,
 }));
 const nameFor = new Map<string, string>(owned.map((l) => [l.id, l.name]));
+
+// Tournament passes (api #182): standalone tournaments the director owns
+// that are at or near the free limit, or already have a pass. The roster
+// size prefilters candidates so we only ask the API about tournaments that
+// could matter; `billingTournamentRows` then shows a row only where the gate
+// is enforced or a pass exists — so with the gate off this list is empty.
+// (A tournament that has a pass but has since shrunk well below the limit
+// is not listed; nothing about it needs attention.)
+let passRows: BillingTournamentRow[] = [];
+if (!loadFailed) {
+  const { data: tRows } = await supabase
+    .from('tournaments')
+    .select('id, name, players')
+    .eq('user_id', user.id);
+  const candidates = ((tRows ?? []) as Array<{ id: string; name: string | null; players: unknown }>)
+    .map((t) => ({ id: t.id, name: (t.name ?? '').trim() || t.id, size: Array.isArray(t.players) ? t.players.length : 0 }))
+    .filter((t) => t.size >= DEFAULT_FREE_MAX - NEAR_LIMIT_MARGIN)
+    .sort((a, b) => b.size - a.size)
+    .slice(0, 25);
+  const withField = await Promise.all(
+    candidates.map(async (t) => {
+      try {
+        const ent = await callRailway<unknown>(Astro, {
+          method: 'GET',
+          path: '/api/billing/entitlements',
+          query: { tournament_id: t.id },
+        });
+        return { id: t.id, name: t.name, field: fieldFromEntitlements(ent) };
+      } catch {
+        return { id: t.id, name: t.name, field: null };
+      }
+    }),
+  );
+  passRows = billingTournamentRows(withField);
+}
 
 const notice = billingErrorMessage(Astro.url.searchParams.get('billing'));
 const showPortal = offersPortal(rows);
@@ -180,6 +223,44 @@ const sorted = [...rows].sort((a, b) =>
         </p>
       </>
     )}
+
+    {passRows.length > 0 && (
+      <section class="passes" id="tournament-passes">
+        <h2 class="passes__h">Tournament passes</h2>
+        <p class="pagewrap__sub">
+          A standalone tournament is free up to {passRows[0].free_max} players.
+          A bigger field needs one pass — {TOURNAMENT_PASS_PRICE_COPY}, paid
+          once. Tournaments in a league are covered by the league's plan.
+        </p>
+        <ul class="billlist">
+          {passRows.map((row) => (
+            <li class="billlist__row">
+              <div class="billlist__text">
+                <span class="billlist__name">{row.name}</span>
+                <span class={`chip chip--${row.state === 'has_pass' ? 'active' : 'subscribe'}`}>
+                  {row.state === 'has_pass' && (row.comped ? 'No charge' : 'Pass active')}
+                  {row.state === 'needs_pass' && 'Needs a pass'}
+                  {row.state === 'near' && 'Near the limit'}
+                </span>
+                <span class="billlist__detail">
+                  {row.field_size} players · free up to {row.free_max}
+                </span>
+              </div>
+              {row.state === 'has_pass' ? (
+                <span class="billlist__done" aria-hidden="true">✓</span>
+              ) : (
+                <form method="POST" action="/api/billing/tournament-checkout">
+                  <input type="hidden" name="tournament_id" value={row.id} />
+                  <button class="btn btn--primary btn--sm" type="submit">
+                    Get tournament pass — {TOURNAMENT_PASS_PRICE_COPY}
+                  </button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
   </section>
 </BaseLayout>
 
@@ -206,6 +287,8 @@ const sorted = [...rows].sort((a, b) =>
   .chip--ending { color: #b45309; }
   .chip--comped { color: #1d4ed8; }
   .chip--subscribe { color: #6b7280; }
+  .passes { margin-top: 2.25rem; }
+  .passes__h { font-size: 1.25rem; font-weight: 800; margin: 0 0 0.5rem; }
   .notice {
     margin: 0 0 1rem; padding: 0.7rem 0.9rem;
     border-radius: 8px; border: 1px solid var(--rule, #e5e7eb);

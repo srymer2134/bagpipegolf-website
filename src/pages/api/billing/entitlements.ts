@@ -24,7 +24,10 @@ export const GET: APIRoute = async (ctx) => {
 
   const raw = ctx.url.searchParams.get('league_id');
   const leagueId = typeof raw === 'string' ? raw.trim() : '';
-  if (leagueId.length > 128) {
+  // A tournament pass is polled by tournament id (success page, api #182).
+  const rawT = ctx.url.searchParams.get('tournament_id');
+  const tournamentId = typeof rawT === 'string' ? rawT.trim() : '';
+  if (leagueId.length > 128 || tournamentId.length > 128) {
     return new Response(JSON.stringify({ error: 'league_id_required' }), {
       status: 400,
       headers: { 'content-type': 'application/json' },
@@ -35,7 +38,11 @@ export const GET: APIRoute = async (ctx) => {
     const data = await callRailway<unknown>(ctx, {
       method: 'GET',
       path: '/api/billing/entitlements',
-      query: leagueId ? { league_id: leagueId } : undefined,
+      query: leagueId
+        ? { league_id: leagueId }
+        : tournamentId
+          ? { tournament_id: tournamentId }
+          : undefined,
     });
     return new Response(JSON.stringify(data), {
       status: 200,

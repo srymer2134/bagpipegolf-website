@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../lib/railway';
+import { directorRefusal, isPassRequiredError } from '../../../lib/tournamentPass';
 import {
   buildCreatePayload,
   MAX_FLIGHTS,
@@ -54,6 +55,13 @@ export const POST: APIRoute = async (ctx) => {
     }
     return json({ id }, 200);
   } catch (err) {
+    // Field-size gate (api #182). This form caps the roster well below the
+    // free limit today, so this is defensive — but a refusal must never
+    // surface as a bare upstream message.
+    if (isPassRequiredError(err)) {
+      const r = directorRefusal(null, (err as RailwayApiError).body);
+      return json(r.body, r.status);
+    }
     if (err instanceof RailwayApiError) {
       return json({ error: err.message }, err.status);
     }
