@@ -5,6 +5,7 @@ import {
   planWeekWrites, seedFromDates, validateSeasonDates, weekRowsFor,
 } from '../../../../lib/leagueSeasonDates';
 import { namesToMap } from '../../../../lib/leagueEventNames';
+import { isPlanGateError, paywallBody, PAYWALL_MESSAGE } from '../../../../lib/planGate';
 
 // POST /api/leagues/[id]/schedule
 //
@@ -19,6 +20,12 @@ import { namesToMap } from '../../../../lib/leagueEventNames';
 // rows rather than erroring. We ask for the updated row back and treat
 // "no row" as 403 — otherwise a non-director would get a cheerful 200
 // and no change.
+//
+// THE PLAN GATE (billing Phase 1c). For a league with no plan the database
+// refuses turning a season on and adding events with SQLSTATE PT402. That
+// is answered with the paywall (402) rather than "Could not save", so the
+// director learns why and where to go. Edits to an existing season — names,
+// dates, the same number of events — are never refused.
 
 const MAX_SLOTS = 104; // mirrors LeagueSchedule.slotDates' 2-year ceiling
 
@@ -132,6 +139,7 @@ export const POST: APIRoute = async (ctx) => {
     .maybeSingle();
 
   if (error) {
+    if (isPlanGateError(error)) return json(paywallBody(id), 402);
     console.error('[api/leagues/schedule:write]', error);
     return json({ error: 'Could not save the schedule.' }, 500);
   }
@@ -176,7 +184,9 @@ export const POST: APIRoute = async (ctx) => {
     }
     if (wErr) {
       console.error('[api/leagues/schedule:weeks]', wErr);
-      weeksError = wErr.code === '23505'
+      weeksError = isPlanGateError(wErr)
+        ? PAYWALL_MESSAGE
+        : wErr.code === '23505'
         ? 'Two events would share a date. The rest of the schedule was saved.'
         : /immutable/i.test(wErr.message ?? '')
           ? 'An event that has already been played cannot be moved. '

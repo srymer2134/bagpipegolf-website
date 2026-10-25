@@ -23,11 +23,13 @@ import { callRailway } from '../../../lib/railway';
 import {
   LEAGUE_DIRECTOR_PRICE_COPY,
   billingErrorMessage,
+  moveTargets,
   offersPortal,
   rowDetail,
   rowState,
   type BillingListResponse,
   type BillingLeagueRow,
+  type OwnedLeague,
 } from '../../../lib/billing';
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
 
@@ -62,14 +64,17 @@ const rows: BillingLeagueRow[] = state?.leagues ?? [];
 const supabase = supabaseFor(Astro as unknown as RouteCtx);
 const { data: leagueRows } = await supabase
   .from('leagues')
-  .select('id, name')
+  .select('id, name, created_at, completed_at')
   .eq('user_id', user.id);
-const nameFor = new Map<string, string>(
-  ((leagueRows ?? []) as Array<{ id: string; name: string | null }>).map((l) => [
-    l.id,
-    (l.name ?? '').trim() || l.id,
-  ]),
-);
+const owned: OwnedLeague[] = ((leagueRows ?? []) as Array<{
+  id: string; name: string | null; created_at: string | null; completed_at: string | null;
+}>).map((l) => ({
+  id: l.id,
+  name: (l.name ?? '').trim() || l.id,
+  created_at: l.created_at,
+  completed_at: l.completed_at,
+}));
+const nameFor = new Map<string, string>(owned.map((l) => [l.id, l.name]));
 
 const notice = billingErrorMessage(Astro.url.searchParams.get('billing'));
 const showPortal = offersPortal(rows);
@@ -127,6 +132,21 @@ const sorted = [...rows].sort((a, b) =>
                   </span>
                   <span class="billlist__detail">{rowDetail(row)}</span>
                 </div>
+                {(() => {
+                  const targets = moveTargets(row, owned, rows);
+                  return targets.length > 0 && (
+                    <form method="POST" action="/api/billing/move" class="move">
+                      <input type="hidden" name="from_league_id" value={row.league_id} />
+                      <label class="move__label">
+                        <span>Season over? Move this plan to</span>
+                        <select name="to_league_id" class="move__pick">
+                          {targets.map((t) => <option value={t.id}>{t.name}</option>)}
+                        </select>
+                      </label>
+                      <button class="btn btn--ghost btn--sm" type="submit">Move to next season</button>
+                    </form>
+                  );
+                })()}
                 {state === 'subscribe' ? (
                   <form method="POST" action="/api/billing/checkout-session">
                     <input type="hidden" name="league_id" value={row.league_id} />
@@ -191,6 +211,9 @@ const sorted = [...rows].sort((a, b) =>
     border-radius: 8px; border: 1px solid var(--rule, #e5e7eb);
     background: rgba(180, 83, 9, 0.07);
   }
+  .move { display: flex; align-items: flex-end; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+  .move__label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; opacity: 0.85; }
+  .move__pick { font: inherit; padding: 0.35rem 0.5rem; border-radius: 8px; border: 1px solid var(--rule, #e5e7eb); }
   .portal { margin-top: 1.5rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
   .portal__hint { font-size: 0.9rem; opacity: 0.75; }
   .pagewrap__fine { margin-top: 1.5rem; font-size: 0.85rem; opacity: 0.65; }

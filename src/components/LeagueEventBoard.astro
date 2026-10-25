@@ -36,9 +36,18 @@ interface Props {
   isDirector: boolean;
   /** The stroke-aggregate mixed-format note, when it applies. */
   caveat: string | null;
+  /** The league has no plan and its owner is enforced (billing Phase 1c).
+   *  False for every owner the gate does not cover — and then nothing on
+   *  this board differs from before. */
+  locked?: boolean;
 }
 
-const { leagueId, rows, myTournaments, isDirector, caveat } = Astro.props;
+const { leagueId, rows, myTournaments, isDirector, caveat, locked = false } = Astro.props;
+
+// Where an attached tournament can move to: events with nothing attached.
+// Moving one never adds a tournament to the league, so it works with or
+// without a plan.
+const emptySlots = rows.filter((r) => !r.tournament).map((r) => r.slot);
 
 const today = new Date().toISOString().slice(0, 10);
 ---
@@ -127,6 +136,24 @@ const today = new Date().toISOString().slice(0, 10);
                   </button>
                 )}
               </div>
+              {isDirector && emptySlots.length > 0 && (
+                <div class="evb__attach evb__move">
+                  <select class="evb__input evb__input--pick" data-move-to={r.slot} aria-label="Move to another event">
+                    <option value="">Move to…</option>
+                    {emptySlots.map((s) => (
+                      <option value={s}>Event {s + 1}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    class="evb__btn"
+                    data-move={r.slot}
+                    data-tid={r.tournament.id}
+                  >
+                    Move
+                  </button>
+                </div>
+              )}
               {r.canManage && r.rsvp && (
                 <p class="evb__help">
                   Attaching does not fill the field. Add this week's players on the
@@ -137,6 +164,12 @@ const today = new Date().toISOString().slice(0, 10);
           ) : isDirector ? (
             <>
               <p class="evb__empty">No tournament attached yet.</p>
+              {locked && myTournaments.length === 0 ? (
+                <p class="evb__help">
+                  Attaching a new tournament needs an active plan.
+                  <a href={`/app/billing?league_id=${encodeURIComponent(leagueId)}`}>See plans</a>
+                </p>
+              ) : (
               <div class="evb__attach">
                 <select class="evb__input evb__input--pick" data-pick={r.slot}>
                   <option value="">Choose one of yours…</option>
@@ -150,9 +183,12 @@ const today = new Date().toISOString().slice(0, 10);
                   Attach
                 </button>
               </div>
-              <p class="evb__help">
-                Nothing suitable? <a href="/app/tournaments/new">Create a tournament</a>, then come back and attach it.
-              </p>
+              )}
+              {!locked && (
+                <p class="evb__help">
+                  Nothing suitable? <a href="/app/tournaments/new">Create a tournament</a>, then come back and attach it.
+                </p>
+              )}
             </>
           ) : (
             <p class="evb__empty">Not set up yet.</p>
@@ -165,7 +201,7 @@ const today = new Date().toISOString().slice(0, 10);
   </div>
 </section>
 
-<script is:inline define:vars={{ leagueId }}>
+<script is:inline define:vars={{ leagueId, locked }}>
   (() => {
     const board = document.querySelector('.evb');
     if (!board) return;
@@ -178,6 +214,8 @@ const today = new Date().toISOString().slice(0, 10);
       el.classList.toggle('is-bad', !!bad);
     };
 
+    // Resolves true on success, else the refusal's code (or false), so a
+    // caller can branch on `already_bound`. Callers compare `=== true`.
     const save = async (slot, patch, busy) => {
       say(slot, 'Saving…', false);
       if (busy) busy.disabled = true;
@@ -193,8 +231,19 @@ const today = new Date().toISOString().slice(0, 10);
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
           say(slot, body.error || `Could not save (${res.status}).`, true);
+          // The plan gate: add a real link to billing (same-origin only).
+          if (body.code === 'league_subscription_required'
+              && String(body.billing_url || '').startsWith('/app/billing')) {
+            const el = board.querySelector(`[data-status="${slot}"]`);
+            if (el) {
+              const a = document.createElement('a');
+              a.href = body.billing_url;
+              a.textContent = ' See plans';
+              el.appendChild(a);
+            }
+          }
           if (busy) busy.disabled = false;
-          return false;
+          return body.code || false;
         }
         return true;
       } catch {
@@ -211,7 +260,7 @@ const today = new Date().toISOString().slice(0, 10);
         const slot = Number(sel.dataset.format);
         const ok = await save(slot, { format: sel.value }, sel);
         sel.disabled = false;
-        if (ok) say(slot, 'Format saved.', false);
+        if (ok === true) say(slot, 'Format saved.', false);
       });
     });
 
@@ -225,7 +274,35 @@ const today = new Date().toISOString().slice(0, 10);
           say(slot, 'Pick a tournament first.', true);
           return;
         }
-        if (await save(slot, { tournamentId: id }, btn)) window.location.reload();
+        const r = await save(slot, { tournamentId: id }, btn);
+        if (r === true) { window.location.reload(); return; }
+        // Already another event's tournament: offer to move it here, in one
+        // write, instead of a dead end.
+        if (r === 'already_bound') {
+          const status = board.querySelector(`[data-status="${slot}"]`);
+          const msg = status ? status.textContent : '';
+          if (window.confirm(`${msg} Move it here instead?`)) {
+            if (await save(slot, { tournamentId: id, move: true }, btn) === true) window.location.reload();
+          }
+        }
+      });
+    });
+
+    board.querySelectorAll('button[data-move]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const from = Number(btn.dataset.move);
+        const pick = board.querySelector(`select[data-move-to="${from}"]`);
+        const to = pick && pick.value !== '' ? Number(pick.value) : NaN;
+        if (!Number.isInteger(to)) {
+          say(from, 'Pick an event to move it to.', true);
+          return;
+        }
+        const r = await save(to, { tournamentId: btn.dataset.tid, move: true }, btn);
+        if (r === true) { window.location.reload(); return; }
+        // The error landed on the destination card; mirror it here, where
+        // the director clicked.
+        const dest = board.querySelector(`[data-status="${to}"]`);
+        say(from, dest ? dest.textContent : 'Could not move it.', true);
       });
     });
 
@@ -234,9 +311,12 @@ const today = new Date().toISOString().slice(0, 10);
         const slot = Number(btn.dataset.detach);
         if (!window.confirm(
           'Detach this tournament from the event? The tournament itself is '
-          + 'kept — only the link to this week is removed.',
+          + 'kept — only the link to this week is removed.'
+          + (locked
+            ? ' This league has no active plan, so you may not be able to attach it again.'
+            : ''),
         )) return;
-        if (await save(slot, { tournamentId: null }, btn)) window.location.reload();
+        if (await save(slot, { tournamentId: null }, btn) === true) window.location.reload();
       });
     });
   })();
@@ -350,6 +430,7 @@ const today = new Date().toISOString().slice(0, 10);
 
   .evb__actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .evb__attach { display: flex; gap: 8px; align-items: center; }
+  .evb__move { margin-top: 10px; }
   .evb__attach .evb__input { flex: 1 1 auto; min-width: 0; }
 
   .evb__btn {

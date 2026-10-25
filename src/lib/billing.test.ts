@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   billingErrorMessage,
+  moveTargets,
   daysUntil,
   formatPeriodEnd,
   offersPortal,
@@ -149,5 +150,42 @@ describe('billingErrorMessage', () => {
     expect(billingErrorMessage('already_subscribed')).toContain('already has an active');
     expect(billingErrorMessage('not_league_owner')).toContain('league owner');
     expect(billingErrorMessage('no_customer')).toContain('subscribe first');
+  });
+});
+
+describe('moveTargets — "Move to next season"', () => {
+  const row = (league_id: string, entitled: boolean, source: 'stripe' | 'comp' | null = 'stripe') => ({
+    league_id, entitled, pays: true, source, period_end: '2027-10-24T00:00:00Z', cancel_at_period_end: false,
+  });
+  const owned = [
+    { id: 'old', name: 'Spring', created_at: '2026-03-01T00:00:00Z', completed_at: '2026-06-01T00:00:00Z' },
+    { id: 'new', name: 'Fall', created_at: '2026-08-01T00:00:00Z', completed_at: null },
+    { id: 'newer_paid', name: 'Winter', created_at: '2026-09-01T00:00:00Z', completed_at: null },
+    { id: 'older', name: 'Last year', created_at: '2025-03-01T00:00:00Z', completed_at: '2025-06-01T00:00:00Z' },
+  ];
+
+  it('a completed paid league offers newer, uncovered leagues only', () => {
+    const rows = [row('old', true), row('newer_paid', true), row('new', false, null)];
+    expect(moveTargets(rows[0], owned, rows).map((l) => l.id)).toEqual(['new']);
+  });
+
+  it('a comp moves too', () => {
+    const rows = [row('old', true, 'comp')];
+    expect(moveTargets(rows[0], owned, rows).map((l) => l.id)).toEqual(['newer_paid', 'new']);
+  });
+
+  it('nothing for a league that is not complete, not paid, or unknown', () => {
+    const rows = [row('new', true), row('old', false, null)];
+    expect(moveTargets(rows[0], owned, rows)).toEqual([]); // not complete
+    expect(moveTargets(rows[1], owned, rows)).toEqual([]); // nothing to move
+    expect(moveTargets(row('ghost', true), owned, [])).toEqual([]);
+  });
+
+  it('every move refusal from the API has its own sentence', () => {
+    const codes = ['moved', 'move_already_this_term', 'move_target_covered', 'move_not_newer',
+      'move_not_owner', 'move_nothing_to_move', 'move_same_league', 'comped'];
+    const msgs = codes.map((c) => billingErrorMessage(c));
+    for (const m of msgs) expect(m).not.toMatch(/Something went wrong/);
+    expect(new Set(msgs).size).toBe(codes.length);
   });
 });

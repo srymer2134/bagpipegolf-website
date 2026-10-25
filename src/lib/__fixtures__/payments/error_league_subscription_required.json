@@ -1,0 +1,9 @@
+{
+  "http": 402,
+  "body": {
+    "error": "This league needs an active plan to take card payments.",
+    "code": "league_subscription_required",
+    "league_id": "league_1791852955566",
+    "billing_url": "https://bagpipegolf.com/app/billing"
+  }
+}

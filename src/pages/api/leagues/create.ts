@@ -4,6 +4,8 @@ import {
   buildLeagueRow, validateCreateLeague, type CreateLeagueInput,
 } from '../../../lib/leagueCreate';
 import { weekRowsFor } from '../../../lib/leagueSeasonDates';
+import { billingUrlFor, isLocked, isPlanGateError, PAYWALL_MESSAGE } from '../../../lib/planGate';
+import { fetchLeagueEntitlement } from '../../../lib/planGateServer';
 
 // POST /api/leagues/create
 //
@@ -16,6 +18,14 @@ import { weekRowsFor } from '../../../lib/leagueSeasonDates';
 // so a forged `user_id` in the payload is rejected by Postgres rather
 // than trusted here. We still set it from the session so the common
 // path never trips that check.
+//
+// THE PLAN GATE (billing Phase 1c). Creating a league is always free. For
+// an owner the gate covers, the database lets the row in with its season
+// CLEARED, and then refuses week rows for a league with no season. So when
+// the director asked for a schedule, we ask first whether this league is
+// `enforced && !entitled`; if it is, no weeks are written and the answer
+// carries the paywall instead of "set them on the schedule page", which
+// would send them to a page that refuses the same thing.
 export const POST: APIRoute = async (ctx) => {
   const locals = ctx.locals as App.Locals;
   const user = locals.user;
@@ -69,11 +79,18 @@ export const POST: APIRoute = async (ctx) => {
     // reported instead, so the page can say what happened.
     let weeks = 0;
     let weeksError: string | null = null;
+    let paywall: string | null = null;
     if (input.scheduleEnabled && data?.id) {
       const rows = weekRowsFor(data.id, input.dates ?? []);
-      if (rows.length) {
+      if (rows.length && isLocked(await fetchLeagueEntitlement(ctx, data.id))) {
+        paywall = billingUrlFor(data.id);
+        weeksError = PAYWALL_MESSAGE;
+      } else if (rows.length) {
         const { error: wErr } = await supabase.from('league_weeks').insert(rows);
-        if (wErr) {
+        if (wErr && isPlanGateError(wErr)) {
+          paywall = billingUrlFor(data.id);
+          weeksError = PAYWALL_MESSAGE;
+        } else if (wErr) {
           console.error('[api/leagues/create:weeks]', wErr);
           weeksError = wErr.code === '23505'
             ? 'Two events share a date, so the schedule was not saved. '
@@ -86,7 +103,7 @@ export const POST: APIRoute = async (ctx) => {
       }
     }
 
-    return json({ ok: true, id: data?.id, name: data?.name, weeks, weeksError }, 201);
+    return json({ ok: true, id: data?.id, name: data?.name, weeks, weeksError, paywall }, 201);
   } catch (err) {
     console.error('[api/leagues/create] unexpected', err);
     return json({ error: 'Could not create the league.' }, 500);

@@ -52,6 +52,7 @@ const state = view?.state ?? null;
   {notice && (
     <div class="pset__notice" role="alert">
       <strong>{notice.title}</strong> {notice.body}
+      {notice.link && <> <a href={notice.link.href}>{notice.link.label}</a></>}
     </div>
   )}
 

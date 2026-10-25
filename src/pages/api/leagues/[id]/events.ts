@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import type { LeagueSchedule } from '../../../../lib/leaguePortal';
 import { WEEK_FORMATS } from '../../../../lib/leagueEvents';
+import { planBinding } from '../../../../lib/leagueEventBind';
+import { isPlanGateError, paywallBody } from '../../../../lib/planGate';
 
 // POST /api/leagues/[id]/events
 //
@@ -26,7 +28,14 @@ import { WEEK_FORMATS } from '../../../../lib/leagueEvents';
 //     `tournaments` UPDATE is `user_id = auth.uid()` while SELECT is
 //     public, so binding a tournament you can only read would create an
 //     event in your own league that you cannot run. Refuse it here
-//     rather than ship a Manage button that 302s away.
+//     rather than ship a Manage button that 302s away. An id the league
+//     ALREADY has skips this — see lib/leagueEventBind.ts.
+//
+// MOVE. `{slot, tournamentId, move: true}` moves an attached tournament
+// to another event in one write (lib/leagueEventBind.ts). A league with
+// no plan may still do that: the database refuses only a tournament the
+// league did not already have. Anything it does refuse comes back as
+// SQLSTATE PT402 and is answered with the paywall (402), not a 500.
 
 const MAX_SLOT = 51; // mirrors the 2..52 event bound on /schedule
 
@@ -46,6 +55,8 @@ export const POST: APIRoute = async (ctx) => {
     tournamentId?: string | null;
     /** A week format, '' or null to clear, undefined to leave alone. */
     format?: string | null;
+    /** Move `tournamentId` here from whichever event holds it. */
+    move?: boolean;
   };
   try {
     body = await ctx.request.json();
@@ -81,7 +92,7 @@ export const POST: APIRoute = async (ctx) => {
 
   const { data: existing, error: readErr } = await supabase
     .from('leagues')
-    .select('schedule, user_id')
+    .select('schedule, user_id, event_tournament_ids')
     .eq('id', id)
     .maybeSingle();
   if (readErr) {
@@ -101,23 +112,23 @@ export const POST: APIRoute = async (ctx) => {
     return json({ error: 'That event is not in this season.' }, 400);
   }
 
-  const bindings: Record<string, string> = { ...(prev.bindings ?? {}) };
+  let bindings: Record<string, string> = { ...(prev.bindings ?? {}) };
   const formats: Record<string, string> = { ...(prev.formats ?? {}) };
   const key = String(slot);
 
   if (touchesBinding) {
-    if (rawTid === '') {
-      delete bindings[key];
-    } else {
-      // A tournament is ONE event. Binding it to a second slot would
-      // make the same leaderboard count twice in the standings.
-      const clash = Object.entries(bindings)
-        .find(([k, v]) => v === rawTid && k !== key);
-      if (clash) {
-        return json({
-          error: `That tournament is already event ${Number(clash[0]) + 1} of this season.`,
-        }, 409);
-      }
+    const eventIds = (existing as { event_tournament_ids?: string[] | null }).event_tournament_ids ?? [];
+    const plan = planBinding({
+      bindings,
+      eventIds,
+      slot,
+      tid: rawTid,
+      move: body.move === true,
+    });
+    if (!plan.ok) {
+      return json({ error: plan.error, code: plan.code, boundSlot: plan.boundSlot ?? null }, plan.status);
+    }
+    if (plan.needsOwnership) {
       // Ownership, not just existence. See the header.
       const { data: t, error: tErr } = await supabase
         .from('tournaments')
@@ -135,8 +146,8 @@ export const POST: APIRoute = async (ctx) => {
             + 'nobody in this league could run it.',
         }, 403);
       }
-      bindings[key] = rawTid;
     }
+    bindings = plan.bindings;
   }
 
   if (touchesFormat) {
@@ -156,6 +167,7 @@ export const POST: APIRoute = async (ctx) => {
     .select('id')
     .maybeSingle();
   if (error) {
+    if (isPlanGateError(error)) return json(paywallBody(id), 402);
     console.error('[api/leagues/events:write]', error);
     return json({ error: 'Could not save this event.' }, 500);
   }

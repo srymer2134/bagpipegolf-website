@@ -12,6 +12,8 @@ import {
   fetchSignupCounts, mixedFormatCaveat,
   type BoundTournament, type LeagueEventRow,
 } from '../../../../lib/leagueEvents';
+import { attachChoices, billingUrlFor, isLocked, PAYWALL_MESSAGE } from '../../../../lib/planGate';
+import { fetchLeagueEntitlement } from '../../../../lib/planGateServer';
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
@@ -75,6 +77,16 @@ let boundTournaments = new Map<string, BoundTournament>();
 let myTournaments: Array<{ id: string; name: string; completed_at: string | null }> = [];
 let eventRows: LeagueEventRow[] = [];
 let caveat: string | null = null;
+// ── The plan gate (billing Phase 1c) ────────────────────────────
+//
+// Read once, for the director only. `locked` is true ONLY for
+// `enforced && !entitled`; an owner the gate does not cover — every owner
+// while it is off — gets `false` and sees exactly the page they saw before.
+let locked = false;
+let attachOptions: Array<{ id: string; name: string; completed_at: string | null }> = [];
+if (d && isDirector) {
+  locked = isLocked(await fetchLeagueEntitlement(Astro, d.league.id));
+}
 if (d) {
   const count = Math.max(
     Number(sched?.eventCount) || 0,
@@ -99,6 +111,24 @@ if (d) {
     signups: signupCounts,
   });
   caveat = mixedFormatCaveat(d.league.points_model, sched?.formats);
+
+  // Locked: the picker offers only tournaments the league already has (the
+  // database refuses anything new). Unlocked: the director's own, as before.
+  let eventIds: string[] = [];
+  let known = new Map<string, { name: string; completed_at: string | null }>();
+  if (locked) {
+    const { data: lr } = await supabase
+      .from('leagues')
+      .select('event_tournament_ids')
+      .eq('id', d.league.id)
+      .maybeSingle();
+    eventIds = ((lr as { event_tournament_ids?: string[] | null } | null)?.event_tournament_ids ?? []);
+    const unbound = Object.fromEntries(eventIds.map((t, i) => [String(i), t]));
+    known = new Map(
+      [...(await fetchBoundTournaments(supabase, unbound)).values()].map((t) => [t.id, t]),
+    );
+  }
+  attachOptions = attachChoices({ locked, mine: myTournaments, eventIds, bindings: sched?.bindings, known });
 }
 ---
 
@@ -124,7 +154,13 @@ if (d) {
           </div>
         )}
 
-        {isDirector && (
+        {isDirector && locked && (
+          <div class="notice notice--plan" role="status">
+            {PAYWALL_MESSAGE} <a href={billingUrlFor(d.league.id)}>See plans</a>
+          </div>
+        )}
+
+        {isDirector && !(locked && !sched) && (
           <section class="card setup">
             <h3>{sched ? 'Edit the season' : 'Set up the season'}</h3>
             <p class="small muted">
@@ -163,9 +199,10 @@ if (d) {
           <LeagueEventBoard
             leagueId={d.league.id}
             rows={eventRows}
-            myTournaments={myTournaments}
+            myTournaments={attachOptions}
             isDirector={isDirector}
             caveat={caveat}
+            locked={locked}
           />
         )}
 
@@ -266,6 +303,14 @@ if (d) {
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
           err.textContent = body.error || `Could not save (${res.status}).`;
+          // The plan gate: say where to go, as a real link (same-origin only).
+          if (body.code === 'league_subscription_required'
+              && String(body.billing_url || '').startsWith('/app/billing')) {
+            const a = document.createElement('a');
+            a.href = body.billing_url;
+            a.textContent = ' See plans';
+            err.appendChild(a);
+          }
           err.hidden = false;
           btn.disabled = false;
           btn.textContent = label;
@@ -319,6 +364,8 @@ if (d) {
     border-radius: 8px; background: #fff; width: 100%;
   }
   .notice--warn { background: #fdecea; border: 1px solid #c4453a; color: #7d241c; }
+  .notice--plan { background: #fdf6e8; border: 1px solid #e8d7ad; color: #6b4e11; }
+  .notice--plan a { color: var(--brand-green-dark, #1f5b30); font-weight: 600; }
   .small { font-size: 0.78125rem; }
   .muted { color: var(--ink-muted, #4b5b54); }
 </style>
