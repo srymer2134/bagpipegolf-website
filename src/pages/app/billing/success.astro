@@ -13,6 +13,10 @@
 //
 // The success_url is set by the API (api #173) to
 // /app/billing/success?session_id={CHECKOUT_SESSION_ID}&league_id=<id>.
+// A TOURNAMENT PASS lands here too (api #182), as
+// ?session_id=…&tournament_id=<id>. Same idea: poll until the tournament's
+// `field.entitled` is true.
+//
 // `session_id` is accepted and ignored: there is no retrieve-session route,
 // and the entitlement read is a better question anyway — "is this league
 // covered" is what the director actually wants to know, and it stays true on
@@ -22,30 +26,45 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 const locals = Astro.locals as App.Locals;
 const leagueParam = (Astro.url.searchParams.get('league_id') ?? '').trim();
 const leagueId = leagueParam.length > 0 && leagueParam.length <= 128 ? leagueParam : '';
+const tournamentParam = (Astro.url.searchParams.get('tournament_id') ?? '').trim();
+const tournamentId =
+  !leagueId && tournamentParam.length > 0 && tournamentParam.length <= 128 ? tournamentParam : '';
+const isPass = tournamentId !== '';
 
 if (!locals.user) {
   const next = leagueId
     ? `/app/billing/success?league_id=${encodeURIComponent(leagueId)}`
-    : '/app/billing';
+    : isPass
+      ? `/app/billing/success?tournament_id=${encodeURIComponent(tournamentId)}`
+      : '/app/billing';
   return Astro.redirect(`/login?next=${encodeURIComponent(next)}`, 302);
 }
-if (!leagueId) return Astro.redirect('/app/billing', 302);
+if (!leagueId && !isPass) return Astro.redirect('/app/billing', 302);
 
-const pollUrl = `/api/billing/entitlements?league_id=${encodeURIComponent(leagueId)}`;
+const pollUrl = isPass
+  ? `/api/billing/entitlements?tournament_id=${encodeURIComponent(tournamentId)}`
+  : `/api/billing/entitlements?league_id=${encodeURIComponent(leagueId)}`;
+const backHref = isPass ? `/app/tournaments/${encodeURIComponent(tournamentId)}/manage` : '/app/billing';
+const backLabel = isPass ? 'Back to your tournament' : 'Your subscription';
+const heading = isPass ? 'Confirming your tournament pass…' : 'Confirming your subscription…';
+const doneHeading = isPass ? 'Your tournament pass is active.' : 'You’re subscribed.';
+const doneDetail = isPass
+  ? 'Your field can now grow past the free limit. Players can keep joining.'
+  : 'This league is covered for the next twelve months, and it will renew automatically.';
 ---
 
-<BaseLayout title="Confirming your subscription · Bagpipe Golf">
+<BaseLayout title={isPass ? 'Confirming your tournament pass · Bagpipe Golf' : 'Confirming your subscription · Bagpipe Golf'}>
   <section class="pagewrap">
     <p class="pagewrap__eyebrow">Billing</p>
 
-    <h1 class="pagewrap__title" id="title">Confirming your subscription…</h1>
+    <h1 class="pagewrap__title" id="title">{heading}</h1>
     <p class="pagewrap__sub" id="sub">
       Your payment went through. We’re waiting for Stripe to confirm it, which
       usually takes a few seconds.
     </p>
 
     <p id="actions" hidden>
-      <a class="btn btn--primary" href="/app/billing">Your subscription</a>
+      <a class="btn btn--primary" href={backHref}>{backLabel}</a>
     </p>
 
     <noscript>
@@ -58,7 +77,7 @@ const pollUrl = `/api/billing/entitlements?league_id=${encodeURIComponent(league
   </section>
 </BaseLayout>
 
-<script define:vars={{ pollUrl }}>
+<script define:vars={{ pollUrl, isPass, doneHeading, doneDetail }}>
   // Back off rather than hammer: ~30s of attempts, widening gaps.
   const DELAYS = [700, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000];
   const title = document.getElementById('title');
@@ -80,11 +99,14 @@ const pollUrl = `/api/billing/entitlements?league_id=${encodeURIComponent(league
       });
       if (res.ok) {
         const body = await res.json();
-        if (body && body.entitled === true) {
-          settle(
-            'You’re subscribed.',
-            'This league is covered for the next twelve months, and it will renew automatically.',
-          );
+        // A pass is confirmed by the tournament's FIELD entitlement; the
+        // top-level `entitled` on a standalone tournament is the payments
+        // answer and is always true, so it must not be read here.
+        const done = isPass
+          ? Boolean(body && body.field && body.field.entitled === true)
+          : Boolean(body && body.entitled === true);
+        if (done) {
+          settle(doneHeading, doneDetail);
           return;
         }
       }

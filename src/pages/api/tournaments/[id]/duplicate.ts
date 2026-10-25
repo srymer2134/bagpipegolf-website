@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseFromApi } from '../../../../lib/supabase';
 import { callRailway, RailwayApiError } from '../../../../lib/railway';
+import { directorRefusal, isPassRequiredError } from '../../../../lib/tournamentPass';
 import { getPublicTournament } from '../../../../lib/tournamentQueries';
 import { newTournamentId } from '../../../../lib/tournamentCreate';
 
@@ -128,6 +129,12 @@ export const POST: APIRoute = async (ctx) => {
     }
     return json({ id: newTournamentIdReturned }, 200);
   } catch (err) {
+    // Field-size gate (api #182): the copy would be past the free limit,
+    // so it was not created. Director-facing — name the pass.
+    if (isPassRequiredError(err)) {
+      const r = directorRefusal(null, (err as RailwayApiError).body);
+      return json(r.body, r.status);
+    }
     if (err instanceof RailwayApiError) {
       return json({ error: err.message }, err.status);
     }

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../../lib/railway';
 import { createSupabaseFromApi } from '../../../../lib/supabase';
+import { isPassRequiredError, playerRefusal } from '../../../../lib/tournamentPass';
 
 // POST /api/tournaments/[id]/join
 //
@@ -74,6 +75,13 @@ export const POST: APIRoute = async (ctx) => {
       200,
     );
   } catch (err) {
+    // Field-size gate (api #182): the tournament is past its free limit
+    // with no pass. A PLAYER can't buy one, so: full, ask the organizer —
+    // no price, no billing link (lib/tournamentPass.ts).
+    if (isPassRequiredError(err)) {
+      const r = playerRefusal();
+      return json(r.body, r.status);
+    }
     if (err instanceof RailwayApiError) {
       return json({ error: err.message }, err.status);
     }

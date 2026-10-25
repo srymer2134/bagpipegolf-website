@@ -30,6 +30,9 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
 import LeagueEventBanner from '../../../../components/LeagueEventBanner.astro';
+import TournamentPassNotice from '../../../../components/TournamentPassNotice.astro';
+import { callRailway } from '../../../../lib/railway';
+import { fieldFromEntitlements, fieldNotice, type FieldNotice } from '../../../../lib/tournamentPass';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import { getPublicTournament, type TournamentPlayer } from '../../../../lib/tournamentQueries';
 import { leagueEventFor, type LeagueEventContext } from '../../../../lib/leagueEvents';
@@ -87,6 +90,23 @@ if (tournament && id) {
 let leagueEvent: LeagueEventContext | null = null;
 if (tournament) {
   leagueEvent = await leagueEventFor(supabase, user.id, id);
+}
+
+// The tournament pass (api #182): standalone tournaments only — a league
+// event is covered by its league's plan. Null unless the gate is enforced
+// for this owner, and a failed read is "no notice", never a lock.
+let passNotice: FieldNotice | null = null;
+if (tournament && id && !leagueEvent) {
+  try {
+    const ent = await callRailway<unknown>(Astro, {
+      method: 'GET',
+      path: '/api/billing/entitlements',
+      query: { tournament_id: id },
+    });
+    passNotice = fieldNotice(fieldFromEntitlements(ent));
+  } catch {
+    passNotice = null;
+  }
 }
 
 // Fetch the director's friends roster for the "Add from friends"
@@ -175,6 +195,7 @@ if (tournament) {
 
     <TournamentSubnav id={id!} active="manage" />
     <LeagueEventBanner ctx={leagueEvent} />
+    <TournamentPassNotice notice={passNotice} tournamentId={id!} />
 
     {/* W1 entry point — only with PAYMENTS_ENABLED AND when the API says
         this tournament takes payments (`showPaymentsLink`, above). This
@@ -856,6 +877,22 @@ if (tournament) {
           body: JSON.stringify({ players: state.working.map(normalize) }),
         });
         const data = await res.json().catch(() => ({}));
+        // Field-size gate (api #182): the roster was refused (past the free
+        // limit with no pass) even though the request "succeeded".
+        const refused = data && (data.roster_refused || (res.status === 402 ? data : null));
+        if (refused && refused.error) {
+          state.saving = false;
+          saveBtn.textContent = 'Save roster';
+          refreshSaveGate();
+          showError(refused.error + ' ');
+          if (typeof refused.pass_url === 'string' && refused.pass_url.startsWith('/app/billing')) {
+            const a = document.createElement('a');
+            a.href = refused.pass_url;
+            a.textContent = 'Get a pass';
+            errorBox.appendChild(a);
+          }
+          return;
+        }
         if (!res.ok) {
           state.saving = false;
           saveBtn.textContent = 'Save roster';
@@ -1338,7 +1375,16 @@ if (tournament) {
           busy = false;
           duplicateBtn.disabled = false;
           duplicateBtn.textContent = 'Duplicate tournament';
-          return showError(data.error || `Duplicate failed with ${res.status}`);
+          showError(data.error || `Duplicate failed with ${res.status}`);
+          // Field-size gate (api #182): link to where a pass is bought.
+          if (typeof data.pass_url === 'string' && data.pass_url.startsWith('/app/billing')) {
+            errorBox.append(' ');
+            const a = document.createElement('a');
+            a.href = data.pass_url;
+            a.textContent = 'Get a pass';
+            errorBox.appendChild(a);
+          }
+          return;
         }
         // Land on the new tournament's Manage page so the director
         // can immediately tweak roster/rounds for the new event.

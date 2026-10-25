@@ -151,6 +151,17 @@ export function billingErrorMessage(code: string | null | undefined): string | n
       return 'That league has no plan to move.';
     case 'move_same_league':
       return 'Pick a different season to move to.';
+    // Tournament pass (api #182). Nothing is charged by any of these.
+    case 'already_has_pass':
+      return 'That tournament already has a pass.';
+    case 'league_tournament':
+      return "That tournament is part of a league — the league's plan covers it.";
+    case 'not_tournament_owner':
+      return 'Only the tournament director can buy its pass.';
+    case 'tournament_not_found':
+      return 'That tournament could not be found.';
+    case 'tournament_id_required':
+      return 'Pick a tournament first.';
     default:
       return 'Something went wrong. Nothing was charged — try again.';
   }

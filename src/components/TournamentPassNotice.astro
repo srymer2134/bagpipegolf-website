@@ -1,0 +1,57 @@
+---
+// The tournament pass on a director's Manage page (api #182).
+//
+// Renders NOTHING unless the API says the field gate is enforced for this
+// owner (`fieldNotice` returns null otherwise) — so while
+// billing.config.gate is 'off', no director sees any change.
+//
+// The button is a form POST to /api/billing/tournament-checkout, never a
+// link: the Checkout Session is minted by the POST, so a link-preview bot
+// can't spend it, and the caller can name no price (lib/tournamentPass.ts).
+import { TOURNAMENT_PASS_PRICE_COPY, type FieldNotice } from '../lib/tournamentPass';
+
+interface Props {
+  notice: FieldNotice | null;
+  tournamentId: string;
+}
+const { notice, tournamentId } = Astro.props;
+---
+
+{notice && notice.kind === 'needs_pass' && (
+  <section class="passnote passnote--needs" id="tournament-pass" role="status">
+    <p class="passnote__text">
+      <strong>This tournament has {notice.field_size} players.</strong>
+      Tournaments of more than {notice.free_max} players need a tournament
+      pass — {TOURNAMENT_PASS_PRICE_COPY}, once. Until then no one else can join.
+    </p>
+    <form method="POST" action="/api/billing/tournament-checkout">
+      <input type="hidden" name="tournament_id" value={tournamentId} />
+      <button class="btn btn--primary btn--sm" type="submit">
+        Get tournament pass — {TOURNAMENT_PASS_PRICE_COPY}
+      </button>
+    </form>
+  </section>
+)}
+
+{notice && notice.kind === 'has_pass' && (
+  <section class="passnote" id="tournament-pass" role="status">
+    <p class="passnote__text">
+      <strong>Tournament pass active.</strong>
+      {notice.comped
+        ? ' This tournament is covered at no charge, so its field can grow past '
+        : ' Its field can grow past '}
+      {notice.free_max} players.
+    </p>
+  </section>
+)}
+
+<style>
+  .passnote {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+    margin: 0 0 1rem; padding: 0.75rem 0.95rem;
+    border-radius: 8px; border: 1px solid var(--rule, #e5e7eb);
+  }
+  .passnote--needs { background: rgba(180, 83, 9, 0.07); }
+  .passnote__text { margin: 0; max-width: 60ch; }
+</style>
