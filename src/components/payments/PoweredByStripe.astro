@@ -1,0 +1,34 @@
+---
+// "Powered by Stripe" — Stripe's own badge, from the kit at
+// stripe.com/newsroom/brand-assets (Powered_by_Stripe-badge.zip, the
+// black variant). The file in public/brand/ is byte-for-byte Stripe's:
+// the lettering is outlined paths, so it carries Stripe's typeface
+// without us loading a font. poweredByStripe.test.ts holds its hash.
+//
+// Rules from stripe.com/legal/marks that shape this component:
+//   - only on pages about Stripe-run payments (checkout, pricing of card
+//     collection) — never site-wide, so it is NOT in the footer;
+//   - unaltered: no recolouring, cropping or redrawing — size only;
+//   - never more prominent than our own branding — hence a small,
+//     quiet line under the payment copy;
+//   - Stripe asks that the badge link to stripe.com.
+interface Props {
+  /** Left (default) or centred under a centred block. */
+  align?: 'start' | 'center';
+}
+const { align = 'start' } = Astro.props;
+---
+
+<p class:list={['pbs', `pbs--${align}`]}>
+  <a href="https://stripe.com" target="_blank" rel="noopener noreferrer">
+    <img src="/brand/powered-by-stripe.svg" alt="Powered by Stripe" width="119" height="27" loading="lazy" />
+  </a>
+</p>
+
+<style>
+  .pbs { margin: 12px 0 0; line-height: 0; }
+  .pbs--center { text-align: center; }
+  .pbs a { display: inline-block; border-radius: 4px; }
+  .pbs a:focus-visible { outline: 2px solid var(--brand-green-dark, #1f5133); outline-offset: 2px; }
+  .pbs img { display: block; height: 27px; width: auto; }
+</style>
