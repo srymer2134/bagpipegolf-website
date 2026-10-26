@@ -16,6 +16,7 @@
 // refused with `already_paid`. Never from a URL.
 import type { CheckoutNotice, PaymentScope } from '../../lib/payments';
 import { kindFor } from '../../lib/payments';
+import PoweredByStripe from './PoweredByStripe.astro';
 
 interface Props {
   scope: PaymentScope;
@@ -76,6 +77,7 @@ const showPaid = paid || notice?.code === 'already_paid';
         Card only, on Stripe’s secure page. Your entry updates once
         Stripe confirms the payment.
       </p>
+      <PoweredByStripe />
     </>
   )}
 </section>

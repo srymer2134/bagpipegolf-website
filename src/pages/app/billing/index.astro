@@ -32,6 +32,7 @@ import {
   type OwnedLeague,
 } from '../../../lib/billing';
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
+import PoweredByStripe from '../../../components/payments/PoweredByStripe.astro';
 
 const locals = Astro.locals as App.Locals;
 const user = locals.user;
@@ -178,6 +179,7 @@ const sorted = [...rows].sort((a, b) =>
           Payment is taken by Stripe — card details never reach Bagpipe.
           Applicable sales tax is calculated at checkout.
         </p>
+        <PoweredByStripe />
       </>
     )}
   </section>
