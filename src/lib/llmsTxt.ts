@@ -45,7 +45,7 @@ export function buildLlmsTxt(): string {
 
 > Bagpipe Golf is an iPhone and iPad app for golf side games, scorecards,
 > buddies trips, tournaments and leagues. It is made by Taybuta, Inc.
-> Free for players; tournaments are free up to 36 players and $240 at 37 or more; leagues are $2,000 a year per league.
+> Free for players; tournaments are free up to 36 players and $240 at 37 or more; leagues are $2,000 a year per league, with a 30-day free trial and no card needed to start.
 > Android is in development.
 
 ## What it does

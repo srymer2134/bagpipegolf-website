@@ -30,6 +30,13 @@ describe('pricing copy — the league plan', () => {
     expect(d).toContain('mailto:hello@bagpipegolf.com?subject=Smaller%20league%20pricing');
   });
 
+  it('offers the 30-day free trial, no card, one per director (Sam 2026-10-26)', () => {
+    expect(pricing).toMatch(/Try it free for 30 days\.<\/strong> No card needed\./);
+    const d = pricing.slice(pricing.indexOf('id="league-plan-details"'));
+    expect(d).toMatch(/Try it free for 30 days<\/strong> — no card needed/);
+    expect(d).toMatch(/One free\s+trial per league director/);
+  });
+
   it('carries no stale tournament price and drops "limited time"', () => {
     // The plan's earlier figure was $250; Sam set $240 on 2026-10-25.
     expect(pricing).not.toMatch(/\$250/);
