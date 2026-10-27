@@ -25,8 +25,10 @@ import {
   billingErrorMessage,
   moveTargets,
   offersPortal,
+  offersTrial,
   rowDetail,
   rowState,
+  trialButtonCopy,
   type BillingListResponse,
   type BillingLeagueRow,
   type OwnedLeague,
@@ -59,6 +61,9 @@ if (!loadFailed && state && !state.billing_available) {
 }
 
 const rows: BillingLeagueRow[] = state?.leagues ?? [];
+// `state` is shadowed inside the row map (the row's badge state), so the
+// response gets a second name for the trial checks there.
+const billingState = state;
 
 // League names are not in the entitlements response — it is keyed by id — so
 // they come from the same read /app/payments/setup uses.
@@ -129,6 +134,7 @@ const sorted = [...rows].sort((a, b) =>
                     {state === 'active' && 'Subscribed'}
                     {state === 'ending' && 'Ending'}
                     {state === 'comped' && 'No charge'}
+                    {state === 'trial' && 'Free trial'}
                     {state === 'subscribe' && 'Not subscribed'}
                   </span>
                   <span class="billlist__detail">{rowDetail(row)}</span>
@@ -148,13 +154,26 @@ const sorted = [...rows].sort((a, b) =>
                     </form>
                   );
                 })()}
-                {state === 'subscribe' ? (
-                  <form method="POST" action="/api/billing/checkout-session">
-                    <input type="hidden" name="league_id" value={row.league_id} />
-                    <button class="btn btn--primary btn--sm" type="submit">
-                      Subscribe
-                    </button>
-                  </form>
+                {state === 'subscribe' || state === 'trial' ? (
+                  <div class="billlist__actions">
+                    {offersTrial(billingState, row) && (
+                      <form method="POST" action="/api/billing/trial">
+                        <input type="hidden" name="league_id" value={row.league_id} />
+                        <button class="btn btn--primary btn--sm" type="submit">
+                          {trialButtonCopy(billingState?.trial)}
+                        </button>
+                      </form>
+                    )}
+                    <form method="POST" action="/api/billing/checkout-session">
+                      <input type="hidden" name="league_id" value={row.league_id} />
+                      <button
+                        class={`btn btn--sm ${offersTrial(billingState, row) ? 'btn--ghost' : 'btn--primary'}`}
+                        type="submit"
+                      >
+                        Subscribe
+                      </button>
+                    </form>
+                  </div>
                 ) : (
                   <span class="billlist__done" aria-hidden="true">✓</span>
                 )}
@@ -207,6 +226,8 @@ const sorted = [...rows].sort((a, b) =>
   .chip--active { color: #15803d; }
   .chip--ending { color: #b45309; }
   .chip--comped { color: #1d4ed8; }
+  .chip--trial { color: #7c3aed; }
+  .billlist__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .chip--subscribe { color: #6b7280; }
   .notice {
     margin: 0 0 1rem; padding: 0.7rem 0.9rem;
