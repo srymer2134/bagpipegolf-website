@@ -16,9 +16,12 @@ import {
   daysUntil,
   formatPeriodEnd,
   offersPortal,
+  offersTrial,
   rowDetail,
   rowState,
+  trialButtonCopy,
   type BillingLeagueRow,
+  type TrialInfo,
 } from './billing';
 
 function row(over: Partial<BillingLeagueRow> = {}): BillingLeagueRow {
@@ -187,5 +190,62 @@ describe('moveTargets — "Move to next season"', () => {
     const msgs = codes.map((c) => billingErrorMessage(c));
     for (const m of msgs) expect(m).not.toMatch(/Something went wrong/);
     expect(new Set(msgs).size).toBe(codes.length);
+  });
+});
+
+// ── The free trial (api 20261115): 30 days, no card, one per director ──
+function trial(over: Partial<TrialInfo> = {}): TrialInfo {
+  return { trial_days: 30, used: false, available: true, league_id: null, ends_at: null, active: false, ...over };
+}
+
+describe('the free trial', () => {
+  it('a trial row reads as a trial, with its end date and what happens next', () => {
+    const r = row({ entitled: true, source: 'trial', period_end: '2026-11-25T00:00:00.000Z' });
+    expect(rowState(r)).toBe('trial');
+    const d = rowDetail(r);
+    expect(d).toContain('Free trial until 25 November 2026');
+    expect(d).toContain('first payment is taken when the trial ends');
+  });
+
+  it('a lapsed trial is just "not subscribed" — entitled decides, not the source', () => {
+    expect(rowState(row({ entitled: false, source: 'trial' }))).toBe('subscribe');
+  });
+
+  it('is offered only for an uncovered league, while enforced, with the trial unused', () => {
+    const open = row();
+    expect(offersTrial({ enforced: true, trial: trial() }, open)).toBe(true);
+    // nothing enforced yet → keep the one trial for later
+    expect(offersTrial({ enforced: false, trial: trial() }, open)).toBe(false);
+    expect(offersTrial({ trial: trial() }, open)).toBe(false);
+    // already used, or unknown
+    expect(offersTrial({ enforced: true, trial: trial({ available: false, used: true }) }, open)).toBe(false);
+    expect(offersTrial({ enforced: true }, open)).toBe(false);
+    expect(offersTrial(null, open)).toBe(false);
+    // a covered league
+    expect(offersTrial({ enforced: true, trial: trial() }, row({ entitled: true, source: 'stripe' }))).toBe(false);
+    expect(offersTrial({ enforced: true, trial: trial() }, row({ entitled: true, source: 'comp' }))).toBe(false);
+  });
+
+  it('the button names the length the server set', () => {
+    expect(trialButtonCopy(trial())).toBe('Start 30-day free trial');
+    expect(trialButtonCopy(trial({ trial_days: 14 }))).toBe('Start 14-day free trial');
+    expect(trialButtonCopy(trial({ trial_days: 0 }))).toBe('Start free trial');
+    expect(trialButtonCopy(undefined)).toBe('Start free trial');
+  });
+
+  it('every trial code has its own sentence, and none claims a charge', () => {
+    for (const code of [
+      'trial_started',
+      'trial_already_used',
+      'trial_league_covered',
+      'trial_not_needed',
+      'trial_unavailable',
+      'trial_not_owner',
+    ]) {
+      const msg = billingErrorMessage(code)!;
+      expect(msg, code).not.toContain('Something went wrong');
+      expect(msg.toLowerCase(), code).not.toContain('charged');
+    }
+    expect(billingErrorMessage('trial_started')).toContain('No card needed');
   });
 });

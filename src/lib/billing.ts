@@ -25,14 +25,31 @@ export type BillingLeagueRow = {
   league_id: string;
   entitled: boolean;
   pays: boolean;
-  source: 'stripe' | 'comp' | null;
+  // 'trial' = the comp that is the director's one free trial (api 20261115)
+  source: 'stripe' | 'comp' | 'trial' | null;
   period_end: string | null;
   cancel_at_period_end: boolean;
+};
+
+/**
+ * The director's one free trial — 30 days, no card (Sam 2026-10-26). One per
+ * director, not per league. `available` is false once any trial has started.
+ */
+export type TrialInfo = {
+  trial_days: number;
+  used: boolean;
+  available: boolean;
+  league_id: string | null;
+  ends_at: string | null;
+  active: boolean;
 };
 
 export type BillingListResponse = {
   billing_available: boolean;
   gate: 'off' | 'allowlist' | 'on';
+  /** Is the gate refusing anything for this director yet? */
+  enforced?: boolean;
+  trial?: TrialInfo;
   leagues: BillingLeagueRow[];
 };
 
@@ -41,7 +58,8 @@ export type BillingRowState =
   | 'subscribe' // never paid, and nothing covers it
   | 'active' // a live subscription, renewing
   | 'ending' // live, but cancel_at_period_end
-  | 'comped'; // covered by a comp, not a card
+  | 'comped' // covered by a comp, not a card
+  | 'trial'; // the free trial, no card
 
 /**
  * The state for one league.
@@ -53,6 +71,7 @@ export type BillingRowState =
  */
 export function rowState(row: BillingLeagueRow): BillingRowState {
   if (!row.entitled) return 'subscribe';
+  if (row.source === 'trial') return 'trial';
   if (row.source === 'comp') return 'comped';
   return row.cancel_at_period_end ? 'ending' : 'active';
 }
@@ -67,6 +86,10 @@ export function rowDetail(row: BillingLeagueRow, today = new Date()): string {
       return when ? `Ends ${when} — it will not renew.` : 'Ends at the period end.';
     case 'comped':
       return when ? `Covered at no charge until ${when}.` : 'Covered at no charge.';
+    case 'trial':
+      return when
+        ? `Free trial until ${when}. Subscribe before then to keep the season going — the first payment is taken when the trial ends.`
+        : 'Free trial. Subscribe before it ends to keep the season going.';
     case 'subscribe':
       return daysUntil(row.period_end, today) !== null
         ? 'The previous term has ended.'
@@ -151,6 +174,19 @@ export function billingErrorMessage(code: string | null | undefined): string | n
       return 'That league has no plan to move.';
     case 'move_same_league':
       return 'Pick a different season to move to.';
+    // The free trial (api 20261115). No card is taken by a trial.
+    case 'trial_started':
+      return 'Your free trial has started. No card needed — subscribe any time before it ends to keep going.';
+    case 'trial_already_used':
+      return 'You have already used your free trial. Subscribe to keep going.';
+    case 'trial_league_covered':
+      return 'That league is already covered — there is no need for a trial.';
+    case 'trial_not_needed':
+      return 'Nothing is locked yet, so your free trial is saved for later.';
+    case 'trial_unavailable':
+      return 'Free trials are not available right now.';
+    case 'trial_not_owner':
+      return 'Only the league owner can start the free trial.';
     default:
       return 'Something went wrong. Nothing was charged — try again.';
   }
@@ -165,6 +201,23 @@ export function billingErrorMessage(code: string | null | undefined): string | n
  */
 export function offersPortal(leagues: BillingLeagueRow[]): boolean {
   return leagues.some((l) => l.source === 'stripe');
+}
+
+/**
+ * Should this row offer "Start free trial"?
+ *
+ * Only for an uncovered league, while the gate is refusing something for this
+ * director, and only while their one trial is unused. The API refuses every
+ * other case anyway; this keeps the page from offering a button that fails.
+ */
+export function offersTrial(state: Pick<BillingListResponse, 'enforced' | 'trial'> | null, row: BillingLeagueRow): boolean {
+  return !!state && state.enforced === true && state.trial?.available === true && rowState(row) === 'subscribe';
+}
+
+/** "Start your 30-day free trial", from the server's own length. */
+export function trialButtonCopy(trial: TrialInfo | undefined): string {
+  const days = trial && Number.isInteger(trial.trial_days) && trial.trial_days > 0 ? trial.trial_days : null;
+  return days ? `Start ${days}-day free trial` : 'Start free trial';
 }
 
 /** The price, as copy. One plan, so this is not fetched from Stripe. */
