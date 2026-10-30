@@ -1,4 +1,4 @@
-// Rail 1 on the website — the league subscription ($2,000/yr).
+// Rail 1 on the website — the league subscription ($2,140/yr; $2,000 until 2026-10-30).
 //
 // Plan: LEAGUE_SUBSCRIPTION_AND_PLAN_GATING_PLAN.md §3.9 (flutter repo).
 // API: api #173 — POST /api/billing/checkout-session, POST
@@ -221,7 +221,7 @@ export function trialButtonCopy(trial: TrialInfo | undefined): string {
 }
 
 /** The price, as copy. One plan, so this is not fetched from Stripe. */
-export const LEAGUE_DIRECTOR_PRICE_COPY = '$2,000 / year';
+export const LEAGUE_DIRECTOR_PRICE_COPY = '$2,140 / year';
 
 /** What `moveTargets` needs from each league the director owns. */
 export type OwnedLeague = {
