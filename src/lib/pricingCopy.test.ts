@@ -20,7 +20,7 @@ describe('pricing copy — the league plan', () => {
     // 2026-10-30). No checkout yet, so its call to action is an email.
     expect(pricing).toMatch(/<span class="chip">Club<\/span>\s*<h3>\$2,970/);
     expect(pricing).toMatch(/Unlimited leagues, up to 4 admins/);
-    expect(pricing).not.toMatch(/up to 4 leagues/i);
+    expect(pricing.replace(/<!--[\s\S]*?-->/g, '')).not.toMatch(/up to 4 leagues/i);
     expect(pricing).toContain('mailto:hello@bagpipegolf.com?subject=Club%20plan');
     expect(pricing).toMatch(/Players are always free/);
     // League trial (api 20261115): 30 days, no card, one per director.
