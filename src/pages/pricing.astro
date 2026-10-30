@@ -19,12 +19,15 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
     <p class="pagewrap__eyebrow">Pricing</p>
     <h1 class="pagewrap__title">Free to play. Simple pricing to host.</h1>
     <p class="pagewrap__sub">
-      Players never pay. Hosts pick the plan that fits, with no setup fee.
+      Players never pay. Hosts pick the plan that fits, with no setup fee —
+      and every league starts with a 30-day free trial.
     </p>
 
     <!-- Plans (Sam, 2026-10-30): Single Event $170 (fields of 37+; free up
          to 36), League $2,140/yr, Club $2,970/yr for up to 4 leagues with
-         unlimited events in each. Club has NO checkout yet — its button is
+         unlimited events in each. League trial: 30 days, no card, ONE per
+         director (api 20261115; shown once billing is enforced — until
+         then nothing is locked, so it is saved). Club has NO checkout yet — its button is
          an email until the backend can sell it. -->
     <section class="grid grid--3 plans">
       <article class="card plan">
@@ -41,6 +44,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
         <span class="chip">League · most popular</span>
         <h3>$2,140 <span class="card__per">/ year per league</span></h3>
         <p class="plan__lede"><strong>One league, unlimited events.</strong> Every tournament your league runs is included.</p>
+        <p class="plan__trial">30-day free trial · no card needed</p>
         <ul class="plan__list">
           <li>Season setup, weekly pairings and standings</li>
           <li>Card dues collection</li>
@@ -67,6 +71,11 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
     <section class="feeblock" id="league-plan-details">
       <h2 class="feeblock__h">How the league plan works</h2>
       <ul class="feeblock__list">
+        <li>
+          <strong>Try it free for 30 days.</strong> No card needed — set up
+          your league, run your events, and subscribe any time before the
+          trial ends to keep the season going. One free trial per organizer.
+        </li>
         <li>
           <strong>One plan covers one league for 12 months</strong> from the
           day you start it, and renews each year. Cancel any time and it runs
@@ -146,6 +155,14 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
             </tr>
           </thead>
           <tbody>
+            <tr class="compare__us">
+              <th scope="row">Bagpipe Golf</th>
+              <td>$2,140 / year per league</td>
+              <td>$2,970 / year (Club, up to 4 leagues)</td>
+              <td>Free</td>
+              <td>Unlimited; single events free up to 36 players, $170 above</td>
+              <td>{sideGames.length}, settled for you</td>
+            </tr>
             <tr>
               <th scope="row">Golf Genius</th>
               <td>$1,425 / year<br /><span class="compare__sub">No mobile live scoring, online registration or payments</span></td>
@@ -170,20 +187,13 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
               <td>Unlimited, or $199 per single event</td>
               <td>Skins, deuces and putts</td>
             </tr>
-            <tr class="compare__us">
-              <th scope="row">Bagpipe Golf</th>
-              <td>$2,140 / year per league</td>
-              <td>$2,970 / year (Club, up to 4 leagues)</td>
-              <td>Free</td>
-              <td>Unlimited; single events free up to 36 players, $170 above</td>
-              <td>{sideGames.length}, settled for you</td>
-            </tr>
           </tbody>
         </table>
       </div>
       <h3 class="compare__h">Included in every Bagpipe price</h3>
       <ul class="feeblock__list">
         <li><strong>No setup, onboarding or training fees.</strong> Create an event and send the invite.</li>
+        <li><strong>A 30-day free trial for leagues</strong>, with no card needed.</li>
         <li>
           <strong>Players never pay.</strong> The full scorecard, all
           {sideGames.length} side games with settle-up, and live
@@ -290,6 +300,12 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
   .plan { align-content: start; }
   .plan--featured { border: 2px solid var(--brand-green-dark); }
   .plan__lede { margin: 0 0 6px; }
+  .plan__trial {
+    margin: 0 0 4px;
+    color: var(--brand-green-dark);
+    font-weight: 700;
+    font-size: 0.875rem;
+  }
   .plan__list {
     margin: 4px 0 0;
     padding-left: 18px;

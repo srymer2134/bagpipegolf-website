@@ -71,7 +71,8 @@ is $170 per tournament. Leagues are $2,140 per league per
 year, paid by card (plus sales tax where it applies), and include every
 tournament the league runs. A club plan covers up to 4 leagues, with
 unlimited events in each, for $2,970 a year. Leagues that existed before the plan launched
-get 12 months free.
+get 12 months free. Every league can start with a 30-day free trial, no card
+needed (one per organizer).
 
 ## Contact
 hello@bagpipegolf.com (general, partnerships, events)

@@ -22,6 +22,10 @@ describe('pricing copy — the league plan', () => {
     expect(pricing).toMatch(/Up to 4 leagues, unlimited events in each/);
     expect(pricing).toContain('mailto:hello@bagpipegolf.com?subject=Club%20plan');
     expect(pricing).toMatch(/Players are always free/);
+    // League trial (api 20261115): 30 days, no card, one per director.
+    expect(pricing).toMatch(/30-day free trial · no card needed/);
+    expect(pricing).toMatch(/Try it free for 30 days\.<\/strong> No card needed/);
+    expect(pricing).toMatch(/One free trial per organizer/);
     // No old figure left anywhere on the page outside the source comments.
     const visible = pricing.replace(/<!--[\s\S]*?-->/g, '');
     expect(visible).not.toMatch(/\$2,000 \/ year per league|\$240/);
