@@ -113,28 +113,36 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
       </p>
     </section>
 
-    <!-- Competitor comparison (Sam, 2026-10-30). Every figure is the
-         vendor's OWN published price, read 2026-10-30 — except BlueGolf,
-         which publishes none:
-           golfgenius.com/products/tm — TM Club $1,425/yr + "$200 one-time
-             onboarding fee"; TM Premium $4,275/yr + "$500 one-time
-             onboarding fee"; up to 36 holes per facility. "Mobile app with
-             live scoring", "Online registration" and "Payment processing"
-             are listed as PREMIUM-only.
-           livetourney.com/pricing — "Single Event $199 / per event",
-             "Live Tourney … $2,700 / per year" (Unlimited Events),
-             "Live Tourney Pro … $3,900 / per year"; no setup fee listed.
-             (A Live Tourney blog post from Jan 2024 said $2,000/yr; their
-             pricing page no longer does.)
-           Side games — Live Tourney's help centre documents Skins, Deuces
-             and Putts; Golf Genius publishes no count (it markets "hundreds
-             of formats"); BlueGolf publishes nothing. Never claim a rival
-             has FEWER games than it does.
-           BlueGolf — no public pricing. Its figures are as REPORTED in
-             that same Live Tourney post (Jan 2024), and the page says so.
-         Wrong rival prices on our pricing page are a false-advertising
-         exposure: re-read each source before changing a cell, and keep
-         the date in the note below current. -->
+    <!-- Competitor comparison (Sam, 2026-10-30). Every cell is what that
+         company's OWN site says, read 2026-10-30, unless marked:
+           GOLF GENIUS — golfgenius.com/products/tm: TM Club $1,425/yr +
+             "$200 one-time onboarding fee"; TM Premium $4,275/yr + "$500";
+             up to 36 holes. "League management" on both plans; "Mobile app
+             with live scoring" and "Payment processing" PREMIUM-only.
+             Side games: docs.golfgenius.com documents skins (basic,
+             aggregate, team, optional), Nassau, Stableford, birdies/deuces,
+             6/6/6 and more; no count published.
+           BLUEGOLF — no public pricing; price/setup figures are as REPORTED
+             by Live Tourney's Jan 2024 post (footnoted on the page).
+             bluegolf.com/organizers: "registration & payment service",
+             "Player of the Year / Order of Merit / Money List Standings".
+             bluegolf.com/info/tdapp: Player App with optional live scoring.
+             Side games: skins incl. aggregate, Cha Cha Cha, 3-2-1 (NCGA's
+             BlueGolf TM Club feature sheet); no count published.
+           LIVE TOURNEY — livetourney.com/pricing: Single Event $199, annual
+             $2,700, Pro $3,900; "Registration Portals & Payments";
+             "Extensive Game Library"; "Best for courses, league managers";
+             its own FAQ: "How do players use Live Tourney if there is no
+             app?" — web scoring, no app.
+           UNKNOWN GOLF — unknowngolf.com/clubs-groups/pricing: custom
+             quotes only. /clubs-groups/features: league software, season
+             standings, in-app payments, Calcutta and pari-mutuel tools.
+             iPhone + Android apps. /golf-wager-app: Skins, Dot/Trash,
+             Banker, Vegas, Cash "and more", Venmo settle-up.
+             /players/pricing: free membership; Unknown+ $49.99/yr or
+             $14.99/mo unlocks custom side wagers ("Challenges").
+         Never claim a rival LACKS something its site says it has. Re-read
+         the sources before changing a cell and update the date below. -->
     <section class="feeblock" id="compare">
       <h2 class="feeblock__h">How Bagpipe compares</h2>
       <p class="feeblock__p">
@@ -142,6 +150,8 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
         a one-time setup fee before your first event. Here is how the
         best-known options line up.
       </p>
+
+      <h3 class="compare__h">Price</h3>
       <div class="compare">
         <table class="compare__table">
           <thead>
@@ -151,7 +161,6 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
               <th scope="col">Premium</th>
               <th scope="col">Setup / onboarding</th>
               <th scope="col">Events</th>
-              <th scope="col">Side games</th>
             </tr>
           </thead>
           <tbody>
@@ -161,15 +170,13 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
               <td>$2,970 / year (Club, up to 4 leagues)</td>
               <td>Free</td>
               <td>Unlimited; single events free up to 36 players, $170 above</td>
-              <td>{sideGames.length}, settled for you</td>
             </tr>
             <tr>
               <th scope="row">Golf Genius</th>
-              <td>$1,425 / year<br /><span class="compare__sub">No mobile live scoring, online registration or payments</span></td>
+              <td>$1,425 / year</td>
               <td>$4,275 / year</td>
               <td>$200; $500 for Premium</td>
               <td>Per facility, up to 36 holes</td>
-              <td>Many formats; no count published</td>
             </tr>
             <tr>
               <th scope="row">BlueGolf<sup>*</sup></th>
@@ -177,7 +184,6 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
               <td>$3,000 / year</td>
               <td>$500</td>
               <td>25 tournaments; unlimited on Premium</td>
-              <td>Not published</td>
             </tr>
             <tr>
               <th scope="row">Live Tourney</th>
@@ -185,12 +191,71 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
               <td>$3,900 / year (Pro)</td>
               <td>None listed</td>
               <td>Unlimited, or $199 per single event</td>
-              <td>Skins, deuces and putts</td>
+            </tr>
+            <tr>
+              <th scope="row">Unknown Golf</th>
+              <td>Custom quote</td>
+              <td>Custom quote</td>
+              <td>Not published</td>
+              <td>Not published</td>
             </tr>
           </tbody>
         </table>
       </div>
-      <h3 class="compare__h">Included in every Bagpipe price</h3>
+
+      <h3 class="compare__h">Features</h3>
+      <div class="compare">
+        <table class="compare__table">
+          <thead>
+            <tr>
+              <td></td>
+              <th scope="col">League management</th>
+              <th scope="col">Online payments</th>
+              <th scope="col">App scoring</th>
+              <th scope="col">Side games</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="compare__us">
+              <th scope="row">Bagpipe Golf</th>
+              <td>Yes</td>
+              <td>Yes — dues and entry fees by card</td>
+              <td>Yes — iPhone and iPad (Android coming soon)</td>
+              <td>{sideGames.length} games, settled for you, free for every player</td>
+            </tr>
+            <tr>
+              <th scope="row">Golf Genius</th>
+              <td>Yes</td>
+              <td>Premium only</td>
+              <td>Premium only</td>
+              <td>Skins variants, Nassau, Stableford and more; no count published</td>
+            </tr>
+            <tr>
+              <th scope="row">BlueGolf</th>
+              <td>Season-long standings</td>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>Skins, Cha Cha Cha, 3-2-1 and more; no count published</td>
+            </tr>
+            <tr>
+              <th scope="row">Live Tourney</th>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>No — web only</td>
+              <td>Game library; no count published</td>
+            </tr>
+            <tr>
+              <th scope="row">Unknown Golf</th>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>Skins, Dots, Banker, Vegas and more; custom wagers need Unknown+ ($49.99 / year per player)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="compare__h compare__h--gap">Included in every Bagpipe price</h3>
       <ul class="feeblock__list">
         <li><strong>No setup, onboarding or training fees.</strong> Create an event and send the invite.</li>
         <li><strong>A 30-day free trial for leagues</strong>, with no card needed.</li>
@@ -203,13 +268,15 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
         <li><strong>Entry fees and dues go straight to you</strong>, through your own Stripe account.</li>
       </ul>
       <p class="compare__note">
-        Prices as published on 30 October 2026 by
-        <a href="https://www.golfgenius.com/products/tm" rel="noopener">Golf Genius</a> and
-        <a href="https://www.livetourney.com/pricing" rel="noopener">Live Tourney</a>.
-        <sup>*</sup>BlueGolf does not publish pricing; its figures are as reported by
+        Prices and features as published on 30 October 2026 by
+        <a href="https://www.golfgenius.com/products/tm" rel="noopener">Golf Genius</a>,
+        <a href="https://www.bluegolf.com/organizers/index.html" rel="noopener">BlueGolf</a>,
+        <a href="https://www.livetourney.com/pricing" rel="noopener">Live Tourney</a> and
+        <a href="https://www.unknowngolf.com/clubs-groups/features" rel="noopener">Unknown Golf</a>.
+        <sup>*</sup>BlueGolf does not publish pricing; its price and setup figures are as reported by
         <a href="https://livetourney.com/blog/level-up" rel="noopener">Live Tourney in January 2024</a>.
         Plans and prices change, so check with each company before you decide.
-        Golf Genius, BlueGolf and Live Tourney are trademarks of their respective owners.
+        Golf Genius, BlueGolf, Live Tourney and Unknown Golf are trademarks of their respective owners.
       </p>
     </section>
 
@@ -351,7 +418,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
   }
   .compare__table {
     width: 100%;
-    min-width: 820px;
+    min-width: 720px;
     border-collapse: collapse;
     font-size: 0.9375rem;
   }
@@ -373,7 +440,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
     font-weight: 700;
     background: rgba(22, 101, 52, 0.06);
   }
-  .compare__sub { display: block; font-size: 0.8125rem; font-weight: 400; margin-top: 2px; }
+  .compare__h--gap { margin-top: 8px; }
   .compare__h {
     font-size: 1.125rem;
     font-weight: 800;
