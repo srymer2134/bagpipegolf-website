@@ -16,10 +16,11 @@ describe('pricing copy — the league plan', () => {
     // League: $2,140 ($2,000 until 2026-10-30).
     expect(pricing).toMatch(/\$2,140 <span class="card__per">\/ year per league/);
     expect(pricing).toMatch(/Every tournament your league runs is included/);
-    // Club: $2,970, up to 4 leagues, unlimited events in each. No checkout
-    // yet, so its call to action is an email.
+    // Club: $2,970, unlimited leagues, up to 4 admin accounts (Sam
+    // 2026-10-30). No checkout yet, so its call to action is an email.
     expect(pricing).toMatch(/<span class="chip">Club<\/span>\s*<h3>\$2,970/);
-    expect(pricing).toMatch(/Up to 4 leagues, unlimited events in each/);
+    expect(pricing).toMatch(/Unlimited leagues, up to 4 admins/);
+    expect(pricing).not.toMatch(/up to 4 leagues/i);
     expect(pricing).toContain('mailto:hello@bagpipegolf.com?subject=Club%20plan');
     expect(pricing).toMatch(/Players are always free/);
     // League trial (api 20261115): 30 days, no card, one per director.
