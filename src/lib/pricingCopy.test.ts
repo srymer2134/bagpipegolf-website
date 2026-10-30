@@ -8,14 +8,23 @@ const pricing = readFileSync('src/pages/pricing.astro', 'utf8');
 const getStarted = readFileSync('src/pages/leagues/get-started.astro', 'utf8');
 
 describe('pricing copy — the league plan', () => {
-  it('states players free, $170 per tournament, $2,000 a year per league (league tournaments included)', () => {
-    expect(pricing).toMatch(/\$2,000 <span class="card__per">\/ year per league/);
-    expect(pricing).toMatch(/<span class="chip">Players<\/span>\s*<h3>Free<\/h3>/);
-    // Sam: free up to 36 players; $240 per tournament at 37+ (2026-10-25), cut to $170 (2026-10-30).
-    expect(pricing).toMatch(/<span class="chip">Tournaments<\/span>\s*<h3>Free <span class="card__per">up to 36 players/);
-    expect(pricing).toMatch(/\$170 per tournament<\/strong> for a field of 37 or more/);
+  it('states the three plans Sam set on 2026-10-30, and players free', () => {
+    // Single event: free up to 36 players, $170 at 37+ ($240 until 2026-10-30).
+    expect(pricing).toMatch(/<span class="chip">Single event<\/span>\s*<h3>\$170 <span class="card__per">\/ per event/);
+    expect(pricing).toMatch(/Free up to 36 players\.<\/strong> \$170 per tournament for a field of 37 or more/);
     expect(pricing).not.toMatch(/under 36|36 or more/);
-    expect(pricing).toMatch(/every tournament your league runs is included/);
+    // League: $2,140 ($2,000 until 2026-10-30).
+    expect(pricing).toMatch(/\$2,140 <span class="card__per">\/ year per league/);
+    expect(pricing).toMatch(/Every tournament your league runs is included/);
+    // Club: $2,970, up to 4 leagues, unlimited events in each. No checkout
+    // yet, so its call to action is an email.
+    expect(pricing).toMatch(/<span class="chip">Club<\/span>\s*<h3>\$2,970/);
+    expect(pricing).toMatch(/Up to 4 leagues, unlimited events in each/);
+    expect(pricing).toContain('mailto:hello@bagpipegolf.com?subject=Club%20plan');
+    expect(pricing).toMatch(/Players are always free/);
+    // No old figure left anywhere on the page outside the source comments.
+    const visible = pricing.replace(/<!--[\s\S]*?-->/g, '');
+    expect(visible).not.toMatch(/\$2,000 \/ year per league|\$240/);
   });
 
   it('states the terms Sam set: 12 months, renews, card, moves once a year, existing leagues free for 12 months', () => {

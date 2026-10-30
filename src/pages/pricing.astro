@@ -19,27 +19,50 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
     <p class="pagewrap__eyebrow">Pricing</p>
     <h1 class="pagewrap__title">Free to play. Simple pricing to host.</h1>
     <p class="pagewrap__sub">
-      Players pay nothing. Small tournaments are free; bigger ones are a
-      one-time fee, and leagues are one plan a year.
+      Players never pay. Hosts pick the plan that fits, with no setup fee.
     </p>
 
-    <section class="grid grid--3">
-      <article class="card">
-        <span class="chip">Players</span>
-        <h3>Free</h3>
-        <p>Full scorecard, all {sideGames.length} side games, friends, spectator share, history and stats.</p>
+    <!-- Plans (Sam, 2026-10-30): Single Event $170 (fields of 37+; free up
+         to 36), League $2,140/yr, Club $2,970/yr for up to 4 leagues with
+         unlimited events in each. Club has NO checkout yet — its button is
+         an email until the backend can sell it. -->
+    <section class="grid grid--3 plans">
+      <article class="card plan">
+        <span class="chip">Single event</span>
+        <h3>$170 <span class="card__per">/ per event</span></h3>
+        <p class="plan__lede"><strong>Free up to 36 players.</strong> $170 per tournament for a field of 37 or more — a charity day, a member-guest, a company outing.</p>
+        <ul class="plan__list">
+          <li>Pairings and live leaderboards</li>
+          <li>All {sideGames.length} side games, settled for you</li>
+          <li>Card entry fees, if you want them</li>
+        </ul>
       </article>
-      <article class="card">
-        <span class="chip">Tournaments</span>
-        <h3>Free <span class="card__per">up to 36 players</span></h3>
-        <p><strong>$170 per tournament</strong> for a field of 37 or more — a charity day, a member-guest, a company outing. Pairings, live leaderboards, and card entry fees if you want them.</p>
+      <article class="card plan plan--featured" id="league-plan">
+        <span class="chip">League · most popular</span>
+        <h3>$2,140 <span class="card__per">/ year per league</span></h3>
+        <p class="plan__lede"><strong>One league, unlimited events.</strong> Every tournament your league runs is included.</p>
+        <ul class="plan__list">
+          <li>Season setup, weekly pairings and standings</li>
+          <li>Card dues collection</li>
+          <li>All {sideGames.length} side games, settled for you</li>
+        </ul>
       </article>
-      <article class="card card--plan" id="league-plan">
-        <span class="chip">Leagues</span>
-        <h3>$2,000 <span class="card__per">/ year per league</span></h3>
-        <p>Season setup, weekly pairings and standings, card dues collection — and every tournament your league runs is included.</p>
+      <article class="card plan" id="club-plan">
+        <span class="chip">Club</span>
+        <h3>$2,970 <span class="card__per">/ year</span></h3>
+        <p class="plan__lede"><strong>Up to 4 leagues, unlimited events in each.</strong> One plan for a club running men's, women's, senior and twilight leagues.</p>
+        <ul class="plan__list">
+          <li>Everything in League, for 4 leagues</li>
+          <li>Unlimited events in every league</li>
+          <li><a href="mailto:hello@bagpipegolf.com?subject=Club%20plan">Email hello@bagpipegolf.com</a> to start</li>
+        </ul>
       </article>
     </section>
+
+    <p class="plans__players">
+      <strong>Players are always free:</strong> the full scorecard, all
+      {sideGames.length} side games, friends, spectator share, history and stats.
+    </p>
 
     <section class="feeblock" id="league-plan-details">
       <h2 class="feeblock__h">How the league plan works</h2>
@@ -69,9 +92,9 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
           for details.
         </li>
         <li>
-          <strong>Running several leagues or a club?</strong>
-          <a href="mailto:hello@bagpipegolf.com?subject=League%20plan%20pricing">Email hello@bagpipegolf.com</a>
-          and we'll talk.
+          <strong>Running several leagues?</strong> The
+          <a href="#club-plan">Club plan</a> covers up to 4 for $2,970 a year.
+          For more, <a href="mailto:hello@bagpipegolf.com?subject=League%20plan%20pricing">email hello@bagpipegolf.com</a>.
         </li>
       </ul>
       <p class="feeblock__p">
@@ -86,12 +109,18 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
          which publishes none:
            golfgenius.com/products/tm — TM Club $1,425/yr + "$200 one-time
              onboarding fee"; TM Premium $4,275/yr + "$500 one-time
-             onboarding fee"; up to 36 holes per facility.
+             onboarding fee"; up to 36 holes per facility. "Mobile app with
+             live scoring", "Online registration" and "Payment processing"
+             are listed as PREMIUM-only.
            livetourney.com/pricing — "Single Event $199 / per event",
              "Live Tourney … $2,700 / per year" (Unlimited Events),
              "Live Tourney Pro … $3,900 / per year"; no setup fee listed.
              (A Live Tourney blog post from Jan 2024 said $2,000/yr; their
              pricing page no longer does.)
+           Side games — Live Tourney's help centre documents Skins, Deuces
+             and Putts; Golf Genius publishes no count (it markets "hundreds
+             of formats"); BlueGolf publishes nothing. Never claim a rival
+             has FEWER games than it does.
            BlueGolf — no public pricing. Its figures are as REPORTED in
              that same Live Tourney post (Jan 2024), and the page says so.
          Wrong rival prices on our pricing page are a false-advertising
@@ -113,15 +142,17 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
               <th scope="col">Premium</th>
               <th scope="col">Setup / onboarding</th>
               <th scope="col">Events</th>
+              <th scope="col">Side games</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <th scope="row">Golf Genius</th>
-              <td>$1,425 / year</td>
+              <td>$1,425 / year<br /><span class="compare__sub">No mobile live scoring, online registration or payments</span></td>
               <td>$4,275 / year</td>
               <td>$200; $500 for Premium</td>
               <td>Per facility, up to 36 holes</td>
+              <td>Many formats; no count published</td>
             </tr>
             <tr>
               <th scope="row">BlueGolf<sup>*</sup></th>
@@ -129,6 +160,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
               <td>$3,000 / year</td>
               <td>$500</td>
               <td>25 tournaments; unlimited on Premium</td>
+              <td>Not published</td>
             </tr>
             <tr>
               <th scope="row">Live Tourney</th>
@@ -136,13 +168,15 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
               <td>$3,900 / year (Pro)</td>
               <td>None listed</td>
               <td>Unlimited, or $199 per single event</td>
+              <td>Skins, deuces and putts</td>
             </tr>
             <tr class="compare__us">
               <th scope="row">Bagpipe Golf</th>
-              <td>$2,000 / year per league</td>
-              <td>—</td>
+              <td>$2,140 / year per league</td>
+              <td>$2,970 / year (Club, up to 4 leagues)</td>
               <td>Free</td>
-              <td>Unlimited in your league; single events free up to 36 players, $170 above</td>
+              <td>Unlimited; single events free up to 36 players, $170 above</td>
+              <td>{sideGames.length}, settled for you</td>
             </tr>
           </tbody>
         </table>
@@ -253,6 +287,23 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
   }
   .card p { margin: 0; color: var(--ink-muted); font-size: 0.9375rem; }
   .card__per { font-size: 1rem; font-weight: 600; color: var(--ink-muted); }
+  .plan { align-content: start; }
+  .plan--featured { border: 2px solid var(--brand-green-dark); }
+  .plan__lede { margin: 0 0 6px; }
+  .plan__list {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    color: var(--ink-muted);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+  .plan__list li { margin-bottom: 4px; }
+  .plans__players {
+    margin: 18px 0 0;
+    color: var(--ink-muted);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
   .feeblock { margin-top: 48px; }
   .feeblock__h {
     font-size: 1.375rem;
@@ -284,7 +335,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
   }
   .compare__table {
     width: 100%;
-    min-width: 680px;
+    min-width: 820px;
     border-collapse: collapse;
     font-size: 0.9375rem;
   }
@@ -306,6 +357,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
     font-weight: 700;
     background: rgba(22, 101, 52, 0.06);
   }
+  .compare__sub { display: block; font-size: 0.8125rem; font-weight: 400; margin-top: 2px; }
   .compare__h {
     font-size: 1.125rem;
     font-weight: 800;
