@@ -24,7 +24,9 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
     </p>
 
     <!-- Plans (Sam, 2026-10-30): Single Event $240 (fields of 37+; free up
-         to 36), League $2,140/yr, Club $2,970/yr for UNLIMITED leagues and up
+         to 36), League $2,140/yr = one league, ONE login, unlimited events/competitions/
+         formats, plus a match-play companion league (Sam 2026-10-30, P7 in the
+         Club plan; billing support is §3.8 — must ship before go-live). Club $2,970/yr for UNLIMITED leagues and up
          to 4 admin accounts (Sam 2026-10-30; was "up to 4 leagues" earlier
          the same day). League trial: 30 days, no card, ONE per
          director (api 20261115; shown once billing is enforced — until
@@ -44,10 +46,11 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
       <article class="card plan plan--featured" id="league-plan">
         <span class="chip">League · most popular</span>
         <h3>$2,140 <span class="card__per">/ year per league</span></h3>
-        <p class="plan__lede"><strong>One league, unlimited events.</strong> Every tournament your league runs is included.</p>
+        <p class="plan__lede"><strong>One league, one login, unlimited events.</strong> Every tournament, competition and format your league runs is included.</p>
         <p class="plan__trial">30-day free trial · no card needed</p>
         <ul class="plan__list">
           <li>Season setup, weekly pairings and standings</li>
+          <li>Stroke play and match play — a match-play companion league is included</li>
           <li>Card dues collection</li>
           <li>All {sideGames.length} side games, settled for you</li>
         </ul>
@@ -77,6 +80,12 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
           <strong>Try it free for 30 days.</strong> No card needed — set up
           your league, run your events, and subscribe any time before the
           trial ends to keep the season going. One free trial per organizer.
+        </li>
+        <li>
+          <strong>One league, one login.</strong> Run as many tournaments,
+          competitions and formats inside it as you like. Running a season-long
+          match-play series alongside your stroke-play season? That second league
+          is included in the same plan.
         </li>
         <li>
           <strong>One plan covers one league for 12 months</strong> from the

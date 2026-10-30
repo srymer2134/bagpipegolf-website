@@ -15,7 +15,9 @@ describe('pricing copy — the league plan', () => {
     expect(pricing).not.toMatch(/under 36|36 or more/);
     // League: $2,140 ($2,000 until 2026-10-30).
     expect(pricing).toMatch(/\$2,140 <span class="card__per">\/ year per league/);
-    expect(pricing).toMatch(/Every tournament your league runs is included/);
+    expect(pricing).toMatch(/One league, one login, unlimited events/);
+    // P7 (Sam 2026-10-30): stroke + match pair counts as one League plan.
+    expect(pricing).toMatch(/a match-play companion league is included/);
     // Club: $2,970, unlimited leagues, up to 4 admin accounts (Sam
     // 2026-10-30). No checkout yet, so its call to action is an email.
     expect(pricing).toMatch(/<span class="chip">Club<\/span>\s*<h3>\$2,970/);
