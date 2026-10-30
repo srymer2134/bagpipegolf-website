@@ -1,4 +1,4 @@
-// Rail 1 page logic — the league subscription ($2,000/yr).
+// Rail 1 page logic — the league subscription ($2,140/yr).
 //
 // These cover the decisions a server-rendered .astro cannot be tested for,
 // which is why they live in lib/ rather than in the page.
