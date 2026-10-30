@@ -8,12 +8,12 @@ const pricing = readFileSync('src/pages/pricing.astro', 'utf8');
 const getStarted = readFileSync('src/pages/leagues/get-started.astro', 'utf8');
 
 describe('pricing copy — the league plan', () => {
-  it('states players free, $240 per tournament, $2,000 a year per league (league tournaments included)', () => {
+  it('states players free, $170 per tournament, $2,000 a year per league (league tournaments included)', () => {
     expect(pricing).toMatch(/\$2,000 <span class="card__per">\/ year per league/);
     expect(pricing).toMatch(/<span class="chip">Players<\/span>\s*<h3>Free<\/h3>/);
-    // Sam, 2026-10-25: free up to 36 players, $240 per tournament at 37+.
+    // Sam: free up to 36 players; $240 per tournament at 37+ (2026-10-25), cut to $170 (2026-10-30).
     expect(pricing).toMatch(/<span class="chip">Tournaments<\/span>\s*<h3>Free <span class="card__per">up to 36 players/);
-    expect(pricing).toMatch(/\$240 per tournament<\/strong> for a field of 37 or more/);
+    expect(pricing).toMatch(/\$170 per tournament<\/strong> for a field of 37 or more/);
     expect(pricing).not.toMatch(/under 36|36 or more/);
     expect(pricing).toMatch(/every tournament your league runs is included/);
   });
@@ -31,7 +31,7 @@ describe('pricing copy — the league plan', () => {
   });
 
   it('carries no stale tournament price and drops "limited time"', () => {
-    // The plan's earlier figure was $250; Sam set $240 on 2026-10-25.
+    // The plan's earlier figure was $250; Sam set $240 on 2026-10-25, then $170 on 2026-10-30.
     expect(pricing).not.toMatch(/\$250/);
     expect(pricing).not.toMatch(/limited time/i);
     expect(getStarted).not.toMatch(/limited time/i);

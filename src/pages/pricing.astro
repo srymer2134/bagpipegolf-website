@@ -11,7 +11,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
          date, renews yearly. Leagues that existed before the plan launched
          get 12 months free (plan L5/L9).
          Tournaments (Sam, 2026-10-25): free with a field of up to 36
-         players "for now"; $240 per tournament at 37 or more. The threshold lives in
+         players "for now"; $170 per tournament at 37 or more (was $240 until Sam set $170, 2026-10-30). The threshold lives in
          billing.config, so this copy and that number change together.
          A tournament run inside a league is covered by that league's plan.
          llmsTxt.ts states the same figures — pricingCopy.test.ts keeps the
@@ -32,7 +32,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
       <article class="card">
         <span class="chip">Tournaments</span>
         <h3>Free <span class="card__per">up to 36 players</span></h3>
-        <p><strong>$240 per tournament</strong> for a field of 37 or more — a charity day, a member-guest, a company outing. Pairings, live leaderboards, and card entry fees if you want them.</p>
+        <p><strong>$170 per tournament</strong> for a field of 37 or more — a charity day, a member-guest, a company outing. Pairings, live leaderboards, and card entry fees if you want them.</p>
       </article>
       <article class="card card--plan" id="league-plan">
         <span class="chip">Leagues</span>
@@ -78,6 +78,94 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
         Without a plan, a league keeps what it already has — its current
         season, results and payments — but can't set up a new season, add
         tournaments, or start taking card payments.
+      </p>
+    </section>
+
+    <!-- Competitor comparison (Sam, 2026-10-30). Every figure is the
+         vendor's OWN published price, read 2026-10-30 — except BlueGolf,
+         which publishes none:
+           golfgenius.com/products/tm — TM Club $1,425/yr + "$200 one-time
+             onboarding fee"; TM Premium $4,275/yr + "$500 one-time
+             onboarding fee"; up to 36 holes per facility.
+           livetourney.com/pricing — "Single Event $199 / per event",
+             "Live Tourney … $2,700 / per year" (Unlimited Events),
+             "Live Tourney Pro … $3,900 / per year"; no setup fee listed.
+             (A Live Tourney blog post from Jan 2024 said $2,000/yr; their
+             pricing page no longer does.)
+           BlueGolf — no public pricing. Its figures are as REPORTED in
+             that same Live Tourney post (Jan 2024), and the page says so.
+         Wrong rival prices on our pricing page are a false-advertising
+         exposure: re-read each source before changing a cell, and keep
+         the date in the note below current. -->
+    <section class="feeblock" id="compare">
+      <h2 class="feeblock__h">How Bagpipe compares</h2>
+      <p class="feeblock__p">
+        Golf event software is usually a yearly subscription, often with
+        a one-time setup fee before your first event. Here is how the
+        best-known options line up.
+      </p>
+      <div class="compare">
+        <table class="compare__table">
+          <thead>
+            <tr>
+              <td></td>
+              <th scope="col">Annual price</th>
+              <th scope="col">Premium</th>
+              <th scope="col">Setup / onboarding</th>
+              <th scope="col">Events</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Golf Genius</th>
+              <td>$1,425 / year</td>
+              <td>$4,275 / year</td>
+              <td>$200; $500 for Premium</td>
+              <td>Per facility, up to 36 holes</td>
+            </tr>
+            <tr>
+              <th scope="row">BlueGolf<sup>*</sup></th>
+              <td>About $2,000 / year</td>
+              <td>$3,000 / year</td>
+              <td>$500</td>
+              <td>25 tournaments; unlimited on Premium</td>
+            </tr>
+            <tr>
+              <th scope="row">Live Tourney</th>
+              <td>$2,700 / year</td>
+              <td>$3,900 / year (Pro)</td>
+              <td>None listed</td>
+              <td>Unlimited, or $199 per single event</td>
+            </tr>
+            <tr class="compare__us">
+              <th scope="row">Bagpipe Golf</th>
+              <td>$2,000 / year per league</td>
+              <td>—</td>
+              <td>Free</td>
+              <td>Unlimited in your league; single events free up to 36 players, $170 above</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <h3 class="compare__h">Included in every Bagpipe price</h3>
+      <ul class="feeblock__list">
+        <li><strong>No setup, onboarding or training fees.</strong> Create an event and send the invite.</li>
+        <li>
+          <strong>Players never pay.</strong> The full scorecard, all
+          {sideGames.length} side games with settle-up, and live
+          leaderboards are free for every golfer in your field.
+        </li>
+        <li><strong>Leagues include their tournaments.</strong> Every event your league runs is covered by its plan.</li>
+        <li><strong>Entry fees and dues go straight to you</strong>, through your own Stripe account.</li>
+      </ul>
+      <p class="compare__note">
+        Prices as published on 30 October 2026 by
+        <a href="https://www.golfgenius.com/products/tm" rel="noopener">Golf Genius</a> and
+        <a href="https://www.livetourney.com/pricing" rel="noopener">Live Tourney</a>.
+        <sup>*</sup>BlueGolf does not publish pricing; its figures are as reported by
+        <a href="https://livetourney.com/blog/level-up" rel="noopener">Live Tourney in January 2024</a>.
+        Plans and prices change, so check with each company before you decide.
+        Golf Genius, BlueGolf and Live Tourney are trademarks of their respective owners.
       </p>
     </section>
 
@@ -188,4 +276,47 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
     max-width: 62ch;
   }
   .feeblock__list li { margin-bottom: 10px; }
+  .compare {
+    overflow-x: auto;
+    margin: 4px 0 24px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .compare__table {
+    width: 100%;
+    min-width: 680px;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+  }
+  .compare__table th,
+  .compare__table td {
+    padding: 12px 14px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-muted);
+  }
+  .compare__table tbody tr:last-child th,
+  .compare__table tbody tr:last-child td { border-bottom: 0; }
+  .compare__table thead th { font-weight: 800; color: var(--ink); }
+  .compare__table tbody th { font-weight: 600; color: var(--ink); }
+  .compare__table .compare__us th,
+  .compare__table .compare__us td {
+    color: var(--brand-green-dark);
+    font-weight: 700;
+    background: rgba(22, 101, 52, 0.06);
+  }
+  .compare__h {
+    font-size: 1.125rem;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 0 0 10px;
+  }
+  .compare__note {
+    margin: 4px 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--ink-muted);
+    max-width: 62ch;
+  }
 </style>
