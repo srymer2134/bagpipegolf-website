@@ -9,9 +9,9 @@ const getStarted = readFileSync('src/pages/leagues/get-started.astro', 'utf8');
 
 describe('pricing copy — the league plan', () => {
   it('states the three plans Sam set on 2026-10-30, and players free', () => {
-    // Single event: free up to 36 players, $170 at 37+ ($240 until 2026-10-30).
-    expect(pricing).toMatch(/<span class="chip">Single event<\/span>\s*<h3>\$170 <span class="card__per">\/ per event/);
-    expect(pricing).toMatch(/Free up to 36 players\.<\/strong> \$170 per tournament for a field of 37 or more/);
+    // Single event: free up to 36 players, $240 at 37+ (Sam 2026-10-25; briefly $170 on 2026-10-30, reverted).
+    expect(pricing).toMatch(/<span class="chip">Single event<\/span>\s*<h3>\$240 <span class="card__per">\/ per event/);
+    expect(pricing).toMatch(/Free up to 36 players\.<\/strong> \$240 per tournament for a field of 37 or more/);
     expect(pricing).not.toMatch(/under 36|36 or more/);
     // League: $2,140 ($2,000 until 2026-10-30).
     expect(pricing).toMatch(/\$2,140 <span class="card__per">\/ year per league/);
@@ -28,7 +28,7 @@ describe('pricing copy — the league plan', () => {
     expect(pricing).toMatch(/One free trial per organizer/);
     // No old figure left anywhere on the page outside the source comments.
     const visible = pricing.replace(/<!--[\s\S]*?-->/g, '');
-    expect(visible).not.toMatch(/\$2,000 \/ year per league|\$240/);
+    expect(visible).not.toMatch(/\$2,000 \/ year per league|\$170/);
   });
 
   it('states the terms Sam set: 12 months, renews, card, moves once a year, existing leagues free for 12 months', () => {
@@ -44,7 +44,7 @@ describe('pricing copy — the league plan', () => {
   });
 
   it('carries no stale tournament price and drops "limited time"', () => {
-    // The plan's earlier figure was $250; Sam set $240 on 2026-10-25, then $170 on 2026-10-30.
+    // The plan's earlier figure was $250; Sam set $240 on 2026-10-25 (briefly $170 on 2026-10-30, reverted).
     expect(pricing).not.toMatch(/\$250/);
     expect(pricing).not.toMatch(/limited time/i);
     expect(getStarted).not.toMatch(/limited time/i);

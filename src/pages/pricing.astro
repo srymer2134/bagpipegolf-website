@@ -11,7 +11,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
          date, renews yearly. Leagues that existed before the plan launched
          get 12 months free (plan L5/L9).
          Tournaments (Sam, 2026-10-25): free with a field of up to 36
-         players "for now"; $170 per tournament at 37 or more (was $240 until Sam set $170, 2026-10-30). The threshold lives in
+         players "for now"; $240 per tournament at 37 or more (briefly $170 on 2026-10-30, back to $240 the same day). The threshold lives in
          billing.config, so this copy and that number change together.
          A tournament run inside a league is covered by that league's plan.
          llmsTxt.ts states the same figures — pricingCopy.test.ts keeps the
@@ -23,7 +23,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
       and every league starts with a 30-day free trial.
     </p>
 
-    <!-- Plans (Sam, 2026-10-30): Single Event $170 (fields of 37+; free up
+    <!-- Plans (Sam, 2026-10-30): Single Event $240 (fields of 37+; free up
          to 36), League $2,140/yr, Club $2,970/yr for up to 4 leagues with
          unlimited events in each. League trial: 30 days, no card, ONE per
          director (api 20261115; shown once billing is enforced — until
@@ -32,8 +32,8 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
     <section class="grid grid--3 plans">
       <article class="card plan">
         <span class="chip">Single event</span>
-        <h3>$170 <span class="card__per">/ per event</span></h3>
-        <p class="plan__lede"><strong>Free up to 36 players.</strong> $170 per tournament for a field of 37 or more — a charity day, a member-guest, a company outing.</p>
+        <h3>$240 <span class="card__per">/ per event</span></h3>
+        <p class="plan__lede"><strong>Free up to 36 players.</strong> $240 per tournament for a field of 37 or more — a charity day, a member-guest, a company outing.</p>
         <ul class="plan__list">
           <li>Pairings and live leaderboards</li>
           <li>All {sideGames.length} side games, settled for you</li>
@@ -169,7 +169,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
               <td>$2,140 / year per league</td>
               <td>$2,970 / year (Club, up to 4 leagues)</td>
               <td>Free</td>
-              <td>Unlimited; single events free up to 36 players, $170 above</td>
+              <td>Unlimited; single events free up to 36 players, $240 above</td>
             </tr>
             <tr>
               <th scope="row">Golf Genius</th>
