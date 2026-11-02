@@ -4,7 +4,7 @@ import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
 import LeagueEventBanner from '../../../../components/LeagueEventBanner.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import {
-  getPublicTournament,
+  getTournamentView,
   isCompleted,
   hasAnyScores,
   playerHoleScoresFor,
@@ -47,13 +47,13 @@ const supabase = createSupabaseClient({
 
 let notFound = false;
 let loadError: string | null = null;
-type Tournament = Awaited<ReturnType<typeof getPublicTournament>>;
+type Tournament = Awaited<ReturnType<typeof getTournamentView>>;
 let t: Tournament = null;
 
 try {
   if (!id) notFound = true;
   else {
-    t = await getPublicTournament(supabase, id);
+    t = await getTournamentView(supabase, id);
     if (!t) notFound = true;
   }
 } catch (err: any) {

@@ -175,7 +175,10 @@ export async function fetchBoundTournaments(
   const ids = [...new Set(Object.values(bindings ?? {}).filter(Boolean))];
   if (ids.length === 0) return new Map();
   const { data, error } = await supabase
-    .from('tournaments')
+    // The scrubbed view: league members are not the tournament's owner,
+    // and after one-run 1.3 the table only answers its owner. `user_id`
+    // comes back only for the owner, which is exactly what canManage asks.
+    .from('tournaments_public')
     .select('id, name, user_id, completed_at')
     .in('id', ids);
   if (error) {

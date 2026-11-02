@@ -2,7 +2,7 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
-import { getPublicTournament } from '../../../../lib/tournamentQueries';
+import { getTournamentView } from '../../../../lib/tournamentQueries';
 import {
   buildRoundLeaderboard,
   buildTotalLeaderboard,
@@ -97,7 +97,7 @@ try {
   if (!id) {
     notFound = true;
   } else {
-    const t = await getPublicTournament(supabase, id);
+    const t = await getTournamentView(supabase, id);
     if (!t) {
       notFound = true;
     } else {

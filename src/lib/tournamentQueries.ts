@@ -1,13 +1,19 @@
 // Public-tournament reads for the web leaderboard page.
 //
-// Uses the site's shared anon-key Supabase client. RLS on
-// `public.tournaments` grants `anon` a SELECT policy
-// (`web_leaderboard_public_read_tournaments`, added
-// 2026-07-27 in the Flutter repo migration), so any tournament
-// id is fetchable — Sam's "fully public per tournament id"
-// choice for Ballyneal Brigade kiosk viewing.
+// Two doors, on purpose (one-run plan 1.2, Flutter migration 20261119):
 //
-// Only reads. No writes. No auth required.
+//   * `getTournamentView` reads `public.tournaments_public` — the scrubbed
+//     view. Every account id except the viewer's own is replaced by a
+//     per-tournament hash (consistently, so players ↔ teams ↔ scores still
+//     join), phone/email are dropped, and `user_id` is only present on the
+//     owner's own session. **Every page a non-owner can open uses this.**
+//   * `getPublicTournament` reads the table. After 1.3 drops the two
+//     `qual true` read policies it returns a row only to its OWNER. The
+//     editor pages (manage / pairings / competitions and their API routes)
+//     stay on it because they WRITE players back — writing hashed ids into
+//     a tournament would corrupt it. Never point an editor at the view.
+//
+// Only reads. No writes.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -114,11 +120,10 @@ export type TournamentRow = {
 const TOURNAMENT_COLS = '*';
 
 /// List tournaments owned by the currently-authenticated user.
-/// The `tournaments` RLS "owner-only" policy on authenticated
-/// users transparently filters to `user_id = auth.uid()`, so no
-/// WHERE clause is needed — Supabase's anon-key SELECT (used for
-/// the public leaderboard) is scoped separately and does NOT
-/// apply here because the request carries an auth cookie.
+/// Relies on RLS for the owner filter. NOTE: until one-run 1.3 drops
+/// `web_leaderboard_public_read_tournaments_authenticated` (`qual true`),
+/// that policy ORs in and this returns every tournament; after 1.3 only
+/// "Users select own tournaments" (`user_id = auth.uid()`) applies.
 ///
 /// Sort: newest first by created_at (matches the app's default).
 export async function listMyTournaments(
@@ -157,9 +162,27 @@ export function hasAnyScores(t: TournamentRow): boolean {
   return false;
 }
 
-/// Fetch a tournament by id. Returns null when not found or when
-/// RLS refuses (should be always allowed post-migration, but the
-/// safe fallback lets the page render a clean "Not found" state).
+/// Fetch a tournament by id through the scrubbed public view. Safe for
+/// anyone, signed in or not; see the header for what it hides.
+export async function getTournamentView(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<TournamentRow | null> {
+  const { data, error } = await supabase
+    .from('tournaments_public')
+    .select(TOURNAMENT_COLS)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) {
+    console.error('[getTournamentView]', error);
+    return null;
+  }
+  return (data ?? null) as TournamentRow | null;
+}
+
+/// Fetch a tournament by id from the TABLE — owner/editor use only (see
+/// the header). Returns null when not found or when RLS refuses, which
+/// after one-run 1.3 means "you are not the owner".
 export async function getPublicTournament(
   supabase: SupabaseClient,
   id: string,
