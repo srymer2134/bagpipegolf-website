@@ -1,0 +1,73 @@
+---
+// Account deletion — the public page Google Play's Data safety form links
+// to. Play requires a working web URL that tells a user how to get their
+// account and data deleted, including without reinstalling the app. Two
+// doors: the app's Profile → Delete Account, and the "Delete account"
+// section on /app/profile (api/account/delete.ts). Both call the same
+// Railway route. No email route, by Sam's call (2026-11-02).
+//
+// What is kept mirrors privacy.astro §5–6; change them together.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const deleted = Astro.url.searchParams.get('deleted') === '1';
+---
+
+<BaseLayout title="Delete your account · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Account</p>
+    <h1 class="pagewrap__title">Delete your account.</h1>
+    <p class="pagewrap__sub">
+      You can delete your Bagpipe Golf account and its data at any time,
+      from the app or from this website.
+    </p>
+
+    {deleted && (
+      <div class="notice notice--ok">
+        Your account has been deleted and you have been signed out.
+      </div>
+    )}
+
+    <article class="card prose">
+      <h2>In the app</h2>
+      <ol>
+        <li>Open Bagpipe Golf and tap the <strong>Profile</strong> tab.</li>
+        <li>Scroll to the bottom and tap <strong>Profile → Delete Account</strong>.</li>
+        <li>Confirm. Your account is deleted straight away and you are signed out.</li>
+      </ol>
+
+      <h2>On the web — no app needed</h2>
+      <ol>
+        <li><a href="/login?next=/app/profile">Sign in at bagpipegolf.com</a> with the same email and password you use in the app.</li>
+        <li>Go to <a href="/app/profile#delete-account">My profile → Delete account</a>.</li>
+        <li>Type <strong>DELETE</strong> to confirm and press the button.</li>
+      </ol>
+      <p>
+        Forgotten your password? <a href="/forgot-password">Reset it here</a>
+        first, then follow the steps above.
+      </p>
+
+      <h2>What is deleted</h2>
+      <ul>
+        <li>Your profile and sign-in record</li>
+        <li>Your rounds, scores and stats</li>
+        <li>Side games, tournaments and leagues you created</li>
+        <li>Your friends list, and your entry on your friends' lists</li>
+        <li>Your issue reports</li>
+        <li>Any league plan you pay for is cancelled first, so you are not charged again</li>
+      </ul>
+
+      <h2>What is kept, and for how long</h2>
+      <ul>
+        <li><strong>Active systems:</strong> everything above is removed within 30 days.</li>
+        <li><strong>Backups:</strong> backup copies may persist for up to 90 days, then are permanently erased.</li>
+        <li><strong>Aggregate counts:</strong> app-wide totals (for example, rounds played) may still include your past activity, but are not linked to you.</li>
+        <li><strong>Screenshots on issue reports:</strong> the report text is deleted, but an attached image may remain in storage. See the <a href="/privacy">privacy policy</a> §6.</li>
+        <li><strong>Records the law requires:</strong> kept only where the law says so.</li>
+      </ul>
+
+      <p>
+        Full details are in our <a href="/privacy">privacy policy</a>.
+      </p>
+    </article>
+  </main>
+</BaseLayout>

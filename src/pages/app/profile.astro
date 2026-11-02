@@ -169,6 +169,26 @@ const hcSource = str('handicap_source');
       </p>
     </form>
 
+    <section class="fs fs--danger" id="delete-account">
+      <legend class="legendish">Delete account</legend>
+      <p class="hint">
+        Permanently deletes your account, rounds, side games, tournaments,
+        leagues you created and friends list &mdash; the same as Profile &rarr;
+        Delete Account in the app. Any league plan you pay for is cancelled
+        first. This cannot be undone. <a href="/delete-account">What is kept, and
+        for how long</a>.
+      </p>
+      <form id="dform" novalidate>
+        <label class="field">
+          <span>Type DELETE to confirm</span>
+          <input type="text" name="confirm" autocomplete="off" autocapitalize="characters"
+                 spellcheck="false" placeholder="DELETE" />
+        </label>
+        <div id="dmsg" class="notice" hidden></div>
+        <button type="submit" class="btn btn--danger" id="dbtn" disabled>Delete my account</button>
+      </form>
+    </section>
+
     <section class="fs">
       <legend class="legendish">Not here yet</legend>
       <p class="hint">
@@ -234,7 +254,54 @@ const hcSource = str('handicap_source');
     });
   </script>
 
+  <script is:inline>
+    (() => {
+      const dform = document.getElementById('dform');
+      const dbtn = document.getElementById('dbtn');
+      const dmsg = document.getElementById('dmsg');
+      const input = dform.elements.namedItem('confirm');
+      // Mirrors CONFIRM_PHRASE in lib/accountDelete.ts; the server checks too.
+      const ok = () => input.value.trim() === 'DELETE';
+      input.addEventListener('input', () => { dbtn.disabled = !ok(); });
+
+      dform.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        if (!ok()) return;
+        dbtn.disabled = true;
+        dbtn.textContent = 'Deleting…';
+        try {
+          const res = await fetch('/api/account/delete', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ confirm: input.value }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            dmsg.textContent = body.error || 'Could not delete your account.';
+            dmsg.className = 'notice notice--warn';
+            dmsg.hidden = false;
+            dbtn.disabled = false;
+            dbtn.textContent = 'Delete my account';
+            return;
+          }
+          window.location.assign(body.next || '/delete-account?deleted=1');
+        } catch {
+          dmsg.textContent = 'Network error — nothing was deleted.';
+          dmsg.className = 'notice notice--warn';
+          dmsg.hidden = false;
+          dbtn.disabled = false;
+          dbtn.textContent = 'Delete my account';
+        }
+      });
+    })();
+  </script>
+
   <style>
+    .fs--danger { border-color: #e5b4b0; }
+    .btn--danger {
+      background: #b42318; color: #fff; border: 0; margin-top: 4px;
+    }
+    .btn--danger:disabled { opacity: 0.45; cursor: not-allowed; }
     .fs {
       border: 1px solid var(--line, #dfe6e2); border-radius: 8px;
       padding: 14px 16px; margin: 0 0 20px;
