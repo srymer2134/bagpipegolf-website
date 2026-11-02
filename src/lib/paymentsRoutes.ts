@@ -65,8 +65,11 @@ export async function loadPayable(
       joinCode: (r.join_code as string | null) ?? null,
     };
   }
+  // The scrubbed view, because the payer is not the owner (one-run 1.3
+  // leaves the table owner-only). `user_id` is present only on the
+  // owner's session, so ownerId — and isOwner below — stay correct.
   const { data, error } = await supabase
-    .from('tournaments')
+    .from('tournaments_public')
     .select('id, name, user_id')
     .eq('id', id)
     .maybeSingle();

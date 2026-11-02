@@ -131,7 +131,10 @@ export const POST: APIRoute = async (ctx) => {
     if (plan.needsOwnership) {
       // Ownership, not just existence. See the header.
       const { data: t, error: tErr } = await supabase
-        .from('tournaments')
+        // The view, so a tournament someone else owns still EXISTS here
+        // (after one-run 1.3 the table hides it) and gets the "only one
+        // you created" answer below; `user_id` is present only for the owner.
+        .from('tournaments_public')
         .select('id, user_id, name')
         .eq('id', rawTid)
         .maybeSingle();
