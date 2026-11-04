@@ -18,47 +18,58 @@
 // covered" is what the director actually wants to know, and it stays true on
 // a refresh an hour later.
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { parseTournamentId } from '../../../lib/tournamentPass';
 
 const locals = Astro.locals as App.Locals;
 const leagueParam = (Astro.url.searchParams.get('league_id') ?? '').trim();
 const leagueId = leagueParam.length > 0 && leagueParam.length <= 128 ? leagueParam : '';
+// A tournament pass comes back with ?tournament_id= instead (api #194).
+const tournamentId = leagueId ? null : parseTournamentId(Astro.url.searchParams.get('tournament_id'));
 
 if (!locals.user) {
   const next = leagueId
     ? `/app/billing/success?league_id=${encodeURIComponent(leagueId)}`
-    : '/app/billing';
+    : tournamentId
+      ? `/app/billing/success?tournament_id=${encodeURIComponent(tournamentId)}`
+      : '/app/billing';
   return Astro.redirect(`/login?next=${encodeURIComponent(next)}`, 302);
 }
-if (!leagueId) return Astro.redirect('/app/billing', 302);
+if (!leagueId && !tournamentId) return Astro.redirect('/app/billing', 302);
 
-const pollUrl = `/api/billing/entitlements?league_id=${encodeURIComponent(leagueId)}`;
+const pollUrl = leagueId
+  ? `/api/billing/entitlements?league_id=${encodeURIComponent(leagueId)}`
+  : `/api/billing/entitlements?tournament_id=${encodeURIComponent(tournamentId!)}`;
+const backUrl = leagueId
+  ? '/app/billing'
+  : `/app/billing?tournament_id=${encodeURIComponent(tournamentId!)}`;
+const isPass = !leagueId;
 ---
 
-<BaseLayout title="Confirming your subscription · Bagpipe Golf">
+<BaseLayout title={isPass ? 'Confirming your pass · Bagpipe Golf' : 'Confirming your subscription · Bagpipe Golf'}>
   <section class="pagewrap">
     <p class="pagewrap__eyebrow">Billing</p>
 
-    <h1 class="pagewrap__title" id="title">Confirming your subscription…</h1>
+    <h1 class="pagewrap__title" id="title">{isPass ? 'Confirming your pass…' : 'Confirming your subscription…'}</h1>
     <p class="pagewrap__sub" id="sub">
       Your payment went through. We’re waiting for Stripe to confirm it, which
       usually takes a few seconds.
     </p>
 
     <p id="actions" hidden>
-      <a class="btn btn--primary" href="/app/billing">Your subscription</a>
+      <a class="btn btn--primary" href={backUrl}>{isPass ? 'Your tournament pass' : 'Your subscription'}</a>
     </p>
 
     <noscript>
       <p class="pagewrap__sub">
         Your payment went through.
-        <a href="/app/billing">Open your subscription</a> to see it — it may
+        <a href={backUrl}>Open your billing page</a> to see it — it may
         take a few seconds to appear.
       </p>
     </noscript>
   </section>
 </BaseLayout>
 
-<script define:vars={{ pollUrl }}>
+<script define:vars={{ pollUrl, isPass }}>
   // Back off rather than hammer: ~30s of attempts, widening gaps.
   const DELAYS = [700, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000];
   const title = document.getElementById('title');
@@ -80,10 +91,15 @@ const pollUrl = `/api/billing/entitlements?league_id=${encodeURIComponent(league
       });
       if (res.ok) {
         const body = await res.json();
-        if (body && body.entitled === true) {
+        // A standalone tournament answers `entitled: true` always (its
+        // money-in is never gated); the pass lives under `field`.
+        const done = isPass ? body && body.field && body.field.entitled === true : body && body.entitled === true;
+        if (done) {
           settle(
-            'You’re subscribed.',
-            'This league is covered for the next twelve months, and it will renew automatically.',
+            isPass ? 'Your pass is active.' : 'You’re subscribed.',
+            isPass
+              ? 'This tournament has no limit on its field now. A receipt and invoice are on their way.'
+              : 'This league is covered for the next twelve months, and it will renew automatically.',
           );
           return;
         }
@@ -98,7 +114,7 @@ const pollUrl = `/api/billing/entitlements?league_id=${encodeURIComponent(league
       // the worst thing this page could do.
       settle(
         'Payment received.',
-        'Stripe has taken the payment. Our side hasn’t caught up yet — it will shortly, and no further action is needed. Reload your subscription page in a minute.',
+        'Stripe has taken the payment. Our side hasn’t caught up yet — it will shortly, and no further action is needed. Reload your billing page in a minute.',
       );
       return;
     }

@@ -187,6 +187,16 @@ export function billingErrorMessage(code: string | null | undefined): string | n
       return 'Free trials are not available right now.';
     case 'trial_not_owner':
       return 'Only the league owner can start the free trial.';
+    // The tournament pass (api #194/#195). One-time, $240.
+    case 'tournament_id_required':
+    case 'tournament_not_found':
+      return 'That tournament could not be found.';
+    case 'not_tournament_owner':
+      return 'Only the tournament director can buy its pass.';
+    case 'league_tournament':
+      return "That tournament is part of a league — the league's plan covers it.";
+    case 'already_has_pass':
+      return 'That tournament already has a pass.';
     default:
       return 'Something went wrong. Nothing was charged — try again.';
   }
