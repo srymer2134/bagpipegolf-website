@@ -1,11 +1,14 @@
 import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../lib/railway';
 import { isStripeUrl, redirect, withQuery } from '../../../lib/paymentsRoutes';
+import { rememberedPromo } from '../../../lib/promoCode';
 
 // POST /api/billing/checkout-session — the Subscribe button on /app/billing.
 //
 // 🚨 NOT A TRANSPARENT PROXY. The body sent upstream is rebuilt from exactly
-// one validated field, `league_id`. There is no path by which a caller names
+// one validated field, `league_id`, plus the promotion code remembered from
+// an email link (`lib/promoCode.ts`) — a code, never a price; the API looks
+// it up in Stripe and ignores one it does not know. There is no path by which a caller names
 // a price, an amount, a quantity or a trial — the Price id lives only in the
 // API's own env (STRIPE_PRICE_LEAGUE_DIRECTOR_ANNUAL). This is the same rule
 // as /api/payments/checkout-session, and for the same reason: PATRICK_BACKLOG
@@ -41,12 +44,13 @@ export const POST: APIRoute = async (ctx) => {
     return redirect(withQuery(back, { billing: 'league_id_required' }));
   }
 
+  const promo = rememberedPromo(ctx.cookies);
   let data: { checkout_url?: unknown };
   try {
     data = await callRailway<{ checkout_url?: unknown }>(ctx, {
       method: 'POST',
       path: '/api/billing/checkout-session',
-      body: { league_id: leagueId },
+      body: { league_id: leagueId, ...(promo ? { promo_code: promo } : {}) },
     });
   } catch (err) {
     const code =
