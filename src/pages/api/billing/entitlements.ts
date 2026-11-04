@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../lib/railway';
 
-// GET /api/billing/entitlements?league_id= — read-only, same-origin.
+// GET /api/billing/entitlements?league_id=|tournament_id= — read-only, same-origin.
 //
 // Exists so /app/billing/success can POLL from the browser. Stripe redirects
 // the director back the instant Checkout completes, which is usually BEFORE
@@ -24,7 +24,10 @@ export const GET: APIRoute = async (ctx) => {
 
   const raw = ctx.url.searchParams.get('league_id');
   const leagueId = typeof raw === 'string' ? raw.trim() : '';
-  if (leagueId.length > 128) {
+  // A tournament pass (/app/billing/success?tournament_id=) polls by tournament.
+  const rawT = ctx.url.searchParams.get('tournament_id');
+  const tournamentId = typeof rawT === 'string' ? rawT.trim() : '';
+  if (leagueId.length > 128 || tournamentId.length > 128) {
     return new Response(JSON.stringify({ error: 'league_id_required' }), {
       status: 400,
       headers: { 'content-type': 'application/json' },
@@ -35,7 +38,11 @@ export const GET: APIRoute = async (ctx) => {
     const data = await callRailway<unknown>(ctx, {
       method: 'GET',
       path: '/api/billing/entitlements',
-      query: leagueId ? { league_id: leagueId } : undefined,
+      query: leagueId
+        ? { league_id: leagueId }
+        : tournamentId
+          ? { tournament_id: tournamentId }
+          : undefined,
     });
     return new Response(JSON.stringify(data), {
       status: 200,

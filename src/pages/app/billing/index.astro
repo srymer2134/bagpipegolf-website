@@ -35,11 +35,24 @@ import {
 } from '../../../lib/billing';
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
 import PoweredByStripe from '../../../components/payments/PoweredByStripe.astro';
+import {
+  TOURNAMENT_PASS_PRICE_COPY,
+  offersPass,
+  parseTournamentId,
+  passDetail,
+  passState,
+  type TournamentEntitlement,
+} from '../../../lib/tournamentPass';
 
 const locals = Astro.locals as App.Locals;
 const user = locals.user;
+// ?tournament_id= turns this into one tournament's pass ($240, one time):
+// where the field-size refusal and the manage page's "Tournament pass" link
+// send a director (lib/tournamentPass.ts).
+const tournamentId = parseTournamentId(Astro.url.searchParams.get('tournament_id'));
 if (!user) {
-  return Astro.redirect(`/login?next=${encodeURIComponent('/app/billing')}`, 302);
+  const here = tournamentId ? `/app/billing?tournament_id=${encodeURIComponent(tournamentId)}` : '/app/billing';
+  return Astro.redirect(`/login?next=${encodeURIComponent(here)}`, 302);
 }
 
 let state: BillingListResponse | null = null;
@@ -59,6 +72,28 @@ try {
 if (!loadFailed && state && !state.billing_available) {
   return new Response('Not found', { status: 404 });
 }
+
+// The tournament view reads its own entitlement; the league list is not shown.
+let pass: TournamentEntitlement | null = null;
+let passName = '';
+if (tournamentId && !loadFailed) {
+  try {
+    pass = await callRailway<TournamentEntitlement>(Astro, {
+      method: 'GET',
+      path: '/api/billing/entitlements',
+      query: { tournament_id: tournamentId },
+    });
+  } catch {
+    pass = null;
+  }
+  const { data: t } = await supabaseFor(Astro as unknown as RouteCtx)
+    .from('tournaments')
+    .select('name')
+    .eq('id', tournamentId)
+    .maybeSingle();
+  passName = ((t as { name?: string | null } | null)?.name ?? '').trim() || 'Your tournament';
+}
+const passView = passState(pass);
 
 const rows: BillingLeagueRow[] = state?.leagues ?? [];
 // `state` is shadowed inside the row map (the row's badge state), so the
@@ -89,10 +124,10 @@ const sorted = [...rows].sort((a, b) =>
 );
 ---
 
-<BaseLayout title="League subscription · Bagpipe Golf">
+<BaseLayout title={tournamentId ? 'Tournament pass · Bagpipe Golf' : 'League subscription · Bagpipe Golf'}>
   <section class="pagewrap">
     <p class="pagewrap__eyebrow">Billing</p>
-    <h1 class="pagewrap__title">Your league subscription.</h1>
+    <h1 class="pagewrap__title">{tournamentId ? 'Your tournament pass.' : 'Your league subscription.'}</h1>
 
     {notice && <p class="notice" role="status">{notice}</p>}
 
@@ -103,7 +138,49 @@ const sorted = [...rows].sort((a, b) =>
       </p>
     )}
 
-    {!loadFailed && sorted.length === 0 && (
+    {tournamentId && !loadFailed && (
+      <>
+        <p class="pagewrap__sub">
+          A tournament outside a league is free up to 36 players. One pass,
+          {' '}{TOURNAMENT_PASS_PRICE_COPY}{' '}one time, opens the field to as many as you like.
+        </p>
+        <ul class="billlist">
+          <li class="billlist__row">
+            <div class="billlist__text">
+              <span class="billlist__name">{passName}</span>
+              <span class={`chip chip--${passView === 'covered' ? 'active' : passView === 'league' ? 'comped' : 'subscribe'}`}>
+                {passView === 'covered' && 'Pass active'}
+                {passView === 'league' && 'League plan'}
+                {passView === 'needed' && 'At the free limit'}
+                {passView === 'optional' && 'Free'}
+                {passView === 'unknown' && 'Unknown'}
+              </span>
+              <span class="billlist__detail">{passDetail(passView, pass?.field)}</span>
+            </div>
+            {offersPass(passView) ? (
+              <form method="POST" action="/api/billing/tournament-checkout">
+                <input type="hidden" name="tournament_id" value={tournamentId} />
+                <button class="btn btn--primary btn--sm" type="submit">
+                  Buy pass · {TOURNAMENT_PASS_PRICE_COPY}
+                </button>
+              </form>
+            ) : (
+              passView === 'covered' && <span class="billlist__done" aria-hidden="true">✓</span>
+            )}
+          </li>
+        </ul>
+        <p>
+          <a class="btn btn--ghost btn--sm" href={`/app/tournaments/${encodeURIComponent(tournamentId)}/manage`}>Back to the tournament</a>
+        </p>
+        <p class="pagewrap__fine">
+          Payment is taken by Stripe — card details never reach Bagpipe. You
+          get an invoice, and applicable sales tax is calculated at checkout.
+        </p>
+        <PoweredByStripe />
+      </>
+    )}
+
+    {!tournamentId && !loadFailed && sorted.length === 0 && (
       <>
         <p class="pagewrap__sub">
           A subscription covers one league for twelve months. You don’t own a
@@ -114,7 +191,7 @@ const sorted = [...rows].sort((a, b) =>
       </>
     )}
 
-    {!loadFailed && sorted.length > 0 && (
+    {!tournamentId && !loadFailed && sorted.length > 0 && (
       <>
         <p class="pagewrap__sub">
           {LEAGUE_DIRECTOR_PRICE_COPY}, per league, renewing annually. This is

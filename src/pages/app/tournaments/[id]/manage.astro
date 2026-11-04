@@ -35,6 +35,8 @@ import { getPublicTournament, type TournamentPlayer } from '../../../../lib/tour
 import { leagueEventFor, type LeagueEventContext } from '../../../../lib/leagueEvents';
 import { fixtureParam, getMerchant, modeFor } from '../../../../lib/paymentsServer';
 import { paymentsGate } from '../../../../lib/paymentsGate';
+import { callRailway } from '../../../../lib/railway';
+import { passState, type PassState, type TournamentEntitlement } from '../../../../lib/tournamentPass';
 
 const { id } = Astro.params;
 const user = Astro.locals.user;
@@ -87,6 +89,23 @@ if (tournament && id) {
 let leagueEvent: LeagueEventContext | null = null;
 if (tournament) {
   leagueEvent = await leagueEventFor(supabase, user.id, id);
+}
+
+// Tournament pass ($240, standalone fields of 37+). The link shows only when
+// the API admits this director to billing and the tournament is outside a
+// league; any error → no link, same posture as the payments link above.
+let passView: PassState | null = null;
+if (tournament && !leagueEvent) {
+  try {
+    const ent = await callRailway<TournamentEntitlement>(Astro, {
+      method: 'GET',
+      path: '/api/billing/entitlements',
+      query: { tournament_id: id! },
+    });
+    if (ent.billing_available && ent.standalone === true) passView = passState(ent);
+  } catch {
+    passView = null;
+  }
 }
 
 // Fetch the director's friends roster for the "Add from friends"
@@ -182,6 +201,15 @@ if (tournament) {
     {showPaymentsLink && (
       <p class="pagewrap__sub">
         <a class="btn btn--ghost" href={`/app/tournaments/${id}/payments`}>Set up card payments</a>
+      </p>
+    )}
+
+    {passView && passView !== 'unknown' && (
+      <p class="pagewrap__sub">
+        <a class="btn btn--ghost" href={`/app/billing?tournament_id=${encodeURIComponent(id!)}`}>
+          {passView === 'covered' ? 'Tournament pass ✓' : 'Tournament pass'}
+        </a>
+        {passView === 'needed' && ' Your field is at the free limit — a pass lets more players join.'}
       </p>
     )}
 
