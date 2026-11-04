@@ -3,6 +3,7 @@ import { CONTENT_SECURITY_POLICY } from './lib/csp';
 import { createSupabaseClient } from './lib/supabase';
 import { handleWellKnownRequest } from './lib/wellKnown';
 import { ensureSentryInit, captureServerError } from './lib/sentryServer';
+import { rememberPromo } from './lib/promoCode';
 
 // Routes that require an authenticated Supabase session. If a request
 // to one of these comes in without a session, we redirect to /login
@@ -88,6 +89,10 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
 
   locals.session = session;
   locals.user = user;
+
+  // Before any redirect below: a signed-in director following the email's
+  // `/signup?promo=` link is bounced to /app, and the code must survive that.
+  rememberPromo(new URL(ctx.request.url), ctx.cookies);
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
   const isPublicApp = PUBLIC_APP_PATTERNS.some((r) => r.test(pathname));

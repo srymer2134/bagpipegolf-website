@@ -20,7 +20,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
     <h1 class="pagewrap__title">Free to play. Simple pricing to host.</h1>
     <p class="pagewrap__sub">
       Players never pay. Hosts pick the plan that fits, with no setup fee —
-      and every league starts with a 30-day free trial.
+      and every league and club starts with a 30-day free trial.
     </p>
 
     <!-- Plans (Sam, 2026-10-30): Single Event $240 (fields of 37+; free up
@@ -31,7 +31,9 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
          the same day). League trial: 30 days, no card, ONE per
          director (api 20261115; shown once billing is enforced — until
          then nothing is locked, so it is saved). Club has NO checkout yet — its button is
-         an email until the backend can sell it. -->
+         an email until the backend can sell it. Club trial (Sam 2026-11-04): 30 days,
+         no card, granted by hand — an admin comps each of the club's leagues for
+         30 days (POST /api/billing/admin/comp with ends_at). -->
     <section class="grid grid--3 plans">
       <article class="card plan">
         <span class="chip">Single event</span>
@@ -59,6 +61,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
         <span class="chip">Club</span>
         <h3>$2,970 <span class="card__per">/ year</span></h3>
         <p class="plan__lede"><strong>Unlimited leagues, up to 4 admins.</strong> One plan for a club running men's, women's, couples, senior and twilight leagues — and whatever comes next.</p>
+        <p class="plan__trial">30-day free trial · no card needed</p>
         <ul class="plan__list">
           <li>Everything in League, for every league you run</li>
           <li>Unlimited events in every league</li>
