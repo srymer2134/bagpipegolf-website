@@ -1,6 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AppLinkBanner from '../components/AppLinkBanner.astro';
+import PlanCards from '../components/PlanCards.astro';
+import PromoBar from '../components/PromoBar.astro';
+import { buyHref } from '../lib/offer';
 import { ROUND_FORMAT_COUNT } from '../lib/roundFormats';
 
 // Content sourced from the Flutter repo's canonical
@@ -129,6 +132,8 @@ const advanced: Advanced[] = [
       concept you'd normally track in a spreadsheet, computed live from the
       scores as they come in.
     </p>
+
+    <PromoBar />
 
     <AppLinkBanner
       singular="league"
@@ -278,11 +283,18 @@ const advanced: Advanced[] = [
       </a>
     </section>
 
+    <section class="plans-section" id="pricing">
+      <h2>What it costs</h2>
+      <p class="plans-section__sub">Players never pay. One plan per league, or one Club plan for all of them — both start with 30 days free.</p>
+      <PlanCards only={['league', 'club']} variant="compact" />
+      <p class="plans-section__more"><a href="/pricing">Full pricing and how we compare →</a></p>
+    </section>
+
     <section class="cta">
       <h2>Ready to start a season?</h2>
       <p>Set up a league, invite the roster, schedule the weeks. Bagpipe runs the standings.</p>
       <div class="cta__row">
-        <a class="btn btn--primary" href="/signup">Create account</a>
+        <a class="btn btn--primary" href={buyHref('league')}>Start your league — 30 days free</a>
         <a class="btn btn--ghost" href="/leagues/get-started">How to set one up &rarr;</a>
       </div>
       <p class="cta__alt">
@@ -293,6 +305,10 @@ const advanced: Advanced[] = [
 </BaseLayout>
 
 <style>
+  .plans-section { margin-top: 48px; }
+  .plans-section h2 { margin: 0 0 6px; }
+  .plans-section__sub { margin: 0 0 18px; color: var(--ink-muted); }
+  .plans-section__more { margin: 14px 0 0; font-weight: 700; }
   .hero-band {
     background: linear-gradient(180deg, var(--brand-green-pale) 0%, #fff 100%);
     border: 1px solid rgba(26, 92, 56, 0.15);

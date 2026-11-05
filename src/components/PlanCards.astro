@@ -1,0 +1,161 @@
+---
+// The three plans, each with a button that starts buying it. Used on
+// /pricing (full), and on the home, leagues and tournaments pages.
+//
+// Every button goes to /buy/<plan> (lib/offer.ts → buyHref), which walks the
+// director through sign-up and setup to Stripe Checkout with the launch code
+// already attached. Prices in the <h3>s are written out literally because
+// pricingCopy.test.ts pins them; offer.test.ts checks they match PLANS.
+//
+// Plan terms (Sam, 2026-10-25 / 10-30 / 11-04): Single Event $240 for a field
+// of 37+, free up to 36. League $2,140/yr = one league, one login, unlimited
+// events, plus a match-play companion league. Club $2,970/yr = unlimited
+// leagues + up to 4 admins; no Club checkout yet, so it starts with a
+// hand-granted 30-day trial. League trial: 30 days, no card, one per director.
+import { sideGames } from '../lib/sideGames';
+import {
+  PLANS,
+  PROMO_CODE,
+  buyHref,
+  dollars,
+  offerActive,
+  offerPrice,
+  type PlanKey,
+} from '../lib/offer';
+
+interface Props {
+  /** Which plans to show (always in event, league, club order). Defaults to all three. */
+  only?: PlanKey[];
+  /** `compact` drops the feature lists, for a section on a longer page. */
+  variant?: 'full' | 'compact';
+}
+const { only = ['event', 'league', 'club'], variant = 'full' } = Astro.props;
+const full = variant === 'full';
+const offer = offerActive();
+const show = (k: PlanKey) => only.includes(k);
+const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 'grid--3';
+---
+
+<div class={`grid ${cols} plans`}>
+  {show('event') && (
+    <article class="card plan" id="event-plan">
+      <span class="chip">Single event</span>
+      <h3>$240 <span class="card__per">/ per event</span></h3>
+      {offer && (
+        <p class="plan__offer">
+          <s>{dollars(PLANS.event.price)}</s> <strong>{dollars(offerPrice(PLANS.event))}</strong> for your first event with {PROMO_CODE}
+        </p>
+      )}
+      <p class="plan__lede"><strong>Free up to 36 players.</strong> $240 per tournament for a field of 37 or more — a charity day, a member-guest, a company outing.</p>
+      {full && (
+        <ul class="plan__list">
+          <li>Pairings and live leaderboards</li>
+          <li>All {sideGames.length} side games, settled for you</li>
+          <li>Card entry fees, if you want them</li>
+        </ul>
+      )}
+      <div class="plan__cta">
+        <a class="btn btn--primary btn--block" href={buyHref('event')} data-plan="event">Buy an event pass</a>
+        <a class="plan__alt" href="/app/tournaments/new">36 players or fewer? Set it up free</a>
+      </div>
+    </article>
+  )}
+  {show('league') && (
+    <article class="card plan plan--featured" id="league-plan">
+      <span class="chip">League · most popular</span>
+      <h3>$2,140 <span class="card__per">/ year per league</span></h3>
+      {offer && (
+        <p class="plan__offer">
+          <s>{dollars(PLANS.league.price)}</s> <strong>{dollars(offerPrice(PLANS.league))}</strong> for your first year with {PROMO_CODE}
+        </p>
+      )}
+      <p class="plan__lede"><strong>One league, one login, unlimited events.</strong> Every tournament, competition and format your league runs is included.</p>
+      <p class="plan__trial">30-day free trial · no card needed</p>
+      {full && (
+        <ul class="plan__list">
+          <li>Season setup, weekly pairings and standings</li>
+          <li>Stroke and match-play events, plus a season-long match-play series as a free companion league</li>
+          <li>Card dues collection</li>
+          <li>All {sideGames.length} side games, settled for you</li>
+        </ul>
+      )}
+      <div class="plan__cta">
+        <a class="btn btn--primary btn--block" href={buyHref('league')} data-plan="league">
+          {offer ? `Buy League — ${dollars(offerPrice(PLANS.league))} first year` : 'Buy League'}
+        </a>
+        <a class="plan__alt" href={buyHref('league')}>or start the 30-day free trial</a>
+      </div>
+    </article>
+  )}
+  {show('club') && (
+    <article class="card plan" id="club-plan">
+      <span class="chip">Club</span>
+      <h3>$2,970 <span class="card__per">/ year</span></h3>
+      {offer && (
+        <p class="plan__offer">
+          <s>{dollars(PLANS.club.price)}</s> <strong>{dollars(offerPrice(PLANS.club))}</strong> for your first year with {PROMO_CODE}
+        </p>
+      )}
+      <p class="plan__lede"><strong>Unlimited leagues, up to 4 admins.</strong> One plan for a club running men's, women's, couples, senior and twilight leagues — and whatever comes next.</p>
+      <p class="plan__trial">30-day free trial · no card needed</p>
+      {full && (
+        <ul class="plan__list">
+          <li>Everything in League, for every league you run</li>
+          <li>Unlimited events in every league</li>
+          <li>Up to 4 admin accounts</li>
+        </ul>
+      )}
+      <div class="plan__cta">
+        <a class="btn btn--primary btn--block" href={buyHref('club')} data-plan="club">Start the Club trial</a>
+        <a class="plan__alt" href="mailto:hello@bagpipegolf.com?subject=Club%20plan">Questions? Email hello@bagpipegolf.com</a>
+      </div>
+    </article>
+  )}
+</div>
+{offer && (
+  <p class="plans__fine">
+    Offer prices are the first payment with code {PROMO_CODE}, applied for you at
+    checkout. Plus applicable sales tax. Renews at the regular price.
+  </p>
+)}
+
+<style>
+  .plans { align-items: stretch; }
+  .plans--one { display: grid; max-width: 420px; }
+  .plan { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+  .plan .chip { align-self: flex-start; }
+  .plan h3 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    margin: 6px 0 0;
+  }
+  .card__per { font-size: 1rem; font-weight: 600; color: var(--ink-muted); }
+  .plan p { margin: 0; color: var(--ink-muted); font-size: 0.9375rem; }
+  .plan--featured { border: 2px solid var(--brand-green-dark); }
+  .plan .plan__offer { color: var(--ink); font-size: 0.9375rem; }
+  .plan__offer s { color: var(--ink-hint); }
+  .plan__offer strong { color: var(--brand-green); font-size: 1.125rem; }
+  .plan .plan__trial {
+    color: var(--brand-green-dark);
+    font-weight: 700;
+    font-size: 0.875rem;
+  }
+  .plan__list {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    color: var(--ink-muted);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+  .plan__list li { margin-bottom: 4px; }
+  .plan__cta {
+    margin-top: auto;
+    padding-top: 14px;
+    display: grid;
+    gap: 8px;
+    justify-items: center;
+  }
+  .plan__alt { font-size: 0.875rem; color: var(--brand-green); text-align: center; }
+  .plans__fine { margin: 12px 0 0; font-size: 0.8125rem; color: var(--ink-hint); }
+</style>

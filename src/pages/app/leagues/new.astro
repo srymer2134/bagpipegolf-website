@@ -2,6 +2,7 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { WEB_LEAGUE_TEMPLATES, templateByKey } from '../../../lib/leagueCreate';
 import SeasonDateList from '../../../components/SeasonDateList.astro';
+import BuySteps from '../../../components/BuySteps.astro';
 
 // `/app/leagues/new` — create a league from the web.
 //
@@ -12,6 +13,9 @@ import SeasonDateList from '../../../components/SeasonDateList.astro';
 // signed-in user — the same path the app uses. See lib/leagueCreate.ts.
 
 const today = new Date().toISOString().slice(0, 10);
+// `?then=billing` = arrived from a Buy button (/buy/league): once the league
+// exists, go straight to checkout instead of the league page.
+const thenBilling = Astro.url.searchParams.get('then') === 'billing';
 
 // The Match Play League card, and its preset rendered for a human.
 //
@@ -83,6 +87,7 @@ const PRESET_ROWS = mc
 
 <BaseLayout title="New league · Bagpipe Golf">
   <main class="pagewrap pagewrap--narrow">
+    <BuySteps plan={thenBilling ? 'league' : null} step={2} />
     <p class="pagewrap__eyebrow">Leagues</p>
     <h1 class="pagewrap__title">Start a league.</h1>
     <p class="pagewrap__sub">
@@ -90,7 +95,7 @@ const PRESET_ROWS = mc
       once it exists.
     </p>
 
-    <form id="newLeague">
+    <form id="newLeague" data-then={thenBilling ? 'billing' : undefined}>
       <div id="formError" class="notice notice--warn" hidden></div>
 
       <fieldset class="fs">
@@ -255,6 +260,15 @@ const PRESET_ROWS = mc
           err.hidden = false;
           btn.disabled = false;
           btn.textContent = label;
+          return;
+        }
+        const paywalled = body.paywall && String(body.paywall).startsWith('/app/billing');
+        if (form.dataset.then === 'billing' && (paywalled || !body.weeksError)) {
+          // Buying: the league exists, so go and pay for it. A paywalled
+          // season is exactly what the plan unlocks; any other dates error
+          // falls through below so it is still shown.
+          createdHref = '/app/billing';
+          window.location.href = createdHref;
           return;
         }
         if (body.paywall && String(body.paywall).startsWith('/app/billing')) {

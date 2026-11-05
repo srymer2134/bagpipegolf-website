@@ -2,6 +2,8 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SocialLinks from '../components/SocialLinks.astro';
 import { sideGames } from '../lib/sideGames';
+import PlanCards from '../components/PlanCards.astro';
+import PromoBar from '../components/PromoBar.astro';
 
 // The games named in the side-games card. "N more" is the library size
 // minus this list — it said "21 more" after nine names with 34 games.
@@ -163,10 +165,24 @@ const moreGames = sideGames.length - featuredGames.length;
             <li>GHIN Sync — coming soon</li>
             <li>AI-assisted tournament comms (push / email / SMS) — coming soon</li>
           </ul>
-          <a class="btn btn--primary" href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf%20for%20my%20event">
-            Pitch your event →
+          <a class="btn btn--primary" href="#pricing">
+            See plans and pricing →
           </a>
         </div>
+      </div>
+    </section>
+
+    <!-- ───────── Pricing ───────── -->
+    <section class="homeplans" id="pricing">
+      <div class="homeplans__inner">
+        <h2 class="section__title">Simple pricing to host. Free to play.</h2>
+        <p class="homeplans__sub">
+          Players never pay. Hosts pick a plan, with no setup fee — and every
+          league starts with a 30-day free trial.
+        </p>
+        <PromoBar href="#pricing" />
+        <PlanCards variant="compact" />
+        <p class="homeplans__more"><a href="/pricing">Everything in each plan, and how we compare →</a></p>
       </div>
     </section>
 
@@ -506,6 +522,13 @@ const moreGames = sideGames.length - featuredGames.length;
     background: var(--brand-green-pale);
     color: var(--brand-green-dark);
   }
+
+  /* ── Pricing ───────────────────────────────────────── */
+  .homeplans { padding: 80px 24px; background: var(--paper); }
+  .homeplans__inner { max-width: 1100px; margin: 0 auto; }
+  .homeplans__sub { color: var(--ink-muted); margin: 0 auto 20px; max-width: 62ch; text-align: center; }
+  .homeplans__more { margin: 18px 0 0; font-weight: 700; }
+  .homeplans__more a { color: var(--brand-green); }
 
   /* ── Coming soon ───────────────────────────────────── */
   .comingsoon {

@@ -1,0 +1,156 @@
+---
+// /buy/<plan> — where every "Buy" button on the marketing pages points.
+//
+// One job: get a director from "I'll take that one" to Stripe Checkout in
+// as few screens as possible, wherever they are in the setup.
+//
+//   league  signed out          → /signup?next=/buy/league
+//           owns no league      → /app/leagues/new?then=billing (create, then pay)
+//           owns a league       → /app/billing (trial or Subscribe per league)
+//   event   signed out          → /signup?next=/buy/event
+//           no open tournament  → /app/tournaments/new
+//           one                 → /app/billing?tournament_id=<it>
+//           several             → a picker, below
+//   club    anyone              → the page below (no Club checkout yet; it
+//                                 starts with a hand-granted 30-day trial)
+//
+// The `?promo=` on the link is stored by the middleware before this page
+// runs (lib/promoCode.ts), so every redirect here drops the query string
+// without losing the code.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import BuySteps from '../../components/BuySteps.astro';
+import { createSupabaseClient } from '../../lib/supabase';
+import {
+  PLANS,
+  PROMO_CODE,
+  PROMO_PERCENT,
+  PROMO_ENDS_COPY,
+  dollars,
+  isPlanKey,
+  offerActive,
+  offerPrice,
+} from '../../lib/offer';
+
+const plan = Astro.params.plan;
+if (!isPlanKey(plan)) return new Response('Not found', { status: 404 });
+
+const user = (Astro.locals as App.Locals).user;
+const here = `/buy/${plan}`;
+
+let picks: Array<{ id: string; name: string }> = [];
+
+if (plan !== 'club') {
+  if (!user) return Astro.redirect(`/signup?next=${encodeURIComponent(here)}`, 302);
+
+  const supabase = createSupabaseClient({
+    request: Astro.request,
+    cookies: Astro.cookies,
+    locals: Astro.locals,
+  });
+
+  if (plan === 'league') {
+    const { data } = await supabase.from('leagues').select('id').eq('user_id', user.id).limit(1);
+    return Astro.redirect((data ?? []).length > 0 ? '/app/billing' : '/app/leagues/new?then=billing', 302);
+  }
+
+  // event: the director's own tournaments that are not finished.
+  const { data } = await supabase
+    .from('tournaments')
+    .select('id, name')
+    .eq('user_id', user.id)
+    .is('completed_at', null)
+    .order('created_at', { ascending: false })
+    .limit(25);
+  picks = ((data ?? []) as Array<{ id: string; name: string | null }>).map((t) => ({
+    id: t.id,
+    name: (t.name ?? '').trim() || 'Untitled tournament',
+  }));
+  if (picks.length === 0) return Astro.redirect('/app/tournaments/new', 302);
+  if (picks.length === 1) {
+    return Astro.redirect(`/app/billing?tournament_id=${encodeURIComponent(picks[0].id)}`, 302);
+  }
+}
+
+const offer = offerActive();
+const club = PLANS.club;
+const clubMail =
+  'mailto:hello@bagpipegolf.com?subject=' +
+  encodeURIComponent('Club plan — start our 30-day trial') +
+  '&body=' +
+  encodeURIComponent(
+    'Club or facility name:\nHow many leagues you run:\nAdmins (up to 4) — names and emails:\nBest phone number:\n' +
+      (offer ? `\nPromo code: ${PROMO_CODE}\n` : ''),
+  );
+---
+
+<BaseLayout title={plan === 'club' ? 'Club plan · Bagpipe Golf' : 'Pick your event · Bagpipe Golf'}>
+  <main class="pagewrap pagewrap--narrow">
+    {plan === 'event' && (
+      <>
+        <BuySteps plan="event" step={2} />
+        <p class="pagewrap__eyebrow">Tournament pass</p>
+        <h1 class="pagewrap__title">Which event is the pass for?</h1>
+        <p class="pagewrap__sub">
+          One pass opens one tournament to a field of any size. Events of 36
+          players or fewer are free — you only need a pass above that.
+        </p>
+        <ul class="picklist">
+          {picks.map((t) => (
+            <li>
+              <a class="picklist__row" href={`/app/billing?tournament_id=${encodeURIComponent(t.id)}`}>
+                <span>{t.name}</span>
+                <span class="picklist__go" aria-hidden="true">→</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+        <p><a class="btn btn--ghost btn--sm" href="/app/tournaments/new">+ Set up a new event instead</a></p>
+      </>
+    )}
+
+    {plan === 'club' && (
+      <>
+        <p class="pagewrap__eyebrow">Club plan</p>
+        <h1 class="pagewrap__title">Start your Club trial.</h1>
+        <p class="pagewrap__sub">
+          Unlimited leagues and up to 4 admin accounts for {dollars(club.price)} a
+          year. Every Club starts with 30 days free — no card. Tell us who
+          you are and we'll switch on every league you run.
+        </p>
+        {offer && (
+          <p class="clubdeal">
+            <strong>{PROMO_CODE}:</strong> {PROMO_PERCENT}% off your first year —
+            {' '}<s>{dollars(club.price)}</s> <strong>{dollars(offerPrice(club))}</strong>, plus
+            applicable sales tax, when you subscribe by {PROMO_ENDS_COPY}.
+          </p>
+        )}
+        <p class="clubcta">
+          <a class="btn btn--primary" href={clubMail}>Email us to start the trial</a>
+          <a class="btn btn--ghost" href="/pricing#plans">Compare plans</a>
+        </p>
+        <p class="pagewrap__fine">
+          Or write to <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>.
+          Running just one league? The <a href="/buy/league">League plan</a> starts
+          right away, online.
+        </p>
+      </>
+    )}
+  </main>
+</BaseLayout>
+
+<style>
+  .picklist { list-style: none; margin: 20px 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; }
+  .picklist li + li { border-top: 1px solid var(--line); }
+  .picklist__row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; color: var(--ink); font-weight: 600; text-decoration: none;
+  }
+  .picklist__row:hover { background: var(--brand-green-pale); }
+  .picklist__go { color: var(--brand-green); }
+  .clubdeal {
+    margin: 0 0 18px; padding: 12px 14px; border-radius: 12px;
+    background: var(--brand-green-pale); color: var(--ink);
+  }
+  .clubcta { display: flex; flex-wrap: wrap; gap: 10px; }
+  .pagewrap__fine { margin-top: 20px; font-size: 0.875rem; color: var(--ink-muted); }
+</style>

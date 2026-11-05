@@ -35,6 +35,8 @@ import {
 } from '../../../lib/billing';
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
 import PoweredByStripe from '../../../components/payments/PoweredByStripe.astro';
+import { rememberedPromo } from '../../../lib/promoCode';
+import { PLANS, PROMO_CODE, PROMO_PERCENT, dollars, offerActive, offerPrice } from '../../../lib/offer';
 import {
   TOURNAMENT_PASS_PRICE_COPY,
   offersPass,
@@ -118,6 +120,10 @@ const owned: OwnedLeague[] = ((leagueRows ?? []) as Array<{
 const nameFor = new Map<string, string>(owned.map((l) => [l.id, l.name]));
 
 const notice = billingErrorMessage(Astro.url.searchParams.get('billing'));
+// The code that checkout will apply (the cookie the proxies read), shown
+// here so the director sees the discount before they click, not after.
+const promo = rememberedPromo(Astro.cookies);
+const launchCode = offerActive() && promo?.toLowerCase() === PROMO_CODE.toLowerCase();
 const showPortal = offersPortal(rows);
 const sorted = [...rows].sort((a, b) =>
   (nameFor.get(a.league_id) ?? a.league_id).localeCompare(nameFor.get(b.league_id) ?? b.league_id),
@@ -130,6 +136,19 @@ const sorted = [...rows].sort((a, b) =>
     <h1 class="pagewrap__title">{tournamentId ? 'Your tournament pass.' : 'Your league subscription.'}</h1>
 
     {notice && <p class="notice" role="status">{notice}</p>}
+
+    {!loadFailed && (launchCode ? (
+      <p class="promo" role="status">
+        <strong>{PROMO_CODE} is applied at checkout</strong> — {PROMO_PERCENT}% off your first payment
+        {tournamentId
+          ? <> ({dollars(offerPrice(PLANS.event))} instead of {dollars(PLANS.event.price)}).</>
+          : <> ({dollars(offerPrice(PLANS.league))} instead of {dollars(PLANS.league.price)} for a league's first year).</>}
+      </p>
+    ) : promo ? (
+      <p class="promo" role="status">Code <strong>{promo}</strong> will be applied at checkout.</p>
+    ) : offerActive() && (
+      <p class="promo promo--quiet">Have a promo code? Enter it on the checkout page.</p>
+    ))}
 
     {loadFailed && (
       <p class="pagewrap__sub">
@@ -183,11 +202,15 @@ const sorted = [...rows].sort((a, b) =>
     {!tournamentId && !loadFailed && sorted.length === 0 && (
       <>
         <p class="pagewrap__sub">
-          A subscription covers one league for twelve months. You don’t own a
-          league yet, and only the person who created a league can subscribe
-          it.
+          A subscription covers one league for twelve months. Create your
+          league first — it takes a minute — and you'll come straight back
+          here to start your free trial or subscribe. Only the person who
+          creates a league can subscribe it.
         </p>
-        <p><a class="btn btn--primary" href="/app/leagues">Your leagues</a></p>
+        <p class="emptycta">
+          <a class="btn btn--primary" href="/app/leagues/new?then=billing">Create your league</a>
+          <a class="btn btn--ghost" href="/app/leagues">Your leagues</a>
+        </p>
       </>
     )}
 
@@ -247,7 +270,7 @@ const sorted = [...rows].sort((a, b) =>
                         class={`btn btn--sm ${offersTrial(billingState, row) ? 'btn--ghost' : 'btn--primary'}`}
                         type="submit"
                       >
-                        Subscribe
+                        Subscribe · {LEAGUE_DIRECTOR_PRICE_COPY}
                       </button>
                     </form>
                   </div>
@@ -293,6 +316,12 @@ const sorted = [...rows].sort((a, b) =>
   .billlist__name { font-weight: 600; }
   .billlist__detail { font-size: 0.9rem; opacity: 0.75; }
   .billlist__done { font-size: 1.1rem; opacity: 0.55; }
+  .promo {
+    margin: 0 0 1rem; padding: 0.7rem 0.9rem; border-radius: 8px;
+    background: var(--brand-green-pale); color: var(--ink);
+  }
+  .promo--quiet { background: transparent; padding: 0; color: var(--ink-muted); font-size: 0.9rem; }
+  .emptycta { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .chip {
     align-self: flex-start;
     font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;

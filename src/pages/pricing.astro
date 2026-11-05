@@ -2,11 +2,13 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { sideGames } from '../lib/sideGames';
 import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
+import PlanCards from '../components/PlanCards.astro';
+import PromoBar from '../components/PromoBar.astro';
 ---
 
 <BaseLayout title="Pricing · Bagpipe Golf">
   <main class="pagewrap">
-    <!-- League plan (LEAGUE_SUBSCRIPTION_AND_PLAN_GATING_PLAN.md, flutter
+    {/* League plan (LEAGUE_SUBSCRIPTION_AND_PLAN_GATING_PLAN.md, flutter
          repo): $2,000 a year PER LEAGUE, card only, 12 months from the start
          date, renews yearly. Leagues that existed before the plan launched
          get 12 months free (plan L5/L9).
@@ -15,7 +17,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
          billing.config, so this copy and that number change together.
          A tournament run inside a league is covered by that league's plan.
          llmsTxt.ts states the same figures — pricingCopy.test.ts keeps the
-         two in step. -->
+         two in step. */}
     <p class="pagewrap__eyebrow">Pricing</p>
     <h1 class="pagewrap__title">Free to play. Simple pricing to host.</h1>
     <p class="pagewrap__sub">
@@ -23,7 +25,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
       and every league and club starts with a 30-day free trial.
     </p>
 
-    <!-- Plans (Sam, 2026-10-30): Single Event $240 (fields of 37+; free up
+    {/* Plans (Sam, 2026-10-30): Single Event $240 (fields of 37+; free up
          to 36), League $2,140/yr = one league, ONE login, unlimited events/competitions/
          formats, plus a match-play companion league (Sam 2026-10-30, P7 in the
          Club plan; billing support is §3.8 — must ship before go-live). Club $2,970/yr for UNLIMITED leagues and up
@@ -33,42 +35,17 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
          then nothing is locked, so it is saved). Club has NO checkout yet — its button is
          an email until the backend can sell it. Club trial (Sam 2026-11-04): 30 days,
          no card, granted by hand — an admin comps each of the club's leagues for
-         30 days (POST /api/billing/admin/comp with ends_at). -->
-    <section class="grid grid--3 plans">
-      <article class="card plan">
-        <span class="chip">Single event</span>
-        <h3>$240 <span class="card__per">/ per event</span></h3>
-        <p class="plan__lede"><strong>Free up to 36 players.</strong> $240 per tournament for a field of 37 or more — a charity day, a member-guest, a company outing.</p>
-        <ul class="plan__list">
-          <li>Pairings and live leaderboards</li>
-          <li>All {sideGames.length} side games, settled for you</li>
-          <li>Card entry fees, if you want them</li>
-        </ul>
-      </article>
-      <article class="card plan plan--featured" id="league-plan">
-        <span class="chip">League · most popular</span>
-        <h3>$2,140 <span class="card__per">/ year per league</span></h3>
-        <p class="plan__lede"><strong>One league, one login, unlimited events.</strong> Every tournament, competition and format your league runs is included.</p>
-        <p class="plan__trial">30-day free trial · no card needed</p>
-        <ul class="plan__list">
-          <li>Season setup, weekly pairings and standings</li>
-          <li>Stroke and match-play events, plus a season-long match-play series as a free companion league</li>
-          <li>Card dues collection</li>
-          <li>All {sideGames.length} side games, settled for you</li>
-        </ul>
-      </article>
-      <article class="card plan" id="club-plan">
-        <span class="chip">Club</span>
-        <h3>$2,970 <span class="card__per">/ year</span></h3>
-        <p class="plan__lede"><strong>Unlimited leagues, up to 4 admins.</strong> One plan for a club running men's, women's, couples, senior and twilight leagues — and whatever comes next.</p>
-        <p class="plan__trial">30-day free trial · no card needed</p>
-        <ul class="plan__list">
-          <li>Everything in League, for every league you run</li>
-          <li>Unlimited events in every league</li>
-          <li><a href="mailto:hello@bagpipegolf.com?subject=Club%20plan">Email hello@bagpipegolf.com</a> to start</li>
-        </ul>
-      </article>
+         30 days (POST /api/billing/admin/comp with ends_at). */}
+    <PromoBar href="#plans" />
+    <section id="plans" aria-label="Plans">
+      <PlanCards />
     </section>
+
+    <ol class="howbuy" aria-label="How buying works">
+      <li><strong>Pick a plan.</strong> Every button above starts checkout for that plan.</li>
+      <li><strong>Create your account and set up.</strong> Name your league or pick your event — about two minutes.</li>
+      <li><strong>Pay by card on Stripe.</strong> Secure checkout, an emailed receipt, and your launch code already applied.</li>
+    </ol>
 
     <p class="plans__players">
       <strong>Players are always free:</strong> the full scorecard, all
@@ -126,7 +103,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
       </p>
     </section>
 
-    <!-- Competitor comparison (Sam, 2026-10-30). Every cell is what that
+    {/* Competitor comparison (Sam, 2026-10-30). Every cell is what that
          company's OWN site says, read 2026-10-30, unless marked:
            GOLF GENIUS — golfgenius.com/products/tm: TM Club $1,425/yr +
              "$200 one-time onboarding fee"; TM Premium $4,275/yr + "$500";
@@ -155,7 +132,7 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
              /players/pricing: free membership; Unknown+ $49.99/yr or
              $14.99/mo unlocks custom side wagers ("Challenges").
          Never claim a rival LACKS something its site says it has. Re-read
-         the sources before changing a cell and update the date below. -->
+         the sources before changing a cell and update the date below. */}
     <section class="feeblock" id="compare">
       <h2 class="feeblock__h">How Bagpipe compares</h2>
       <p class="feeblock__p">
@@ -293,12 +270,12 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
       </p>
     </section>
 
-    <!-- W6 — fee disclosure for hosts who collect money through us.
+    {/* W6 — fee disclosure for hosts who collect money through us.
          Bagpipe's platform fee is 2% (F2, 2026-10-09; Sam re-confirmed
          2026-10-23), the same figure leagues/card-payments.astro shows.
          It is set per connected account (`merchant_accounts.
          application_fee_bps`, default 200), so this page states the
-         number — keep the two pages in step if it ever changes. -->
+         number — keep the two pages in step if it ever changes. */}
     <section class="feeblock" id="collecting-money">
       <h2 class="feeblock__h">Collecting entry fees and dues</h2>
       <p class="feeblock__p">
@@ -335,10 +312,10 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
       <PoweredByStripe />
     </section>
 
-    <!-- W7 — what connecting actually asks of a host, said BEFORE they
+    {/* W7 — what connecting actually asks of a host, said BEFORE they
          start. Stripe's onboarding asks for a bank account, a tax id
          and a photo id; a host who meets that cold, three screens in,
-         abandons it and tells us the feature is broken. -->
+         abandons it and tells us the feature is broken. */}
     <section class="feeblock" id="connecting-stripe">
       <h2 class="feeblock__h">Before you connect Stripe</h2>
       <p class="feeblock__p">
@@ -367,6 +344,34 @@ import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
 </BaseLayout>
 
 <style>
+  .howbuy {
+    margin: 22px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    counter-reset: howbuy;
+  }
+  .howbuy li {
+    counter-increment: howbuy;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--ink-muted);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+  .howbuy li::before {
+    content: counter(howbuy);
+    display: inline-grid; place-items: center;
+    width: 22px; height: 22px; margin-right: 6px;
+    border-radius: 50%;
+    background: var(--brand-green); color: #fff;
+    font-size: 0.75rem; font-weight: 700;
+  }
+  .howbuy strong { color: var(--ink); }
+  @media (max-width: 720px) { .howbuy { grid-template-columns: 1fr; } }
   .card { display: grid; gap: 6px; }
   .card .chip { justify-self: start; }
   .card h3 {

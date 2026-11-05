@@ -4,7 +4,11 @@ import { readFileSync } from 'node:fs';
 // The league plan's public terms (LEAGUE_SUBSCRIPTION_AND_PLAN_GATING_PLAN.md,
 // flutter repo). Every host-facing page states the same price, and none of
 // them still says hosting is "free for a limited time".
-const pricing = readFileSync('src/pages/pricing.astro', 'utf8');
+// The plan cards moved into a component shared with the home, leagues and
+// tournaments pages (2026-11-05); the pricing page is read with it.
+const pricing =
+  readFileSync('src/pages/pricing.astro', 'utf8') +
+  readFileSync('src/components/PlanCards.astro', 'utf8');
 const getStarted = readFileSync('src/pages/leagues/get-started.astro', 'utf8');
 
 describe('pricing copy — the league plan', () => {
@@ -19,20 +23,22 @@ describe('pricing copy — the league plan', () => {
     // P7 (Sam 2026-10-30): stroke + match pair counts as one League plan.
     expect(pricing).toMatch(/a season-long match-play series as a free companion league/);
     // Club: $2,970, unlimited leagues, up to 4 admin accounts (Sam
-    // 2026-10-30). No checkout yet, so its call to action is an email.
+    // 2026-10-30). No checkout yet: its button goes to /buy/club, which is
+    // an email to start the hand-granted trial, and the card keeps an email.
     expect(pricing).toMatch(/<span class="chip">Club<\/span>\s*<h3>\$2,970/);
     expect(pricing).toMatch(/Unlimited leagues, up to 4 admins/);
     // F10 (Sam 2026-10-30): no 'share the work' promise until shared management ships.
     expect(pricing).not.toMatch(/share the work/i);
-    expect(pricing.replace(/<!--[\s\S]*?-->/g, '')).not.toMatch(/up to 4 leagues/i);
+    expect(pricing.replace(/<!--[\s\S]*?-->|\{\/\*[\s\S]*?\*\/\}/g, '')).not.toMatch(/up to 4 leagues/i);
     expect(pricing).toContain('mailto:hello@bagpipegolf.com?subject=Club%20plan');
+    expect(pricing).toContain("href={buyHref('club')}");
     expect(pricing).toMatch(/Players are always free/);
     // League trial (api 20261115): 30 days, no card, one per director.
     expect(pricing).toMatch(/30-day free trial · no card needed/);
     expect(pricing).toMatch(/Try it free for 30 days\.<\/strong> No card needed/);
     expect(pricing).toMatch(/One free trial per organizer/);
     // No old figure left anywhere on the page outside the source comments.
-    const visible = pricing.replace(/<!--[\s\S]*?-->/g, '');
+    const visible = pricing.replace(/<!--[\s\S]*?-->|\{\/\*[\s\S]*?\*\/\}/g, '');
     expect(visible).not.toMatch(/\$2,000 \/ year per league|\$170/);
   });
 
