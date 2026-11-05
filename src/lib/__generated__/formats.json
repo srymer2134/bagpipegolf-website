@@ -1,7 +1,7 @@
 {
  "_comment": "GENERATED. Do not hand-edit. Built from RoundFormat + roundFormatMeta (lib/core/models/round_format.dart), kSegmentableFormats (round_segment.dart) and GameType (betting.dart). Regenerate with: REGEN=1 flutter test test/parity/round_formats_catalog.json, verify the diff, then copy to bagpipegolf-website/src/lib/__generated__/formats.json",
  "version": 1,
- "formatCount": 21,
+ "formatCount": 22,
  "sideGameCount": 34,
  "formats": [
   {
@@ -190,6 +190,16 @@
    "teamSize": 4,
    "isTeamFormat": true,
    "handicapAllowance": 0.85,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
+  },
+  {
+   "code": "quota",
+   "label": "Quota",
+   "teamSize": 1,
+   "isTeamFormat": false,
+   "handicapAllowance": 1.0,
    "allowanceEngineOwned": false,
    "v1Available": true,
    "segmentable": false

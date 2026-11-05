@@ -104,6 +104,13 @@ const PROSE: Record<string, Prose> = {
       'Everyone plays their own ball, and the number of scores that count rotates by hole: the best net on hole 1, the best two on hole 2, the best three on hole 3, then back to one. A league-night favorite — every player matters on the three-ball holes.',
     allowance: '85% Course Handicap (each player)',
   },
+  quota: {
+    name: 'Quota',
+    players: 'Individual',
+    body:
+      'Score points from your gross score — bogey 1, par 2, birdie 4, eagle 8 — against a quota of 36 minus your Course Handicap. Most points over quota wins. Birdies are worth twice a par, so it rewards going for it; a league-night favorite for mixed-ability fields.',
+    allowance: '100% Course Handicap (sets your quota)',
+  },
   two_man_total: {
     name: 'Two-Man Total',
     players: '2-person teams',
