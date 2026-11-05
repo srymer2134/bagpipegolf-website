@@ -22,6 +22,14 @@ describe('page CSP form-action', () => {
     expect(sources.sort()).toEqual(["'self'", 'https://billing.stripe.com', 'https://checkout.stripe.com', 'https://connect.stripe.com'].sort());
   });
 
+  it('lets Google Tag Manager load (2026-11-05) and nothing script-wise beyond it', () => {
+    const ss = directive('script-src')!.split(/\s+/).slice(1);
+    expect(ss.sort()).toEqual(
+      ["'self'", "'unsafe-inline'", 'https://*.googletagmanager.com', 'https://tagmanager.google.com'].sort(),
+    );
+    expect(directive('frame-src')).toBe('frame-src https://www.googletagmanager.com');
+  });
+
   it('keeps the rest of the policy locked down', () => {
     expect(directive('frame-ancestors')).toBe("frame-ancestors 'none'");
     expect(directive('object-src')).toBe("object-src 'none'");

@@ -7,7 +7,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <p class="pagewrap__eyebrow">Legal</p>
     <h1 class="pagewrap__title">Privacy policy.</h1>
     <p class="pagewrap__sub">
-      Last updated: <strong>July 15, 2026</strong>.
+      Last updated: <strong>November 5, 2026</strong>.
     </p>
 
     <article class="card prose">
@@ -41,6 +41,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <li><strong>Push notification token</strong> — if you opt in to tournament push notifications, the app registers a Firebase Cloud Messaging (FCM) token with our backend so we can deliver tee-time, pairing, and update messages. You can turn off push at any time from Profile → Notifications or in your device settings.</li>
         <li><strong>Crash and error reports</strong> — when the app or the bagpipegolf.com website crashes or hits an unhandled error, we send a crash report (stack trace, OS / browser version, app build number, release tag, and the URL path that triggered the error on the website) to Sentry. Crash reports do not include the content of your scorecards, bet games, or messages. On the website your user ID may be attached to a crash report when you're signed in (so we can distinguish account-specific bugs from general ones); email and IP address are NOT sent.</li>
         <li><strong>Usage analytics</strong> — we use PostHog to record product usage (which screens are visited, which buttons are tapped, error rates, feature adoption). Analytics events <strong>are tied to your account</strong> — your user ID, email, display name, and handicap are attached as PostHog profile properties so we can debug account-specific issues and understand usage by segment. This is not anonymous analytics. You can ask us to opt your account out of analytics collection (see §6). We never sell analytics data and never use it for third-party advertising.</li>
+        <li><strong>Website analytics</strong> — on the public pages of bagpipegolf.com (not inside your signed-in account pages, payment pages, invite links or sign-in forms), we use Google Analytics, loaded through Google Tag Manager, to understand how visitors find and use the site: pages viewed, the link or campaign that brought you, approximate location (city level), device and browser type. Google Analytics sets first-party cookies to tell visits apart. It is not tied to your Bagpipe account, and we do not enable Google's advertising features.</li>
         <li><strong>Authentication metadata</strong> — when you sign in, Supabase records the timestamp of the sign-in along with a session token. This is standard authentication infrastructure.</li>
       </ul>
 
@@ -107,6 +108,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               <td><strong>PostHog</strong></td>
               <td>Product analytics</td>
               <td>Usage events tied to your account (user ID, email, display name, handicap) — not anonymous</td>
+            </tr>
+            <tr>
+              <td><strong>Google Analytics / Tag Manager</strong></td>
+              <td>Website analytics (public pages of bagpipegolf.com)</td>
+              <td>Pages viewed, referring link or campaign, approximate location, device and browser; first-party cookies; not tied to your account</td>
             </tr>
             <tr>
               <td><strong>SendGrid</strong></td>
@@ -254,6 +260,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         Analytics are used for product improvement; we don't sell
         them. If you'd like to disable PostHog event reporting
         entirely, email us — we can flag your account as opted-out.
+      </p>
+      <p>
+        To stop Google Analytics on the website, block or clear
+        cookies for bagpipegolf.com in your browser, or install
+        Google's <a href="https://tools.google.com/dlpage/gaoptout" rel="noopener">Analytics opt-out add-on</a>.
       </p>
 
       <h3>Region-specific rights</h3>
