@@ -3,6 +3,7 @@ import SiteNav from '../components/SiteNav.astro';
 import Footer from '../components/Footer.astro';
 import { siteJsonLd } from '../lib/siteIdentity';
 import { canonicalUrl } from '../lib/canonical';
+import { GTM_CONTAINER_ID, gtmAllowedPath, gtmLoaderScript } from '../lib/analytics';
 
 interface Props {
   title: string;
@@ -47,12 +48,16 @@ const pageUrl = canonicalUrl(Astro.url.pathname, SITE.origin);
 // `/og.png` (which 404'd, so previews had no image at all) and the square
 // logo stopgap, which a large card would have centre-cropped.
 const shareImage = new URL('/og.jpg', SITE).toString();
+// Google Tag Manager — public marketing pages only (lib/analytics.ts says
+// why); the loader also refuses any hostname but bagpipegolf.com.
+const withGtm = gtmAllowedPath(Astro.url.pathname);
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    {withGtm && <script is:inline set:html={gtmLoaderScript()} />}
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
     <!-- Direct JPG favicon — earlier SVG hack that used <image href> to
@@ -79,6 +84,9 @@ const shareImage = new URL('/og.jpg', SITE).toString();
     <script type="application/ld+json" set:html={JSON.stringify(siteJsonLd())} />
   </head>
   <body>
+    {withGtm && (
+      <noscript><iframe src={`https://www.googletagmanager.com/ns.html?id=${GTM_CONTAINER_ID}`} height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript>
+    )}
     {!bare && <SiteNav />}
     <slot />
     {!bare && <Footer />}

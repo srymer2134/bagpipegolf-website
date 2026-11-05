@@ -2,15 +2,24 @@
 // A pure module so src/lib/csp.test.ts can pin it without loading the
 // Astro middleware runtime.
 
+// Google Tag Manager (lib/analytics.ts, 2026-11-05). gtm.js and the GA4
+// library it pulls load from *.googletagmanager.com; GA hits go out by fetch
+// and image beacon, which `connect-src https:` and `img-src https:` already
+// cover. tagmanager.google.com + the gstatic image hosts are GTM's Preview
+// mode (Tag Assistant), which the admins use to debug a container before
+// publishing. frame-src is the tag's own <noscript> iframe.
+const GTM_SCRIPT = 'https://*.googletagmanager.com https://tagmanager.google.com';
+
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   // See the note above on 'unsafe-inline'.
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  `script-src 'self' 'unsafe-inline' ${GTM_SCRIPT}`,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://tagmanager.google.com",
   'font-src https://fonts.gstatic.com data:',
   "img-src 'self' data: https:",
   // Supabase + Railway + Sentry ingest.
   "connect-src 'self' https:",
+  'frame-src https://www.googletagmanager.com',
   "frame-ancestors 'none'",
   "base-uri 'self'",
   // Stripe's three hosted pages, and nothing else. The payments forms
