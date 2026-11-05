@@ -1,7 +1,7 @@
 {
  "_comment": "GENERATED. Do not hand-edit. Built from RoundFormat + roundFormatMeta (lib/core/models/round_format.dart), kSegmentableFormats (round_segment.dart) and GameType (betting.dart). Regenerate with: REGEN=1 flutter test test/parity/round_formats_catalog.json, verify the diff, then copy to bagpipegolf-website/src/lib/__generated__/formats.json",
  "version": 1,
- "formatCount": 20,
+ "formatCount": 21,
  "sideGameCount": 34,
  "formats": [
   {
@@ -183,6 +183,16 @@
    "allowanceEngineOwned": false,
    "v1Available": true,
    "segmentable": true
+  },
+  {
+   "code": "cha_cha_cha",
+   "label": "Cha-Cha-Cha (1-2-3 Best Ball)",
+   "teamSize": 4,
+   "isTeamFormat": true,
+   "handicapAllowance": 0.85,
+   "allowanceEngineOwned": false,
+   "v1Available": true,
+   "segmentable": false
   },
   {
    "code": "bramble",
