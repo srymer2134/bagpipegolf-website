@@ -1,0 +1,74 @@
+---
+// The three-step strip shown along the buy path (/buy/<plan> → account →
+// set up → checkout), so a director who clicked "Buy" on /pricing always
+// knows where they are and that the code is still with them.
+//
+// Shown only when the page was reached from a buy link: callers pass the plan
+// they read from `?next=/buy/<plan>` or `?then=billing`. Without one, render
+// nothing — an ordinary sign-up is not a purchase.
+import { PLANS, PROMO_CODE, PROMO_PERCENT, offerActive, type PlanKey } from '../lib/offer';
+import { rememberedPromo } from '../lib/promoCode';
+
+interface Props {
+  plan: PlanKey | null;
+  step: 1 | 2 | 3;
+}
+const { plan, step } = Astro.props;
+const promo = rememberedPromo(Astro.cookies);
+const showPromo = offerActive() && promo?.toLowerCase() === PROMO_CODE.toLowerCase();
+const setup = plan === 'event' ? 'Pick your event' : 'Set up your league';
+const labels = ['Create your account', setup, 'Check out'];
+---
+
+{plan && (
+  <div class="buysteps" aria-label={`Buying the ${PLANS[plan].name} plan`}>
+    <p class="buysteps__plan">
+      Buying: <strong>{PLANS[plan].name}</strong>
+      {showPromo && <span class="buysteps__promo">{PROMO_CODE} saved · {PROMO_PERCENT}% off at checkout</span>}
+    </p>
+    <ol class="buysteps__list">
+      {labels.map((l, i) => (
+        <li class={i + 1 < step ? 'is-done' : i + 1 === step ? 'is-current' : ''} aria-current={i + 1 === step ? 'step' : undefined}>
+          <span class="buysteps__n">{i + 1 < step ? '✓' : i + 1}</span>
+          <span>{l}</span>
+        </li>
+      ))}
+    </ol>
+  </div>
+)}
+
+<style>
+  .buysteps {
+    margin: 0 0 20px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--brand-green-pale);
+  }
+  .buysteps__plan { margin: 0 0 8px; font-size: 0.9375rem; color: var(--ink); }
+  .buysteps__promo {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--brand-green);
+    color: #fff;
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+  .buysteps__list {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-wrap: wrap; gap: 6px 18px;
+    font-size: 0.875rem; color: var(--ink-muted);
+  }
+  .buysteps__list li { display: flex; align-items: center; gap: 6px; }
+  .buysteps__n {
+    display: inline-grid; place-items: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 1px solid var(--ink-hint);
+    font-size: 0.75rem; font-weight: 700;
+  }
+  .buysteps__list .is-current { color: var(--brand-green-dark); font-weight: 700; }
+  .buysteps__list .is-current .buysteps__n { background: var(--brand-green); border-color: var(--brand-green); color: #fff; }
+  .buysteps__list .is-done .buysteps__n { border-color: var(--brand-green); color: var(--brand-green); }
+</style>

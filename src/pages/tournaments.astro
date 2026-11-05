@@ -2,6 +2,9 @@
 import { ROUND_FORMATS, roundFormatLabels } from '../lib/roundFormats';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AppLinkBanner from '../components/AppLinkBanner.astro';
+import PlanCards from '../components/PlanCards.astro';
+import PromoBar from '../components/PromoBar.astro';
+import { buyHref } from '../lib/offer';
 import { CUP_TEMPLATE_LIST } from '../lib/cupTemplates';
 
 // Content sourced from the Flutter repo's canonical `docs/HOWTO_TOURNAMENTS.md`
@@ -49,6 +52,8 @@ const buddiesTemplates = CUP_TEMPLATE_LIST.map((t) => ({
       the trip your crew has been running on spreadsheets for years. Bagpipe
       handles pairings, points, and payouts — you show up and play.
     </p>
+
+    <PromoBar />
 
     <AppLinkBanner
       singular="tournament"
@@ -210,18 +215,29 @@ const buddiesTemplates = CUP_TEMPLATE_LIST.map((t) => ({
       </div>
     </section>
 
+    <section class="plans-section" id="pricing">
+      <h2>What it costs</h2>
+      <p class="plans-section__sub">Free for a field of up to 36. Bigger than that, one pass covers the event. Running events all season? The League plan covers every one.</p>
+      <PlanCards only={['event', 'league']} variant="compact" />
+      <p class="plans-section__more"><a href="/pricing">Full pricing and how we compare →</a></p>
+    </section>
+
     <section class="cta">
       <h2>Ready to run one?</h2>
       <p>Sign up, pick a format, invite your crew. The whole thing lives on your phone.</p>
       <div class="cta__row">
-        <a class="btn btn--primary" href="/signup">Create account</a>
-        <a class="btn btn--ghost" href="/side-games">Explore side games</a>
+        <a class="btn btn--primary" href="/signup?next=%2Fapp%2Ftournaments%2Fnew">Set up your event free</a>
+        <a class="btn btn--ghost" href={buyHref('event')}>Field over 36? Buy a pass</a>
       </div>
     </section>
   </main>
 </BaseLayout>
 
 <style>
+  .plans-section { margin-top: 48px; }
+  .plans-section h2 { margin: 0 0 6px; }
+  .plans-section__sub { margin: 0 0 18px; color: var(--ink-muted); }
+  .plans-section__more { margin: 14px 0 0; font-weight: 700; }
   .section-head {
     margin: 24px 0 20px;
   }

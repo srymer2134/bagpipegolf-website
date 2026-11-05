@@ -4,6 +4,7 @@ import { createSupabaseClient } from './lib/supabase';
 import { handleWellKnownRequest } from './lib/wellKnown';
 import { ensureSentryInit, captureServerError } from './lib/sentryServer';
 import { rememberPromo } from './lib/promoCode';
+import { safeNext } from './lib/safeNext';
 
 // Routes that require an authenticated Supabase session. If a request
 // to one of these comes in without a session, we redirect to /login
@@ -103,7 +104,9 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
 
   const shouldBounceSignedIn = SIGNED_IN_BOUNCE.includes(pathname);
   if (shouldBounceSignedIn && user) {
-    return ctx.redirect('/app', 302);
+    // Honour a same-origin `?next=`: a signed-in director clicking a
+    // "Set up your event" or Buy link (/signup?next=…) goes where they meant.
+    return ctx.redirect(safeNext(new URL(ctx.request.url).searchParams.get('next')), 302);
   }
 
   // Wrap the downstream chain (page renders, API routes) in a

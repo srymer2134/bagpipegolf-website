@@ -1,0 +1,43 @@
+---
+// The launch-offer strip at the top of the host-facing marketing pages.
+// Disappears on its own after the code's deadline (lib/offer.ts). The link
+// carries `?promo=`, so clicking it alone saves the code for checkout.
+import { PROMO_CODE, PROMO_ENDS_COPY, PROMO_PERCENT, offerActive } from '../lib/offer';
+
+interface Props {
+  /** Where "See plans" goes. On /pricing itself it is the plan grid. */
+  href?: string;
+}
+const { href = '/pricing#plans' } = Astro.props;
+const [path, hash] = href.split('#');
+const link = `${path}?promo=${PROMO_CODE}${hash ? `#${hash}` : ''}`;
+---
+
+{offerActive() && (
+  <aside class="promobar" aria-label="Launch offer">
+    <p>
+      <strong>Launch offer:</strong>{' '}{PROMO_PERCENT}% off your first payment on any plan with code
+      {' '}<span class="promobar__code">{PROMO_CODE}</span> — through {PROMO_ENDS_COPY}.
+      {' '}<a href={link}>See plans →</a>
+    </p>
+  </aside>
+)}
+
+<style>
+  .promobar {
+    margin: 0 0 24px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--brand-green-dark);
+    color: #fff;
+  }
+  .promobar p { margin: 0; font-size: 0.9375rem; line-height: 1.5; }
+  .promobar a { color: #fff; font-weight: 700; text-decoration: underline; white-space: nowrap; }
+  .promobar__code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.16);
+  }
+</style>

@@ -1,5 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import BuySteps from '../components/BuySteps.astro';
+import { planFromNext } from '../lib/offer';
 import { safeNext } from '../lib/safeNext';
 import { createSupabaseClient } from '../lib/supabase';
 
@@ -7,6 +9,8 @@ let error: string | null = null;
 let info: string | null = null;
 const url = new URL(Astro.request.url);
 const next = url.searchParams.get('next') || '/app';
+// Arrived from a Buy button: show where this sign-up sits in the purchase.
+const buyingPlan = planFromNext(next);
 let prefillEmail = '';
 let prefillFirst = '';
 let prefillLast = '';
@@ -109,6 +113,7 @@ if (Astro.request.method === 'POST') {
 
 <BaseLayout title="Create account · Bagpipe Golf">
   <main class="pagewrap pagewrap--narrow">
+    <BuySteps plan={buyingPlan} step={1} />
     <p class="pagewrap__eyebrow">Create account</p>
     <h1 class="pagewrap__title">Join Bagpipe Golf.</h1>
     <p class="pagewrap__sub">

@@ -27,11 +27,14 @@ type NavGroup = { title: string; links: NavLink[] };
 // Store" button that briefly lived to the right of the auth CTAs
 // — App Store discovery lives on the homepage launch banner
 // instead.
+// 2026-11-05 — Pricing back on the primary bar: paid plans went live
+// (billing on, Bagpipe50 launch code), which was the condition above.
 const primaryLinks: NavLink[] = [
   { href: '/features', label: 'Features' },
   { href: '/tournaments', label: 'Tournaments' },
   { href: '/side-games', label: 'Side games' },
   { href: '/leagues', label: 'Leagues' },
+  { href: '/pricing', label: 'Pricing' },
 ];
 
 // Menu panel — grouped sitemap. Five groups for both auth states so the
@@ -242,6 +245,7 @@ const isActive = (href: string) =>
     font-weight: 600;
     font-size: 0.9375rem;
     border-radius: 8px;
+    white-space: nowrap;
   }
   .sitenav__link:hover {
     color: var(--brand-green-dark);
@@ -382,7 +386,10 @@ const isActive = (href: string) =>
   }
 
   /* ── Mobile ──────────────────────────────────────────── */
-  @media (max-width: 880px) {
+  /* 1100px, not 880: with Pricing back on the bar (2026-11-05) five links
+     plus Menu / Sign in / Create account no longer fit below ~1100px —
+     the buttons wrapped at 1024 and overflowed at 900. */
+  @media (max-width: 1100px) {
     .sitenav__inner { gap: 12px; padding: 12px 16px; }
     /* Primary horizontal nav hides; access via Menu only. */
     .sitenav__primary { display: none; }
