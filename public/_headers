@@ -49,6 +49,32 @@
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
 
+# ── Email assets ────────────────────────────────────────────────
+#
+# `/email/` is an unlisted page (nothing links to it, `noindex`) whose
+# job is to serve images that transactional email links to, and to
+# document their URLs. Like the two pilot pages above it lives in
+# `public/`, so the adapter excludes it from the Worker and middleware
+# never runs — these headers are the only ones it gets.
+#
+# Stricter than the pilot blocks: the page loads no fonts and makes no
+# network calls, so there is no font-src and connect-src stays 'self'.
+# script-src is 'self' because the one script (`copy.js`) is a local
+# file, deliberately not an inline block. style-src keeps
+# 'unsafe-inline' for the page's single <style> element.
+#
+# Cache-Control is one day, NOT immutable. These filenames carry no
+# content hash and the page tells people to redraw in place rather than
+# add a new URL, because mail already sitting in inboxes keeps loading
+# from the old one. An immutable cache would make that replacement
+# invisible for a year.
+/email/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Cache-Control: public, max-age=86400
+
 # ── Hashed build output ─────────────────────────────────────────
 #
 # `/_astro/*` is also excluded from the Worker. These are

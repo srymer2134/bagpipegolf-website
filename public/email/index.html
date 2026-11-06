@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Unlisted on purpose: nothing on bagpipegolf.com links here, and this
+       keeps it out of search results. Same treatment as /badbirdie and /nalg. -->
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Email Assets</title>
+  <style>
+    /* Mirrors src/layouts/BaseLayout.astro so this page reads as the same
+       product. The site is light-only; no dark theme to match. */
+    :root {
+      --brand-green: #1A5C38;
+      --brand-green-dark: #0F3D25;
+      --brand-green-pale: #E8F5EE;
+      --ink: #1A1A1A;
+      --ink-muted: #6B7280;
+      --ink-hint: #9CA3AF;
+      --paper: #FFFFFF;
+      --paper-tint: #F5F5F5;
+      --line: #E5E7EB;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", system-ui, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 1.0625rem;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2 {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+        "Segoe UI", system-ui, sans-serif;
+      letter-spacing: -0.01em;
+      margin: 0;
+    }
+    img { max-width: 100%; height: auto; display: block; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .wrap { max-width: 720px; margin: 0 auto; padding: 56px 24px 72px; }
+
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--brand-green);
+      margin: 0 0 10px;
+    }
+    h1 { font-size: 2.1rem; }
+    .lede { color: var(--ink-muted); margin: 12px 0 0; }
+
+    .note {
+      display: flex;
+      gap: 10px;
+      margin: 28px 0 0;
+      padding: 14px 16px;
+      background: var(--brand-green-pale);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      color: var(--brand-green-dark);
+    }
+    .note b { font-weight: 700; }
+
+    h2 { font-size: 1.25rem; margin: 48px 0 0; }
+    .sub { color: var(--ink-muted); font-size: 0.95rem; margin: 6px 0 0; }
+
+    /* ── Asset card ───────────────────────────────────────────── */
+    .asset {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 24px;
+      align-items: start;
+      margin: 20px 0 0;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    .asset__shot {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .asset__name { font-weight: 700; }
+    .spec {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 16px;
+      margin: 12px 0 0;
+      font-size: 0.95rem;
+    }
+    .spec dt { color: var(--ink-muted); }
+    .spec dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+    /* ── Copyable rows ────────────────────────────────────────── */
+    .copyrow {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin: 20px 0 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .copyrow pre {
+      flex: 1;
+      margin: 0;
+      padding: 12px 14px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: var(--paper-tint);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .copybtn {
+      flex: 0 0 auto;
+      border: 0;
+      border-left: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--brand-green);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0 16px;
+      cursor: pointer;
+    }
+    .copybtn:hover { background: var(--brand-green-pale); }
+    .copybtn:focus-visible { outline: 2px solid var(--brand-green); outline-offset: -2px; }
+
+    .why { margin: 14px 0 0; font-size: 0.95rem; color: var(--ink-muted); }
+    .why li { margin: 6px 0; }
+
+    footer {
+      margin: 56px 0 0;
+      padding: 20px 0 0;
+      border-top: 1px solid var(--line);
+      font-size: 0.875rem;
+      color: var(--ink-hint);
+    }
+
+    @media (max-width: 560px) {
+      .asset { grid-template-columns: 1fr; }
+      .asset__shot { max-width: 180px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+
+    <p class="eyebrow">Bagpipe Golf</p>
+    <h1>Email assets</h1>
+    <p class="lede">
+      Images that transactional email can link to. An email client cannot
+      read a file out of our repo, so anything a template shows has to be
+      served from a public URL that never moves.
+    </p>
+
+    <div class="note">
+      <span aria-hidden="true">&#9679;</span>
+      <span>
+        <b>Unlisted page.</b> Nothing links here and it is marked
+        <code>noindex</code>. It exists so whoever wires a template has the
+        exact URLs in one place.
+      </span>
+    </div>
+
+    <h2>Logo</h2>
+    <p class="sub">The square mark, as used in the app and on the site.</p>
+
+    <div class="asset">
+      <div class="asset__shot">
+        <img src="./logo.jpg" alt="Bagpipe Golf — a piper in silhouette" width="1024" height="1024" />
+      </div>
+      <div>
+        <p class="asset__name">logo.jpg</p>
+        <dl class="spec">
+          <dt>Format</dt><dd>JPEG, no transparency</dd>
+          <dt>Dimensions</dt><dd>1024 &times; 1024</dd>
+          <dt>File size</dt><dd>170 KB</dd>
+          <dt>Background</dt><dd>Grey, baked in &mdash; not transparent</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="copyrow">
+      <pre id="snippet-url">https://bagpipegolf.com/email/logo.jpg</pre>
+      <button class="copybtn" type="button" data-copy="snippet-url">Copy</button>
+    </div>
+
+    <h2>Drop it into a template</h2>
+    <p class="sub">
+      Sized to 120&nbsp;px for a header. Width and height are set as
+      attributes as well as inline styles, because Outlook ignores the
+      stylesheet and reads the attributes.
+    </p>
+
+    <div class="copyrow">
+      <pre id="snippet-img">&lt;img src="https://bagpipegolf.com/email/logo.jpg"
+     alt="Bagpipe Golf"
+     width="120" height="120"
+     style="display:block;border:0;outline:none;text-decoration:none;width:120px;height:120px;" /&gt;</pre>
+      <button class="copybtn" type="button" data-copy="snippet-img">Copy</button>
+    </div>
+
+    <ul class="why">
+      <li>Always an absolute <code>https://</code> URL. A relative path resolves
+        against the mail client, not against us, and renders as a broken image.</li>
+      <li>Always an <code>alt</code>. Most clients block images until the reader
+        allows them, so the alt text is what the first open actually shows.</li>
+      <li>This path is stable. If the mark is ever redrawn, replace the file at
+        this URL rather than pointing templates somewhere new &mdash; mail already
+        in people's inboxes keeps loading from here.</li>
+    </ul>
+
+    <footer>
+      Served from <code>public/email/</code> in
+      <code>bagpipegolf-website</code>. Add an asset by committing it there.
+    </footer>
+
+  </main>
+
+  <script src="./copy.js"></script>
+</body>
+</html>
