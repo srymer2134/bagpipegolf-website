@@ -1,0 +1,46 @@
+---
+// The plan banner at the top of a league page, for its owner: the free
+// trial's countdown, or why the league is locked. Decisions live in
+// `leaguePlanBanner` (src/lib/billing.ts, tested); this only draws them.
+// The website is the paywall surface (plan §3.9), so it may name the
+// price page — the app may not (G7).
+import { daysLeftCopy, type LeaguePlanBanner } from '../lib/billing';
+import { billingUrlFor } from '../lib/planGate';
+
+interface Props {
+  banner: LeaguePlanBanner;
+  leagueId: string;
+}
+const { banner, leagueId } = Astro.props;
+const href = billingUrlFor(leagueId);
+---
+{banner?.kind === 'trial' && (
+  <div class="planbanner planbanner--trial" data-testid="league-plan-trial">
+    <p>
+      <strong>Free trial · {daysLeftCopy(banner.days)} left</strong>
+      {banner.endsOn && <> (ends {banner.endsOn})</>}. Subscribe before then to
+      keep your season going. You won't be charged until the trial ends.
+    </p>
+    <a class="btn btn--primary btn--sm" href={href}>Subscribe</a>
+  </div>
+)}
+{banner?.kind === 'locked' && (
+  <div class="planbanner planbanner--locked" data-testid="league-plan-locked">
+    <p>
+      <strong>This league's plan isn't active.</strong> Season setup, new
+      events and card payments are paused. Play, scores and the roster keep
+      working.
+    </p>
+    <a class="btn btn--primary btn--sm" href={href}>Subscribe</a>
+  </div>
+)}
+
+<style>
+  .planbanner {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 14px 16px; border-radius: 12px; margin: 16px 0; line-height: 1.5;
+  }
+  .planbanner p { margin: 0; flex: 1 1 260px; }
+  .planbanner--trial { background: #eef6f0; border: 1px solid #c9e2d2; color: #1a3d28; }
+  .planbanner--locked { background: #fdf6e8; border: 1px solid #e8d7ad; color: #6b4e11; }
+</style>

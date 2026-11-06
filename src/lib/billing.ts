@@ -268,3 +268,41 @@ export function moveTargets(
     })
     .sort((a, b) => Date.parse(b.created_at as string) - Date.parse(a.created_at as string));
 }
+
+/**
+ * The plan banner at the top of a league page, for its owner (Sam
+ * 2026-11-05: the free trial starts itself on a director's first league,
+ * so the director needs to see how long it has left).
+ *
+ *   trial  → the league is on the director's free trial: days left + end date
+ *   locked → billing enforces this director and nothing covers the league
+ *   null   → nothing to say (paid, comped, billing not open, or a failed read)
+ *
+ * A failed read is null, never "locked" — the database is the gate, and a
+ * page must not show a paywall on a network blip.
+ */
+export type LeaguePlanBanner =
+  | { kind: 'trial'; days: number; endsOn: string | null }
+  | { kind: 'locked' }
+  | null;
+
+export function leaguePlanBanner(
+  state: BillingListResponse | null,
+  leagueId: string,
+  today = new Date(),
+): LeaguePlanBanner {
+  if (!state || !state.billing_available) return null;
+  const row = state.leagues?.find((l) => l.league_id === leagueId);
+  if (!row) return null;
+  if (row.entitled && row.source === 'trial') {
+    const days = daysUntil(row.period_end, today);
+    return { kind: 'trial', days: Math.max(0, days ?? 0), endsOn: formatPeriodEnd(row.period_end) };
+  }
+  if (!row.entitled && state.enforced === true) return { kind: 'locked' };
+  return null;
+}
+
+/** "1 day" / "12 days". */
+export function daysLeftCopy(days: number): string {
+  return days === 1 ? '1 day' : `${days} days`;
+}

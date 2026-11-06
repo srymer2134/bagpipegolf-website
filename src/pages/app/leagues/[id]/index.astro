@@ -16,6 +16,9 @@ import { checkoutNotice, payNoticeCode, memberPayState } from '../../../../lib/p
 import { fixtureParam, listPayments, modeFor } from '../../../../lib/paymentsServer';
 import { loadPayable, supabaseFor, withQuery, type RouteCtx } from '../../../../lib/paymentsRoutes';
 import { paymentsGate } from '../../../../lib/paymentsGate';
+import LeaguePlanBanner from '../../../../components/LeaguePlanBanner.astro';
+import { leaguePlanBanner, type BillingListResponse } from '../../../../lib/billing';
+import { callRailway } from '../../../../lib/railway';
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
@@ -76,6 +79,22 @@ const showPrompt = own !== null && needsParticipationPrompt({
   supported: own.supported, isOwner: isLeagueOwner, row: own.row,
 });
 
+// The owner's plan banner: free-trial countdown, or why the league is
+// locked (Sam 2026-11-05). One billing read, owner only; a failed read
+// shows nothing — the database is the gate.
+let planBanner: ReturnType<typeof leaguePlanBanner> = null;
+if (d && id && isLeagueOwner) {
+  try {
+    const billing = await callRailway<BillingListResponse>(Astro, {
+      method: 'GET',
+      path: '/api/billing/entitlements',
+    });
+    planBanner = leaguePlanBanner(billing, id);
+  } catch (err) {
+    console.error('[app/league] billing read failed', err);
+  }
+}
+
 const payMode = modeFor(Astro.locals as App.Locals);
 let pay: { amountLabel: string | null; nothing: boolean; paid: boolean; refunded: boolean; action: string; notice: ReturnType<typeof checkoutNotice> } | null = null;
 if (payMode !== 'off' && d && id && own && payable) {
@@ -127,6 +146,8 @@ if (payMode !== 'off' && d && id && own && payable) {
           {d.weeks.length} {d.weeks.length === 1 ? 'event' : 'events'} · {played} played
         </p>
         <LeagueSubnav id={d.league.id} active="overview" coachAccess={d.league.coach_access} />
+
+        <LeaguePlanBanner banner={planBanner} leagueId={d.league.id} />
 
         {showPrompt && (
           <OwnerParticipation leagueId={d.league.id} mode="prompt" row={null}
