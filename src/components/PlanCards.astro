@@ -18,6 +18,7 @@ import {
   PLANS,
   PROMO_CODE,
   buyHref,
+  differentCodeBuyHref,
   dollars,
   offerActive,
   offerPrice,
@@ -58,6 +59,7 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
       <div class="plan__cta">
         <a class="btn btn--primary btn--block" href={buyHref('event')} data-plan="event">Buy an event pass</a>
         <a class="plan__alt" href="/app/tournaments/new">36 players or fewer? Set it up free</a>
+        <a class="plan__alt" href={differentCodeBuyHref('event')}>Have a different code?</a>
       </div>
     </article>
   )}
@@ -85,6 +87,7 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
           {offer ? `Buy League — ${dollars(offerPrice(PLANS.league))} first year` : 'Buy League'}
         </a>
         <a class="plan__alt" href={buyHref('league')}>or start the 30-day free trial</a>
+        <a class="plan__alt" href={differentCodeBuyHref('league')}>Have a different code?</a>
       </div>
     </article>
   )}
@@ -111,6 +114,7 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
           {offer ? `Buy Club — ${dollars(offerPrice(PLANS.club))} first year` : 'Buy Club'}
         </a>
         <a class="plan__alt" href={`${buyHref('club')}#trial`}>or start the 30-day free trial</a>
+        <a class="plan__alt" href={differentCodeBuyHref('club')}>Have a different code?</a>
         <a class="plan__alt" href="mailto:hello@bagpipegolf.com?subject=Club%20plan">Questions? Email hello@bagpipegolf.com</a>
       </div>
     </article>
@@ -119,7 +123,8 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
 {offer && (
   <p class="plans__fine">
     Offer prices are the first payment with code {PROMO_CODE}, applied for you at
-    checkout. Plus applicable sales tax. Renews at the regular price.
+    checkout. Plus applicable sales tax. Renews at the regular price. Have a
+    different code? Use the link under the plan, and enter it at checkout.
   </p>
 )}
 

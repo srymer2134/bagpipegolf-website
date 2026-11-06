@@ -5,6 +5,7 @@ import {
   PROMO_CODE,
   PROMO_ENDS_AT,
   buyHref,
+  differentCodeBuyHref,
   dollars,
   offerActive,
   offerPrice,
@@ -54,6 +55,14 @@ describe('launch offer', () => {
     const cards = readFileSync('src/components/PlanCards.astro', 'utf8');
     for (const k of ['event', 'league', 'club']) {
       expect(cards).toContain(`href={buyHref('${k}')} data-plan="${k}"`);
+    }
+  });
+
+  it('gives every plan card a "different code" link that clears the saved code', () => {
+    const cards = readFileSync('src/components/PlanCards.astro', 'utf8');
+    for (const k of ['event', 'league', 'club'] as const) {
+      expect(cards).toContain(`href={differentCodeBuyHref('${k}')}>Have a different code?</a>`);
+      expect(differentCodeBuyHref(k)).toBe(`/buy/${k}?promo=none`);
     }
   });
 

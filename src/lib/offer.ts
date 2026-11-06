@@ -65,6 +65,16 @@ export function buyHref(plan: PlanKey, now: Date = new Date()): string {
   return offerActive(now) ? `/buy/${plan}?promo=${PROMO_CODE}` : `/buy/${plan}`;
 }
 
+/**
+ * "Have a different code?" under each plan: the same buy flow with the saved
+ * code forgotten (`?promo=none`, lib/promoCode.ts), so Stripe Checkout opens
+ * with its code box instead of applying {@link PROMO_CODE}. Stripe shows no
+ * box once a code is applied (Sam, 2026-11-06).
+ */
+export function differentCodeBuyHref(plan: PlanKey): string {
+  return `/buy/${plan}?promo=none`;
+}
+
 export function isPlanKey(v: unknown): v is PlanKey {
   return v === 'event' || v === 'league' || v === 'club';
 }
