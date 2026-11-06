@@ -35,7 +35,7 @@ import {
 } from '../../../lib/billing';
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
 import PoweredByStripe from '../../../components/payments/PoweredByStripe.astro';
-import { rememberedPromo } from '../../../lib/promoCode';
+import { differentCodeHref, rememberedPromo } from '../../../lib/promoCode';
 import { PLANS, PROMO_CODE, PROMO_PERCENT, dollars, offerActive, offerPrice } from '../../../lib/offer';
 import {
   TOURNAMENT_PASS_PRICE_COPY,
@@ -143,9 +143,13 @@ const sorted = [...rows].sort((a, b) =>
         {tournamentId
           ? <> ({dollars(offerPrice(PLANS.event))} instead of {dollars(PLANS.event.price)}).</>
           : <> ({dollars(offerPrice(PLANS.league))} instead of {dollars(PLANS.league.price)} for a league's first year).</>}
+        {' '}<a href={differentCodeHref(Astro.url)}>Use a different code</a>
       </p>
     ) : promo ? (
-      <p class="promo" role="status">Code <strong>{promo}</strong> will be applied at checkout.</p>
+      <p class="promo" role="status">
+        Code <strong>{promo}</strong> will be applied at checkout.
+        {' '}<a href={differentCodeHref(Astro.url)}>Use a different code</a>
+      </p>
     ) : offerActive() && (
       <p class="promo promo--quiet">Have a promo code? Enter it on the checkout page.</p>
     ))}
