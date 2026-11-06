@@ -36,6 +36,8 @@ import {
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
 import PoweredByStripe from '../../../components/payments/PoweredByStripe.astro';
 import PromoCodeBox from '../../../components/PromoCodeBox.astro';
+import { rememberedPromo } from '../../../lib/promoCode';
+import { buttonPrice, loadPromoView } from '../../../lib/promoPreview';
 import { PLANS, PROMO_CODE, PROMO_PERCENT, dollars, offerActive, offerPrice } from '../../../lib/offer';
 import {
   TOURNAMENT_PASS_PRICE_COPY,
@@ -120,6 +122,8 @@ const owned: OwnedLeague[] = ((leagueRows ?? []) as Array<{
 const nameFor = new Map<string, string>(owned.map((l) => [l.id, l.name]));
 
 const notice = billingErrorMessage(Astro.url.searchParams.get('billing'));
+const promoPlan = tournamentId ? 'event' : 'league';
+const promoView = await loadPromoView(Astro, promoPlan, rememberedPromo(Astro.cookies));
 const showPortal = offersPortal(rows);
 const sorted = [...rows].sort((a, b) =>
   (nameFor.get(a.league_id) ?? a.league_id).localeCompare(nameFor.get(b.league_id) ?? b.league_id),
@@ -133,7 +137,7 @@ const sorted = [...rows].sort((a, b) =>
 
     {notice && <p class="notice" role="status">{notice}</p>}
 
-    {!loadFailed && <PromoCodeBox />}
+    {!loadFailed && <PromoCodeBox plan={promoPlan} view={promoView} />}
 
     {loadFailed && (
       <p class="pagewrap__sub">
@@ -165,7 +169,7 @@ const sorted = [...rows].sort((a, b) =>
               <form method="POST" action="/api/billing/tournament-checkout">
                 <input type="hidden" name="tournament_id" value={tournamentId} />
                 <button class="btn btn--primary btn--sm" type="submit">
-                  Buy pass · {TOURNAMENT_PASS_PRICE_COPY}
+                  Buy pass · {buttonPrice(promoView, 'event', TOURNAMENT_PASS_PRICE_COPY)}
                 </button>
               </form>
             ) : (
@@ -255,7 +259,7 @@ const sorted = [...rows].sort((a, b) =>
                         class={`btn btn--sm ${offersTrial(billingState, row) ? 'btn--ghost' : 'btn--primary'}`}
                         type="submit"
                       >
-                        Subscribe · {LEAGUE_DIRECTOR_PRICE_COPY}
+                        Subscribe · {buttonPrice(promoView, 'league', LEAGUE_DIRECTOR_PRICE_COPY)}
                       </button>
                     </form>
                   </div>

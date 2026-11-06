@@ -24,6 +24,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import BuySteps from '../../components/BuySteps.astro';
 import PromoCodeBox from '../../components/PromoCodeBox.astro';
 import { rememberedPromo } from '../../lib/promoCode';
+import { buttonPrice, loadPromoView } from '../../lib/promoPreview';
 import { createSupabaseClient } from '../../lib/supabase';
 import {
   PLANS,
@@ -78,14 +79,13 @@ if (plan !== 'club') {
 
 const offer = offerActive();
 const club = PLANS.club;
-// What Club checkout will do with a code: apply the remembered one (no code
-// box at Stripe), or open the box when none is remembered.
-const clubPromo = plan === 'club' ? rememberedPromo(Astro.cookies) : null;
-// The button quotes the launch price only while that code is the one applied.
-const clubLaunch = offer && clubPromo?.toLowerCase() === PROMO_CODE.toLowerCase();
-const clubBuyCopy = clubLaunch
-  ? `Buy Club — ${dollars(offerPrice(club))} first year`
-  : `Buy Club — ${dollars(club.price)} / year`;
+// The code's effect on the Club price, so applying one changes this page.
+const clubView = plan === 'club'
+  ? await loadPromoView(Astro, 'club', rememberedPromo(Astro.cookies))
+  : ({ kind: 'none' } as const);
+const clubApplied = clubView.kind === 'applied';
+const clubLaunch = offer && clubApplied && clubView.code.toLowerCase() === PROMO_CODE.toLowerCase();
+const clubBuyCopy = `Buy Club — ${buttonPrice(clubView, 'club', `${dollars(club.price)} / year`)}`;
 // Where Club checkout sends people back (api/billing/club-checkout.ts).
 const clubResult = plan === 'club' ? Astro.url.searchParams.get('billing') : null;
 const clubNotice =
@@ -157,15 +157,15 @@ const clubMail =
           each running their own leagues under the one plan. Pay by card now and
           we switch on every league you run — or start with 30 days free.
         </p>
-        {offer && (
+        {offer && (!clubApplied || clubLaunch) && (
           <p class="clubdeal">
             <strong>{PROMO_CODE}:</strong> {PROMO_PERCENT}% off your first year —
             {' '}<s>{dollars(club.price)}</s> <strong>{dollars(offerPrice(club))}</strong>, plus
             applicable sales tax, through {PROMO_ENDS_COPY}.
-            {clubLaunch ? <> Applied for you at checkout.</> : !clubPromo && <> Apply it below.</>}
+            {clubLaunch ? <> Applied for you at checkout.</> : <> Apply it below.</>}
           </p>
         )}
-        <PromoCodeBox />
+        <PromoCodeBox plan="club" view={clubView} />
         <div class="clubcta">
           {user ? (
             <form method="POST" action="/api/billing/club-checkout">
