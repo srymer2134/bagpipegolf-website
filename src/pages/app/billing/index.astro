@@ -35,7 +35,7 @@ import {
 } from '../../../lib/billing';
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
 import PoweredByStripe from '../../../components/payments/PoweredByStripe.astro';
-import { differentCodeHref, rememberedPromo } from '../../../lib/promoCode';
+import PromoCodeBox from '../../../components/PromoCodeBox.astro';
 import { PLANS, PROMO_CODE, PROMO_PERCENT, dollars, offerActive, offerPrice } from '../../../lib/offer';
 import {
   TOURNAMENT_PASS_PRICE_COPY,
@@ -120,10 +120,6 @@ const owned: OwnedLeague[] = ((leagueRows ?? []) as Array<{
 const nameFor = new Map<string, string>(owned.map((l) => [l.id, l.name]));
 
 const notice = billingErrorMessage(Astro.url.searchParams.get('billing'));
-// The code that checkout will apply (the cookie the proxies read), shown
-// here so the director sees the discount before they click, not after.
-const promo = rememberedPromo(Astro.cookies);
-const launchCode = offerActive() && promo?.toLowerCase() === PROMO_CODE.toLowerCase();
 const showPortal = offersPortal(rows);
 const sorted = [...rows].sort((a, b) =>
   (nameFor.get(a.league_id) ?? a.league_id).localeCompare(nameFor.get(b.league_id) ?? b.league_id),
@@ -137,22 +133,7 @@ const sorted = [...rows].sort((a, b) =>
 
     {notice && <p class="notice" role="status">{notice}</p>}
 
-    {!loadFailed && (launchCode ? (
-      <p class="promo" role="status">
-        <strong>{PROMO_CODE} is applied at checkout</strong> — {PROMO_PERCENT}% off your first payment
-        {tournamentId
-          ? <> ({dollars(offerPrice(PLANS.event))} instead of {dollars(PLANS.event.price)}).</>
-          : <> ({dollars(offerPrice(PLANS.league))} instead of {dollars(PLANS.league.price)} for a league's first year).</>}
-        {' '}<a href={differentCodeHref(Astro.url)}>Use a different code</a>
-      </p>
-    ) : promo ? (
-      <p class="promo" role="status">
-        Code <strong>{promo}</strong> will be applied at checkout.
-        {' '}<a href={differentCodeHref(Astro.url)}>Use a different code</a>
-      </p>
-    ) : offerActive() && (
-      <p class="promo promo--quiet">Have a promo code? Enter it on the checkout page.</p>
-    ))}
+    {!loadFailed && <PromoCodeBox />}
 
     {loadFailed && (
       <p class="pagewrap__sub">
