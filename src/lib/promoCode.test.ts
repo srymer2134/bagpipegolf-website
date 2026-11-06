@@ -66,4 +66,9 @@ describe('a different code', () => {
     );
     expect(differentCodeHref(new URL('https://bagpipegolf.com/buy/club'))).toBe('/buy/club?promo=none');
   });
+  it('a "none" cookie saved before the clear existed reads back as no code', () => {
+    const c = jar();
+    c.set(PROMO_COOKIE, 'none', {});
+    expect(rememberedPromo(c)).toBeNull();
+  });
 });

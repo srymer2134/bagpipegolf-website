@@ -57,7 +57,10 @@ export function rememberPromo(url: URL, cookies: CookieJar): void {
 
 /** The remembered code, or null. */
 export function rememberedPromo(cookies: CookieJar): string | null {
-  return parsePromoCode(cookies.get(PROMO_COOKIE)?.value);
+  const code = parsePromoCode(cookies.get(PROMO_COOKIE)?.value);
+  // Before `?promo=none` cleared the cookie (2026-11-06) it was stored as if
+  // it were a code. Read that back as no code.
+  return code?.toLowerCase() === PROMO_CLEAR ? null : code;
 }
 
 /**
