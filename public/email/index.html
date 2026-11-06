@@ -82,11 +82,15 @@
       border-radius: 14px;
     }
     .asset__shot {
-      background: var(--paper);
+      /* Split panel: white on the left, brand green on the right. An
+         asset's backing is the thing that goes wrong in email, so show it
+         against both surfaces rather than claiming it in prose. */
+      background: linear-gradient(90deg, #FFFFFF 50%, var(--brand-green) 50%);
       border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 12px;
+      padding: 16px;
     }
+    .asset__shot img { border-radius: 8px; }
     .asset__name { font-weight: 700; }
     .spec {
       display: grid;
@@ -171,7 +175,47 @@
     </div>
 
     <h2>Logo</h2>
-    <p class="sub">The square mark, as used in the app and on the site.</p>
+    <p class="sub">
+      Three sizes of the same mark. Each preview below sits half on white and
+      half on brand green &mdash; what an asset does at that seam is the whole
+      question.
+    </p>
+
+    <div class="asset">
+      <div class="asset__shot">
+        <img src="./logo-112.png" alt="Bagpipe Golf — a piper in silhouette" width="112" height="112" />
+      </div>
+      <div>
+        <p class="asset__name">logo-112.png</p>
+        <dl class="spec">
+          <dt>Size</dt><dd>112 &times; 112 &middot; 7 KB</dd>
+          <dt>Backing</dt><dd>White, opaque</dd>
+          <dt>Use for</dt><dd>Email headers. 2&times; for a 56&nbsp;px slot</dd>
+        </dl>
+        <div class="copyrow">
+          <pre id="u112">https://bagpipegolf.com/email/logo-112.png</pre>
+          <button class="copybtn" type="button" data-copy="u112">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="asset">
+      <div class="asset__shot">
+        <img src="./logo-480.png" alt="Bagpipe Golf — a piper in silhouette" width="480" height="480" />
+      </div>
+      <div>
+        <p class="asset__name">logo-480.png</p>
+        <dl class="spec">
+          <dt>Size</dt><dd>480 &times; 480 &middot; 74 KB</dd>
+          <dt>Backing</dt><dd>White, opaque</dd>
+          <dt>Use for</dt><dd>Anywhere larger &mdash; hero rows, partner decks</dd>
+        </dl>
+        <div class="copyrow">
+          <pre id="u480">https://bagpipegolf.com/email/logo-480.png</pre>
+          <button class="copybtn" type="button" data-copy="u480">Copy</button>
+        </div>
+      </div>
+    </div>
 
     <div class="asset">
       <div class="asset__shot">
@@ -180,31 +224,41 @@
       <div>
         <p class="asset__name">logo.jpg</p>
         <dl class="spec">
-          <dt>Format</dt><dd>JPEG, no transparency</dd>
-          <dt>Dimensions</dt><dd>1024 &times; 1024</dd>
-          <dt>File size</dt><dd>170 KB</dd>
-          <dt>Background</dt><dd>Grey, baked in &mdash; not transparent</dd>
+          <dt>Size</dt><dd>1024 &times; 1024 &middot; 170 KB</dd>
+          <dt>Backing</dt><dd>Grey, baked in</dd>
+          <dt>Use for</dt><dd>The original. Kept because links to it already exist</dd>
         </dl>
+        <div class="copyrow">
+          <pre id="ujpg">https://bagpipegolf.com/email/logo.jpg</pre>
+          <button class="copybtn" type="button" data-copy="ujpg">Copy</button>
+        </div>
       </div>
     </div>
 
-    <div class="copyrow">
-      <pre id="snippet-url">https://bagpipegolf.com/email/logo.jpg</pre>
-      <button class="copybtn" type="button" data-copy="snippet-url">Copy</button>
+    <div class="note">
+      <span aria-hidden="true">&#9679;</span>
+      <span>
+        <b>Prefer the PNGs.</b> <code>logo.jpg</code> carries a grey backdrop
+        that reads as a grey square on a white surface, and the mark itself is
+        <code>#1C3520</code> &mdash; close enough to the brand green
+        <code>#1A5C38</code> that a transparent version would nearly vanish on
+        our own header. White backing is what works on both.
+      </span>
     </div>
 
     <h2>Drop it into a template</h2>
     <p class="sub">
-      Sized to 120&nbsp;px for a header. Width and height are set as
-      attributes as well as inline styles, because Outlook ignores the
-      stylesheet and reads the attributes.
+      This is the header the invite emails actually send &mdash; 56&nbsp;px on
+      brand green, served at 2&times;. Width and height are set as attributes as
+      well as inline styles, because Outlook ignores the stylesheet and reads
+      the attributes.
     </p>
 
     <div class="copyrow">
-      <pre id="snippet-img">&lt;img src="https://bagpipegolf.com/email/logo.jpg"
+      <pre id="snippet-img">&lt;img src="https://bagpipegolf.com/email/logo-112.png"
      alt="Bagpipe Golf"
-     width="120" height="120"
-     style="display:block;border:0;outline:none;text-decoration:none;width:120px;height:120px;" /&gt;</pre>
+     width="56" height="56"
+     style="display:block;border:0;outline:none;text-decoration:none;width:56px;height:56px;border-radius:12px;" /&gt;</pre>
       <button class="copybtn" type="button" data-copy="snippet-img">Copy</button>
     </div>
 
