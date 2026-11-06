@@ -10,8 +10,9 @@
 // Plan terms (Sam, 2026-10-25 / 10-30 / 11-04): Single Event $240 for a field
 // of 37+, free up to 36. League $2,140/yr = one league, one login, unlimited
 // events, plus a match-play companion league. Club $2,970/yr = unlimited
-// leagues + up to 4 admins; no Club checkout yet, so it starts with a
-// hand-granted 30-day trial. League trial: 30 days, no card, one per director.
+// leagues + up to 4 admins; Club checkout is live but set up by hand (api
+// #196) until the self-serve Club ships, so its admins each run their own
+// leagues — no shared editing yet. Club trial: 30 days, granted by hand. League trial: 30 days, no card, one per director.
 import { sideGames } from '../lib/sideGames';
 import {
   PLANS,
@@ -102,11 +103,14 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
         <ul class="plan__list">
           <li>Everything in League, for every league you run</li>
           <li>Unlimited events in every league</li>
-          <li>Up to 4 admin accounts</li>
+          <li>Up to 4 admins, each running their own leagues</li>
         </ul>
       )}
       <div class="plan__cta">
-        <a class="btn btn--primary btn--block" href={buyHref('club')} data-plan="club">Start the Club trial</a>
+        <a class="btn btn--primary btn--block" href={buyHref('club')} data-plan="club">
+          {offer ? `Buy Club — ${dollars(offerPrice(PLANS.club))} first year` : 'Buy Club'}
+        </a>
+        <a class="plan__alt" href={`${buyHref('club')}#trial`}>or start the 30-day free trial</a>
         <a class="plan__alt" href="mailto:hello@bagpipegolf.com?subject=Club%20plan">Questions? Email hello@bagpipegolf.com</a>
       </div>
     </article>

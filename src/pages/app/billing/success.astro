@@ -21,6 +21,11 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { parseTournamentId } from '../../../lib/tournamentPass';
 
 const locals = Astro.locals as App.Locals;
+// A Club (api #196) has nothing to poll: it is set up by hand after the
+// sale, so its thanks page is /buy/club. Checked first — it carries no id.
+if (Astro.url.searchParams.get('kind') === 'club') {
+  return Astro.redirect('/buy/club?billing=success', 302);
+}
 const leagueParam = (Astro.url.searchParams.get('league_id') ?? '').trim();
 const leagueId = leagueParam.length > 0 && leagueParam.length <= 128 ? leagueParam : '';
 // A tournament pass comes back with ?tournament_id= instead (api #194).
