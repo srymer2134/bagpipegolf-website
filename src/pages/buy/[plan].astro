@@ -11,8 +11,11 @@
 //           no open tournament  → /app/tournaments/new
 //           one                 → /app/billing?tournament_id=<it>
 //           several             → a picker, below
-//   club    anyone              → the page below (no Club checkout yet; it
-//                                 starts with a hand-granted 30-day trial)
+//   club    anyone              → the page below: Buy Club (signed out, the
+//                                 button goes through sign-up first), or a
+//                                 30-day trial by email. Bought Clubs are set up
+//                                 by hand (api #196); checkout returns here with
+//                                 ?billing=success.
 //
 // The `?promo=` on the link is stored by the middleware before this page
 // runs (lib/promoCode.ts), so every redirect here drops the query string
@@ -73,6 +76,16 @@ if (plan !== 'club') {
 
 const offer = offerActive();
 const club = PLANS.club;
+// Where Club checkout sends people back (api/billing/club-checkout.ts).
+const clubResult = plan === 'club' ? Astro.url.searchParams.get('billing') : null;
+const clubNotice =
+  clubResult === 'cancelled'
+    ? 'Checkout was cancelled. Nothing was charged.'
+    : clubResult === 'already_subscribed'
+      ? 'You already have a Club plan — it covers every league you run. Email us if a league is not switched on yet.'
+      : clubResult && clubResult !== 'success'
+        ? "We couldn't open checkout just now. Nothing was charged — please try again, or email us."
+        : null;
 const clubMail =
   'mailto:hello@bagpipegolf.com?subject=' +
   encodeURIComponent('Club plan — start our 30-day trial') +
@@ -108,30 +121,59 @@ const clubMail =
       </>
     )}
 
-    {plan === 'club' && (
+    {plan === 'club' && clubResult === 'success' && (
       <>
         <p class="pagewrap__eyebrow">Club plan</p>
-        <h1 class="pagewrap__title">Start your Club trial.</h1>
+        <h1 class="pagewrap__title">Thanks — your Club plan is paid.</h1>
         <p class="pagewrap__sub">
-          Unlimited leagues and up to 4 admin accounts for {dollars(club.price)} a
-          year. Every Club starts with 30 days free — no card. Tell us who
-          you are and we'll switch on every league you run.
+          Stripe has emailed your receipt. We're switching on every league you
+          run now and will email you when it's done. Want other admins (up to
+          3 more) running leagues under your Club? Reply to that email with
+          their names and emails.
+        </p>
+        <p class="clubcta">
+          <a class="btn btn--primary" href="/app/leagues">Your leagues</a>
+          <a class="btn btn--ghost" href="/app/leagues/new">Set up another league</a>
+        </p>
+      </>
+    )}
+
+    {plan === 'club' && clubResult !== 'success' && (
+      <>
+        <p class="pagewrap__eyebrow">Club plan</p>
+        <h1 class="pagewrap__title">Every league you run, one plan.</h1>
+        {clubNotice && <p class="notice" role="status">{clubNotice}</p>}
+        <p class="pagewrap__sub">
+          Unlimited leagues for {dollars(club.price)} a year, with up to 4 admins
+          each running their own leagues under the one plan. Pay by card now and
+          we switch on every league you run — or start with 30 days free.
         </p>
         {offer && (
           <p class="clubdeal">
             <strong>{PROMO_CODE}:</strong> {PROMO_PERCENT}% off your first year —
             {' '}<s>{dollars(club.price)}</s> <strong>{dollars(offerPrice(club))}</strong>, plus
-            applicable sales tax, when you subscribe by {PROMO_ENDS_COPY}.
+            applicable sales tax. Applied for you at checkout, through {PROMO_ENDS_COPY}.
           </p>
         )}
-        <p class="clubcta">
-          <a class="btn btn--primary" href={clubMail}>Email us to start the trial</a>
-          <a class="btn btn--ghost" href="/pricing#plans">Compare plans</a>
-        </p>
+        <div class="clubcta">
+          {user ? (
+            <form method="POST" action="/api/billing/club-checkout">
+              <button class="btn btn--primary" type="submit">
+                {offer ? `Buy Club — ${dollars(offerPrice(club))} first year` : `Buy Club — ${dollars(club.price)} / year`}
+              </button>
+            </form>
+          ) : (
+            <a class="btn btn--primary" href={`/signup?next=${encodeURIComponent('/buy/club')}`}>
+              {offer ? `Buy Club — ${dollars(offerPrice(club))} first year` : `Buy Club — ${dollars(club.price)} / year`}
+            </a>
+          )}
+          <a class="btn btn--ghost" href={clubMail} id="trial">Start a 30-day free trial</a>
+        </div>
         <p class="pagewrap__fine">
-          Or write to <a href="mailto:hello@bagpipegolf.com">hello@bagpipegolf.com</a>.
-          Running just one league? The <a href="/buy/league">League plan</a> starts
-          right away, online.
+          Card payment by Stripe — card details never reach Bagpipe. Renews
+          yearly; cancel any time and it runs to the end of the year you paid
+          for. Running just one league? The <a href="/buy/league">League plan</a>
+          {' '}is {dollars(PLANS.league.price)} a year.
         </p>
       </>
     )}
@@ -152,5 +194,10 @@ const clubMail =
     background: var(--brand-green-pale); color: var(--ink);
   }
   .clubcta { display: flex; flex-wrap: wrap; gap: 10px; }
+  .clubcta form { margin: 0; }
+  .notice {
+    margin: 0 0 16px; padding: 10px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: rgba(180, 83, 9, 0.07);
+  }
   .pagewrap__fine { margin-top: 20px; font-size: 0.875rem; color: var(--ink-muted); }
 </style>

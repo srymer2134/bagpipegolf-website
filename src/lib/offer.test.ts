@@ -66,3 +66,22 @@ describe('launch offer', () => {
     expect(template).not.toContain('<!--');
   });
 });
+
+describe('Club checkout proxy', () => {
+  it('sends the API nothing but the remembered code — never a price or plan', () => {
+    const src = readFileSync('src/pages/api/billing/club-checkout.ts', 'utf8');
+    expect(src).toContain("path: '/api/billing/club-checkout'");
+    expect(src).toContain('body: promo ? { promo_code: promo } : {}');
+    // It reads no form field at all: there is nothing for a caller to name.
+    expect(src).not.toContain('form.get');
+    expect(src).not.toContain('formData');
+  });
+
+  it('the Club card buys, and still offers the trial and an email', () => {
+    const cards = readFileSync('src/components/PlanCards.astro', 'utf8');
+    expect(cards).toMatch(/Buy Club — \$\{dollars\(offerPrice\(PLANS\.club\)\)\} first year/);
+    expect(cards).toContain("href={`${buyHref('club')}#trial`}");
+    // No shared editing until the self-serve Club ships (plan phase D).
+    expect(cards).toContain('Up to 4 admins, each running their own leagues');
+  });
+});
