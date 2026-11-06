@@ -9,24 +9,36 @@
 // and checkout then opens with the box). Sam, 2026-11-06: a buyer holding
 // the saved Bagpipe50 had no way to use another code.
 //
-// The site cannot check a code against Stripe. The API looks it up at
-// checkout and, if Stripe does not know it, opens the code box instead —
-// so a mistyped code costs nothing but a retype.
-import { differentCodeHref, rememberedPromo } from '../lib/promoCode';
-import { PROMO_CODE, PROMO_PERCENT, offerActive } from '../lib/offer';
+// The page passes the code's effect on this plan (lib/promoPreview.ts), so
+// the price changes as soon as a code is applied. If Stripe refuses a code at
+// checkout the API opens the code box instead, so a bad code costs a retype.
+import { differentCodeHref } from '../lib/promoCode';
+import { PLANS, type PlanKey } from '../lib/offer';
+import { moneyFromCents, type PromoView } from '../lib/promoPreview';
 
-const promo = rememberedPromo(Astro.cookies);
-const launch = offerActive() && promo?.toLowerCase() === PROMO_CODE.toLowerCase();
+interface Props {
+  plan: PlanKey;
+  view: PromoView;
+}
+const { plan, view } = Astro.props;
+const promo = view.kind === 'none' ? null : view.code;
 // Keep the page's own query (league_id, tournament_id) across Apply.
 const keep = [...Astro.url.searchParams].filter(([k]) => k !== 'promo' && k !== 'billing');
 ---
 
 <div class="promobox">
   <p class="promobox__state" role="status">
-    {launch ? (
-      <><strong>Code {PROMO_CODE} applied</strong> — {PROMO_PERCENT}% off your first payment.</>
-    ) : promo ? (
-      <><strong>Code {promo}</strong> will be applied at checkout.</>
+    {view.kind === 'applied' ? (
+      <>
+        <strong>Code {view.code} applied:</strong> {moneyFromCents(view.firstCents)} instead of
+        {' '}{moneyFromCents(view.listCents)} for {PLANS[plan].firstPayment}, plus applicable sales tax.
+      </>
+    ) : view.kind === 'not_for_plan' ? (
+      <><strong>Code {view.code} doesn't work on this plan.</strong> Try another code.</>
+    ) : view.kind === 'unknown' ? (
+      <><strong>We don't recognize code {view.code}.</strong> Check it and try again.</>
+    ) : view.kind === 'unchecked' ? (
+      <><strong>Code {view.code}</strong> will be applied at checkout.</>
     ) : (
       <>No promo code applied.</>
     )}

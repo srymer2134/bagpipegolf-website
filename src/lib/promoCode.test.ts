@@ -79,15 +79,17 @@ describe('every checkout page lets the buyer change the code', () => {
   it('the billing page (League, Tournament Pass) and the Club page carry the code box', async () => {
     const { readFileSync } = await import('node:fs');
     for (const f of ['src/pages/app/billing/index.astro', 'src/pages/buy/[plan].astro']) {
-      expect(readFileSync(f, 'utf8')).toContain('<PromoCodeBox />');
+      expect(readFileSync(f, 'utf8')).toContain('<PromoCodeBox plan=');
     }
     const box = readFileSync('src/components/PromoCodeBox.astro', 'utf8');
     expect(box).toContain('name="promo"');
     expect(box).toContain('differentCodeHref(Astro.url)');
   });
-  it('the Club button quotes the launch price only while the launch code is applied', async () => {
+  it('every checkout button quotes the price with the applied code', async () => {
     const { readFileSync } = await import('node:fs');
-    const page = readFileSync('src/pages/buy/[plan].astro', 'utf8');
-    expect(page).toMatch(/const clubBuyCopy = clubLaunch\s*\n\s*\? `Buy Club — \$\{dollars\(offerPrice\(club\)\)\} first year`\s*\n\s*: `Buy Club — \$\{dollars\(club\.price\)\} \/ year`/);
+    const billing = readFileSync('src/pages/app/billing/index.astro', 'utf8');
+    expect(billing).toContain("Subscribe · {buttonPrice(promoView, 'league', LEAGUE_DIRECTOR_PRICE_COPY)}");
+    expect(billing).toContain("Buy pass · {buttonPrice(promoView, 'event', TOURNAMENT_PASS_PRICE_COPY)}");
+    expect(readFileSync('src/pages/buy/[plan].astro', 'utf8')).toContain("buttonPrice(clubView, 'club'");
   });
 });
