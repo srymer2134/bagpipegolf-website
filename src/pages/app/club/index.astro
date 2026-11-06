@@ -1,0 +1,226 @@
+---
+// /app/club — run a club (Club plan B2): one plan over many leagues, up to
+// 4 admins (the owner counts). This page reads; every button posts to
+// /api/clubs/action, which the API's SQL functions authorise as the
+// signed-in user. Nothing here charges anyone — a club's leagues are
+// covered once the club has a plan (/buy/club) or a free trial.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { callRailway } from '../../../lib/railway';
+import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
+import { clubMessage } from '../../../lib/club';
+
+type Member = { user_id: string; role: 'owner' | 'admin'; display_name: string | null; email: string | null };
+type Invite = { invite_id: string; email: string; expires_at: string };
+type ClubLeague = { league_id: string; name: string | null; owner: string; mine: boolean; covered: boolean };
+type Club = {
+  org_id: string; name: string; role: 'owner' | 'admin'; covered: boolean;
+  seats_used: number; seats_max: number;
+  members: Member[]; invites: Invite[]; leagues: ClubLeague[];
+};
+
+const user = (Astro.locals as App.Locals).user!;
+let clubs: Club[] = [];
+let loadFailed = false;
+try {
+  clubs = (await callRailway<{ clubs: Club[] }>(Astro, { method: 'GET', path: '/api/clubs' })).clubs ?? [];
+} catch {
+  loadFailed = true;
+}
+
+// My leagues that are in no club yet — what "Attach a league" offers.
+const { data: mine } = await supabaseFor(Astro as unknown as RouteCtx)
+  .from('leagues')
+  .select('id, name, org_id')
+  .eq('user_id', user.id)
+  .is('completed_at', null)
+  .order('created_at', { ascending: false });
+const attachable = ((mine ?? []) as Array<{ id: string; name: string | null; org_id: string | null }>)
+  .filter((l) => !l.org_id);
+
+const notice = clubMessage(Astro.url.searchParams.get('club'));
+const day = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+---
+
+<BaseLayout title="Your club · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Club</p>
+    <h1 class="pagewrap__title">{clubs.length ? 'Your club.' : 'Set up your club.'}</h1>
+
+    {notice && <p class={`notice ${notice.good ? 'notice--good' : ''}`} role="status">{notice.text}</p>}
+    {loadFailed && <p class="pagewrap__sub">We couldn’t load your club just now. Nothing has changed — try again in a moment.</p>}
+
+    {!loadFailed && clubs.length === 0 && (
+      <>
+        <p class="pagewrap__sub">
+          A club runs as many leagues as you like under one plan, with up to
+          4 admins (you count as one). Each admin runs their own leagues; the
+          club’s plan covers them all.
+        </p>
+        <form method="POST" action="/api/clubs/action" class="card stack">
+          <input type="hidden" name="action" value="create" />
+          <label class="field">
+            <span>Club name</span>
+            <input name="name" required maxlength="120" placeholder="e.g. Pine Valley Men’s Club" />
+          </label>
+          <button class="btn btn--primary" type="submit">Create the club</button>
+        </form>
+        <p class="pagewrap__fine">Got an invite from a club? Open the link in that email.</p>
+      </>
+    )}
+
+    {clubs.map((c) => (
+      <section class="card stack club">
+        <div class="club__head">
+          <h2 class="club__name">{c.name}</h2>
+          <span class={`chip ${c.covered ? 'chip--on' : 'chip--off'}`}>{c.covered ? 'Plan active' : 'No plan yet'}</span>
+        </div>
+        {!c.covered && c.role === 'owner' && (
+          <p class="club__plan">
+            Leagues in the club are covered once it has a plan.
+            {' '}<a href="/buy/club">Buy the Club plan or start a free trial →</a>
+          </p>
+        )}
+
+        <h3 class="club__h">Admins <span class="club__count">{c.seats_used} of {c.seats_max} seats</span></h3>
+        <ul class="rows">
+          {c.members.map((m) => (
+            <li class="row">
+              <span>
+                <strong>{m.display_name || m.email || 'Admin'}</strong>
+                {m.role === 'owner' && <span class="tag">Owner</span>}
+                {m.user_id === user.id && <span class="tag tag--me">You</span>}
+                {m.email && <span class="row__sub">{m.email}</span>}
+              </span>
+              {c.role === 'owner' && m.role !== 'owner' && (
+                <span class="row__act">
+                  <form method="POST" action="/api/clubs/action">
+                    <input type="hidden" name="action" value="transfer" />
+                    <input type="hidden" name="org_id" value={c.org_id} />
+                    <input type="hidden" name="user_id" value={m.user_id} />
+                    <button class="linkbtn" type="submit">Make owner</button>
+                  </form>
+                  <form method="POST" action="/api/clubs/action">
+                    <input type="hidden" name="action" value="remove" />
+                    <input type="hidden" name="org_id" value={c.org_id} />
+                    <input type="hidden" name="user_id" value={m.user_id} />
+                    <button class="linkbtn linkbtn--danger" type="submit">Remove</button>
+                  </form>
+                </span>
+              )}
+              {c.role === 'admin' && m.user_id === user.id && (
+                <form method="POST" action="/api/clubs/action">
+                  <input type="hidden" name="action" value="leave" />
+                  <input type="hidden" name="org_id" value={c.org_id} />
+                  <button class="linkbtn linkbtn--danger" type="submit">Leave the club</button>
+                </form>
+              )}
+            </li>
+          ))}
+          {c.invites.map((i) => (
+            <li class="row row--pending">
+              <span>{i.email} <span class="row__sub">Invited · expires {day(i.expires_at)}</span></span>
+              <form method="POST" action="/api/clubs/action">
+                <input type="hidden" name="action" value="revoke" />
+                <input type="hidden" name="invite_id" value={i.invite_id} />
+                <button class="linkbtn" type="submit">Cancel invite</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+        {c.role === 'owner' && c.seats_used < c.seats_max && (
+          <form method="POST" action="/api/clubs/action" class="inline">
+            <input type="hidden" name="action" value="invite" />
+            <input type="hidden" name="org_id" value={c.org_id} />
+            <input name="email" type="email" required placeholder="admin@example.com" aria-label="Admin's email" />
+            <button class="btn btn--primary btn--sm" type="submit">Invite an admin</button>
+          </form>
+        )}
+
+        <h3 class="club__h">Leagues</h3>
+        {c.leagues.length === 0 && <p class="club__empty">No leagues attached yet.</p>}
+        <ul class="rows">
+          {c.leagues.map((l) => (
+            <li class="row">
+              <span>
+                <strong>{l.name || l.league_id}</strong>
+                <span class={`row__sub ${l.covered ? 'ok' : ''}`}>{l.covered ? 'Covered by the club' : 'Not covered'}</span>
+              </span>
+              {(l.mine || c.role === 'owner') && (
+                <form method="POST" action="/api/clubs/action">
+                  <input type="hidden" name="action" value="detach" />
+                  <input type="hidden" name="org_id" value={c.org_id} />
+                  <input type="hidden" name="league_id" value={l.league_id} />
+                  <button class="linkbtn" type="submit">Detach</button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+        {attachable.length > 0 && (
+          <form method="POST" action="/api/clubs/action" class="inline">
+            <input type="hidden" name="action" value="attach" />
+            <input type="hidden" name="org_id" value={c.org_id} />
+            <select name="league_id" aria-label="Your league">
+              {attachable.map((l) => <option value={l.id}>{l.name || l.id}</option>)}
+            </select>
+            <button class="btn btn--ghost btn--sm" type="submit">Attach my league</button>
+          </form>
+        )}
+        <p class="pagewrap__fine">
+          Admins attach their own leagues. Each admin still runs their own
+          leagues; editing each other’s leagues is coming later.
+        </p>
+
+        {c.role === 'owner' && c.members.length === 1 && (
+          <details class="danger">
+            <summary>Dissolve the club</summary>
+            <form method="POST" action="/api/clubs/action" class="stack">
+              <input type="hidden" name="action" value="dissolve" />
+              <input type="hidden" name="org_id" value={c.org_id} />
+              <label class="check"><input type="checkbox" name="confirm" value="yes" /> Detach every league and delete the club</label>
+              <button class="btn btn--ghost btn--sm" type="submit">Dissolve</button>
+            </form>
+          </details>
+        )}
+      </section>
+    ))}
+  </main>
+</BaseLayout>
+
+<style>
+  .stack { display: grid; gap: 12px; }
+  .field { display: grid; gap: 6px; font-weight: 600; }
+  .field input, .inline input, .inline select {
+    font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  }
+  .inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .inline input, .inline select { flex: 1 1 220px; min-width: 0; }
+  .club { margin-top: 18px; }
+  .club__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .club__name { margin: 0; font-size: 1.375rem; color: var(--brand-green-dark); }
+  .club__plan { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--brand-green-pale); }
+  .club__h { margin: 10px 0 0; font-size: 1rem; }
+  .club__count { font-weight: 500; color: var(--ink-muted); margin-left: 6px; }
+  .club__empty { margin: 0; color: var(--ink-muted); }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .row:last-child { border-bottom: 0; }
+  .row--pending { color: var(--ink-muted); }
+  .row__sub { display: block; font-size: 0.875rem; color: var(--ink-muted); }
+  .row__sub.ok { color: var(--brand-green); }
+  .row__act { display: flex; gap: 12px; }
+  .row form, .row__act form { margin: 0; }
+  .tag { margin-left: 6px; font-size: 0.75rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--paper-tint); }
+  .tag--me { background: var(--brand-green-pale); }
+  .chip--on { color: var(--brand-green); }
+  .chip--off { color: var(--ink-muted); }
+  .linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--brand-green); text-decoration: underline; cursor: pointer; }
+  .linkbtn--danger { color: var(--error); }
+  .notice { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(180, 83, 9, 0.07); }
+  .notice--good { background: var(--brand-green-pale); }
+  .danger { margin-top: 8px; }
+  .danger summary { cursor: pointer; color: var(--error); font-weight: 600; }
+  .check { display: flex; gap: 8px; align-items: center; }
+  .pagewrap__fine { margin: 0; font-size: 0.875rem; color: var(--ink-muted); }
+</style>

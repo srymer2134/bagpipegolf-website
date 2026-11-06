@@ -1,0 +1,50 @@
+---
+// /app/club/accept?token=… — the link in a club admin invite (Club plan B2).
+//
+// Opening the link changes nothing: link previewers and mail scanners fetch
+// URLs, and a GET that spent the invite would let one of them take the seat.
+// The page shows one button that POSTs the token to /api/clubs/action.
+//
+// Signed out, the middleware sends the invitee to /login?next=<this URL>,
+// which links to sign-up with the same `next` — so someone with no account
+// signs up with the invited email and lands back here.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const raw = Astro.url.searchParams.get('token') ?? '';
+const token = /^[0-9a-f]{16,128}$/i.test(raw) ? raw : '';
+const email = (Astro.locals as App.Locals).user?.email ?? '';
+---
+
+<BaseLayout title="Join a club · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Club invite</p>
+    {token ? (
+      <>
+        <h1 class="pagewrap__title">You’re invited to help run a club.</h1>
+        <p class="pagewrap__sub">
+          As a club admin you run your own leagues under the club’s plan.
+          You’re signed in as <strong>{email}</strong> — the invite only works
+          for the address it was sent to.
+        </p>
+        <form method="POST" action="/api/clubs/action">
+          <input type="hidden" name="action" value="accept" />
+          <input type="hidden" name="token" value={token} />
+          <button class="btn btn--primary" type="submit">Accept and join the club</button>
+        </form>
+        <p class="pagewrap__fine">
+          Wrong account? Sign out (top right), sign in with the invited email,
+          then open the link from the email again.
+        </p>
+      </>
+    ) : (
+      <>
+        <h1 class="pagewrap__title">This invite link isn’t complete.</h1>
+        <p class="pagewrap__sub">Open the link straight from the invite email, or ask the club’s owner to send a new one.</p>
+      </>
+    )}
+  </main>
+</BaseLayout>
+
+<style>
+  .pagewrap__fine { margin-top: 16px; font-size: 0.875rem; color: var(--ink-muted); }
+</style>
