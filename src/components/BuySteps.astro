@@ -7,7 +7,7 @@
 // they read from `?next=/buy/<plan>` or `?then=billing`. Without one, render
 // nothing — an ordinary sign-up is not a purchase.
 import { PLANS, PROMO_CODE, PROMO_PERCENT, offerActive, type PlanKey } from '../lib/offer';
-import { rememberedPromo } from '../lib/promoCode';
+import { differentCodeHref, rememberedPromo } from '../lib/promoCode';
 
 interface Props {
   plan: PlanKey | null;
@@ -24,7 +24,7 @@ const labels = ['Create your account', setup, 'Check out'];
   <div class="buysteps" aria-label={`Buying the ${PLANS[plan].name} plan`}>
     <p class="buysteps__plan">
       Buying: <strong>{PLANS[plan].name}</strong>
-      {showPromo && <span class="buysteps__promo">{PROMO_CODE} saved · {PROMO_PERCENT}% off at checkout</span>}
+      {showPromo && <span class="buysteps__promo">{PROMO_CODE} saved · {PROMO_PERCENT}% off at checkout · <a href={differentCodeHref(Astro.url)}>use a different code</a></span>}
     </p>
     <ol class="buysteps__list">
       {labels.map((l, i) => (

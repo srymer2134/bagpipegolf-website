@@ -22,6 +22,7 @@
 // without losing the code.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import BuySteps from '../../components/BuySteps.astro';
+import { differentCodeHref, rememberedPromo } from '../../lib/promoCode';
 import { createSupabaseClient } from '../../lib/supabase';
 import {
   PLANS,
@@ -76,6 +77,9 @@ if (plan !== 'club') {
 
 const offer = offerActive();
 const club = PLANS.club;
+// What Club checkout will do with a code: apply the remembered one (no code
+// box at Stripe), or open the box when none is remembered.
+const clubPromo = plan === 'club' ? rememberedPromo(Astro.cookies) : null;
 // Where Club checkout sends people back (api/billing/club-checkout.ts).
 const clubResult = plan === 'club' ? Astro.url.searchParams.get('billing') : null;
 const clubNotice =
@@ -151,7 +155,18 @@ const clubMail =
           <p class="clubdeal">
             <strong>{PROMO_CODE}:</strong> {PROMO_PERCENT}% off your first year —
             {' '}<s>{dollars(club.price)}</s> <strong>{dollars(offerPrice(club))}</strong>, plus
-            applicable sales tax. Applied for you at checkout, through {PROMO_ENDS_COPY}.
+            applicable sales tax, through {PROMO_ENDS_COPY}.
+            {clubPromo?.toLowerCase() === PROMO_CODE.toLowerCase()
+              ? <> Applied for you at checkout.</>
+              : !clubPromo && <> Enter it on the checkout page.</>}
+          </p>
+        )}
+        {clubPromo && (
+          <p class="clubdeal clubdeal--code">
+            {clubPromo.toLowerCase() === PROMO_CODE.toLowerCase()
+              ? <>Have a different code? </>
+              : <>Code <strong>{clubPromo}</strong> will be applied at checkout. </>}
+            <a href={differentCodeHref(Astro.url)}>Use a different code</a>
           </p>
         )}
         <div class="clubcta">

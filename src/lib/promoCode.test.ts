@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PROMO_COOKIE, parsePromoCode, rememberPromo, rememberedPromo, type CookieJar } from './promoCode';
+import { PROMO_COOKIE, differentCodeHref, parsePromoCode, rememberPromo, rememberedPromo, type CookieJar } from './promoCode';
 
 function jar(): CookieJar & { store: Map<string, { value: string; options: Record<string, unknown> }> } {
   const store = new Map<string, { value: string; options: Record<string, unknown> }>();
@@ -7,6 +7,7 @@ function jar(): CookieJar & { store: Map<string, { value: string; options: Recor
     store,
     get: (name) => store.get(name),
     set: (name, value, options) => void store.set(name, { value, options }),
+    delete: (name) => void store.delete(name),
   };
 }
 
@@ -42,5 +43,27 @@ describe('rememberPromo', () => {
     const c = jar();
     c.set(PROMO_COOKIE, 'not a code!', {});
     expect(rememberedPromo(c)).toBeNull();
+  });
+});
+
+describe('a different code', () => {
+  it('?promo=none forgets the remembered code, so checkout opens the code box', () => {
+    const c = jar();
+    rememberPromo(new URL('https://bagpipegolf.com/buy/club?promo=Bagpipe50'), c);
+    expect(rememberedPromo(c)).toBe('Bagpipe50');
+    rememberPromo(new URL('https://bagpipegolf.com/buy/club?promo=None'), c);
+    expect(rememberedPromo(c)).toBeNull();
+  });
+  it('a new code replaces the old one', () => {
+    const c = jar();
+    rememberPromo(new URL('https://bagpipegolf.com/buy/club?promo=Bagpipe50'), c);
+    rememberPromo(new URL('https://bagpipegolf.com/buy/club?promo=BPGolfFounders1Club'), c);
+    expect(rememberedPromo(c)).toBe('BPGolfFounders1Club');
+  });
+  it('the link keeps the page query and drops a stale notice', () => {
+    expect(differentCodeHref(new URL('https://bagpipegolf.com/app/billing?league_id=l1&billing=cancelled'))).toBe(
+      '/app/billing?league_id=l1&promo=none',
+    );
+    expect(differentCodeHref(new URL('https://bagpipegolf.com/buy/club'))).toBe('/buy/club?promo=none');
   });
 });
