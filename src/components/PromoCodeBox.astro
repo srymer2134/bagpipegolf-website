@@ -1,0 +1,72 @@
+---
+// The promo code a checkout on this page will use, and a field to change it.
+//
+// Checkout applies the remembered code up front (lib/promoCode.ts), and
+// Stripe then shows no code box of its own — a session takes `discounts` or
+// `allow_promotion_codes`, never both. So the code is chosen here, before
+// the Buy/Subscribe button: Apply submits `?promo=<code>` to this same page
+// (the middleware remembers it), Remove submits `?promo=none` (forgets it,
+// and checkout then opens with the box). Sam, 2026-11-06: a buyer holding
+// the saved Bagpipe50 had no way to use another code.
+//
+// The site cannot check a code against Stripe. The API looks it up at
+// checkout and, if Stripe does not know it, opens the code box instead —
+// so a mistyped code costs nothing but a retype.
+import { differentCodeHref, rememberedPromo } from '../lib/promoCode';
+import { PROMO_CODE, PROMO_PERCENT, offerActive } from '../lib/offer';
+
+const promo = rememberedPromo(Astro.cookies);
+const launch = offerActive() && promo?.toLowerCase() === PROMO_CODE.toLowerCase();
+// Keep the page's own query (league_id, tournament_id) across Apply.
+const keep = [...Astro.url.searchParams].filter(([k]) => k !== 'promo' && k !== 'billing');
+---
+
+<div class="promobox">
+  <p class="promobox__state" role="status">
+    {launch ? (
+      <><strong>Code {PROMO_CODE} applied</strong> — {PROMO_PERCENT}% off your first payment.</>
+    ) : promo ? (
+      <><strong>Code {promo}</strong> will be applied at checkout.</>
+    ) : (
+      <>No promo code applied.</>
+    )}
+    {promo && <>{' '}<a href={differentCodeHref(Astro.url)}>Remove</a></>}
+  </p>
+  <form method="GET" action={Astro.url.pathname} class="promobox__form">
+    {keep.map(([k, v]) => <input type="hidden" name={k} value={v} />)}
+    <label class="promobox__label" for="promo-code">{promo ? 'Use a different code' : 'Have a promo code?'}</label>
+    <span class="promobox__row">
+      <input
+        id="promo-code"
+        class="promobox__input"
+        name="promo"
+        type="text"
+        inputmode="text"
+        autocomplete="off"
+        spellcheck="false"
+        maxlength="40"
+        pattern="[A-Za-z0-9_\-]{2,40}"
+        placeholder="Promo code"
+        required
+      />
+      <button class="btn btn--ghost btn--sm" type="submit">Apply</button>
+    </span>
+  </form>
+</div>
+
+<style>
+  .promobox {
+    margin: 0 0 1rem; padding: 0.8rem 0.9rem; border-radius: 8px;
+    background: var(--brand-green-pale); color: var(--ink);
+    display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  .promobox__state { margin: 0; }
+  .promobox__form { display: flex; flex-direction: column; gap: 0.35rem; margin: 0; }
+  .promobox__label { font-size: 0.9rem; color: var(--ink-muted); }
+  .promobox__row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .promobox__input {
+    flex: 1 1 12rem; min-width: 0; font: inherit; font-size: 1rem;
+    padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--paper); color: var(--ink);
+  }
+</style>

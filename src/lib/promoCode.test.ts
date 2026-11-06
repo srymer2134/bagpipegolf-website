@@ -72,3 +72,22 @@ describe('a different code', () => {
     expect(rememberedPromo(c)).toBeNull();
   });
 });
+
+describe('every checkout page lets the buyer change the code', () => {
+  // Stripe shows no code box once a code is applied, so the choice must be
+  // on our page, before the button (Sam, 2026-11-06).
+  it('the billing page (League, Tournament Pass) and the Club page carry the code box', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const f of ['src/pages/app/billing/index.astro', 'src/pages/buy/[plan].astro']) {
+      expect(readFileSync(f, 'utf8')).toContain('<PromoCodeBox />');
+    }
+    const box = readFileSync('src/components/PromoCodeBox.astro', 'utf8');
+    expect(box).toContain('name="promo"');
+    expect(box).toContain('differentCodeHref(Astro.url)');
+  });
+  it('the Club button quotes the launch price only while the launch code is applied', async () => {
+    const { readFileSync } = await import('node:fs');
+    const page = readFileSync('src/pages/buy/[plan].astro', 'utf8');
+    expect(page).toMatch(/const clubBuyCopy = clubLaunch\s*\n\s*\? `Buy Club — \$\{dollars\(offerPrice\(club\)\)\} first year`\s*\n\s*: `Buy Club — \$\{dollars\(club\.price\)\} \/ year`/);
+  });
+});

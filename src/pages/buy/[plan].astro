@@ -22,7 +22,8 @@
 // without losing the code.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import BuySteps from '../../components/BuySteps.astro';
-import { differentCodeHref, rememberedPromo } from '../../lib/promoCode';
+import PromoCodeBox from '../../components/PromoCodeBox.astro';
+import { rememberedPromo } from '../../lib/promoCode';
 import { createSupabaseClient } from '../../lib/supabase';
 import {
   PLANS,
@@ -80,6 +81,11 @@ const club = PLANS.club;
 // What Club checkout will do with a code: apply the remembered one (no code
 // box at Stripe), or open the box when none is remembered.
 const clubPromo = plan === 'club' ? rememberedPromo(Astro.cookies) : null;
+// The button quotes the launch price only while that code is the one applied.
+const clubLaunch = offer && clubPromo?.toLowerCase() === PROMO_CODE.toLowerCase();
+const clubBuyCopy = clubLaunch
+  ? `Buy Club — ${dollars(offerPrice(club))} first year`
+  : `Buy Club — ${dollars(club.price)} / year`;
 // Where Club checkout sends people back (api/billing/club-checkout.ts).
 const clubResult = plan === 'club' ? Astro.url.searchParams.get('billing') : null;
 const clubNotice =
@@ -156,29 +162,20 @@ const clubMail =
             <strong>{PROMO_CODE}:</strong> {PROMO_PERCENT}% off your first year —
             {' '}<s>{dollars(club.price)}</s> <strong>{dollars(offerPrice(club))}</strong>, plus
             applicable sales tax, through {PROMO_ENDS_COPY}.
-            {clubPromo?.toLowerCase() === PROMO_CODE.toLowerCase()
-              ? <> Applied for you at checkout.</>
-              : !clubPromo && <> Enter it on the checkout page.</>}
+            {clubLaunch ? <> Applied for you at checkout.</> : !clubPromo && <> Apply it below.</>}
           </p>
         )}
-        {clubPromo && (
-          <p class="clubdeal clubdeal--code">
-            {clubPromo.toLowerCase() === PROMO_CODE.toLowerCase()
-              ? <>Have a different code? </>
-              : <>Code <strong>{clubPromo}</strong> will be applied at checkout. </>}
-            <a href={differentCodeHref(Astro.url)}>Use a different code</a>
-          </p>
-        )}
+        <PromoCodeBox />
         <div class="clubcta">
           {user ? (
             <form method="POST" action="/api/billing/club-checkout">
               <button class="btn btn--primary" type="submit">
-                {offer ? `Buy Club — ${dollars(offerPrice(club))} first year` : `Buy Club — ${dollars(club.price)} / year`}
+                {clubBuyCopy}
               </button>
             </form>
           ) : (
             <a class="btn btn--primary" href={`/signup?next=${encodeURIComponent('/buy/club')}`}>
-              {offer ? `Buy Club — ${dollars(offerPrice(club))} first year` : `Buy Club — ${dollars(club.price)} / year`}
+              {clubBuyCopy}
             </a>
           )}
           <a class="btn btn--ghost" href={clubMail} id="trial">Start a 30-day free trial</a>
