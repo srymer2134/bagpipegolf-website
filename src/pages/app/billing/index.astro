@@ -37,7 +37,7 @@ import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
 import PoweredByStripe from '../../../components/payments/PoweredByStripe.astro';
 import PromoCodeBox from '../../../components/PromoCodeBox.astro';
 import { rememberedPromo } from '../../../lib/promoCode';
-import { buttonPrice, loadPromoView } from '../../../lib/promoPreview';
+import { buttonPrice, loadPromoView, sentencePrice } from '../../../lib/promoPreview';
 import { PLANS, PROMO_CODE, PROMO_PERCENT, dollars, offerActive, offerPrice } from '../../../lib/offer';
 import {
   TOURNAMENT_PASS_PRICE_COPY,
@@ -150,7 +150,7 @@ const sorted = [...rows].sort((a, b) =>
       <>
         <p class="pagewrap__sub">
           A tournament outside a league is free up to 36 players. One pass,
-          {' '}{TOURNAMENT_PASS_PRICE_COPY}{' '}one time, opens the field to as many as you like.
+          {' '}{sentencePrice(promoView, 'event', TOURNAMENT_PASS_PRICE_COPY)}{' '}one time, opens the field to as many as you like.
         </p>
         <ul class="billlist">
           <li class="billlist__row">
@@ -206,7 +206,7 @@ const sorted = [...rows].sort((a, b) =>
     {!tournamentId && !loadFailed && sorted.length > 0 && (
       <>
         <p class="pagewrap__sub">
-          {LEAGUE_DIRECTOR_PRICE_COPY}, per league, renewing annually. This is
+          {sentencePrice(promoView, 'league', LEAGUE_DIRECTOR_PRICE_COPY)}, per league, renewing annually. This is
           separate from <a href="/app/payments/setup">card payments</a>, which
           is how your <em>members</em> pay <em>you</em>.
         </p>

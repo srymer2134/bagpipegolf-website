@@ -83,3 +83,12 @@ export function buttonPrice(view: PromoView, plan: PlanKey, regular: string): st
   const first = moneyFromCents(view.firstCents);
   return plan === 'event' ? first : `${first} first year`;
 }
+
+/** The price in a page's explanatory text: says what the applied code does. */
+export function sentencePrice(view: PromoView, plan: PlanKey, regular: string): string {
+  if (view.kind !== 'applied') return regular;
+  const first = moneyFromCents(view.firstCents);
+  return plan === 'event'
+    ? `${first} with code ${view.code} (regularly ${regular})`
+    : `${first} for the first year with code ${view.code}, then ${regular}`;
+}
