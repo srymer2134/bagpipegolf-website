@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buttonPrice, moneyFromCents, promoViewFrom } from './promoPreview';
+import { buttonPrice, moneyFromCents, promoViewFrom, sentencePrice } from './promoPreview';
 
 const during = new Date('2026-11-10T12:00:00Z');
 const after = new Date('2027-01-02T12:00:00Z');
@@ -39,5 +39,12 @@ describe('prices', () => {
     expect(buttonPrice(applied, 'event', '$240')).toBe('$1');
     expect(buttonPrice({ kind: 'unknown', code: 'X' }, 'club', '$2,970 / year')).toBe('$2,970 / year');
     expect(buttonPrice({ kind: 'none' }, 'league', '$2,140 / year')).toBe('$2,140 / year');
+  });
+  it('the explanatory text says what the applied code does', () => {
+    const applied = { kind: 'applied', code: 'Bagpipe50', firstCents: 107000, listCents: 214000 } as const;
+    expect(sentencePrice(applied, 'league', '$2,140 / year')).toBe('$1,070 for the first year with code Bagpipe50, then $2,140 / year');
+    expect(sentencePrice({ ...applied, firstCents: 12000 }, 'event', '$240')).toBe('$120 with code Bagpipe50 (regularly $240)');
+    expect(sentencePrice({ kind: 'none' }, 'league', '$2,140 / year')).toBe('$2,140 / year');
+    expect(sentencePrice({ kind: 'unknown', code: 'X' }, 'event', '$240')).toBe('$240');
   });
 });
