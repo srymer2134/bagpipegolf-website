@@ -4,12 +4,20 @@ import { defineConfig } from 'astro/config';
 import cloudflare from "@astrojs/cloudflare";
 import sentry from "@sentry/astro";
 import sitemap from "@astrojs/sitemap";
+import react from "@astrojs/react";
+import keystatic from "@keystatic/astro";
 import { sideGames } from "./src/lib/sideGames.ts";
 import { canonicalUrl } from "./src/lib/canonical.ts";
 
 // Paths that must never appear in the sitemap: signed-in surfaces, API
 // routes, Stripe return pages, auth forms, and per-event/per-league
 // share links (user-generated, often private, and not marketing pages).
+// Keystatic content editor (/keystatic) — `astro dev` only during the
+// pilot. It runs in local mode, which saves edits to files on disk, so
+// it has nothing to do on the deployed Worker. The production build is
+// unchanged until GitHub mode is set up and proven on Cloudflare.
+const IS_DEV = process.argv.includes('dev');
+
 const NOT_IN_SITEMAP =
   /^https:\/\/bagpipegolf\.com\/(app|api|pay|join|l|t)(\/|$)|\/(login|signup|forgot-password)\/?$/;
 
@@ -40,7 +48,14 @@ export default defineConfig({
   // once we want them SEO-snappy.
   output: 'server',
   adapter: cloudflare(),
+  // Keystatic lists its server-side API among the browser deps Vite
+  // pre-bundles; that file imports `astro:env/server`, which only exists
+  // server-side, so pre-bundling fails and the editor loads blank.
+  vite: IS_DEV
+    ? { optimizeDeps: { exclude: ['@keystatic/astro/api'] } }
+    : {},
   integrations: [
+    ...(IS_DEV ? [react(), keystatic()] : []),
     // sitemap-index.xml + sitemap-0.xml at build time. With
     // `output: 'server'` the integration sees only routes without
     // params, so the side-game detail pages (`/side-games/[slug]`) are

@@ -37,3 +37,14 @@ export const CONTENT_SECURITY_POLICY = [
   "form-action 'self' https://connect.stripe.com https://checkout.stripe.com https://billing.stripe.com",
   "object-src 'none'",
 ].join('; ');
+
+// The Keystatic content editor (/keystatic, see keystatic.config.ts)
+// previews images from `blob:` URLs, which the page policy blocks — the
+// logo field showed empty. Only the editor's own pages get `blob:`.
+export const EDITOR_CONTENT_SECURITY_POLICY = CONTENT_SECURITY_POLICY.replace(
+  "img-src 'self' data: https:",
+  "img-src 'self' data: blob: https:",
+);
+
+export const isEditorPath = (pathname: string) =>
+  pathname === '/keystatic' || pathname.startsWith('/keystatic/');
