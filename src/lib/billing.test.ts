@@ -20,7 +20,10 @@ import {
   rowDetail,
   rowState,
   trialButtonCopy,
+  leaguePlanBanner,
+  daysLeftCopy,
   type BillingLeagueRow,
+  type BillingListResponse,
   type TrialInfo,
 } from './billing';
 
@@ -247,5 +250,46 @@ describe('the free trial', () => {
       expect(msg.toLowerCase(), code).not.toContain('charged');
     }
     expect(billingErrorMessage('trial_started')).toContain('No card needed');
+  });
+});
+
+describe('leaguePlanBanner — trial countdown on the league page', () => {
+  const today = new Date('2026-11-05T12:00:00Z');
+  const base = (row: Partial<BillingLeagueRow>, extra: Partial<BillingListResponse> = {}): BillingListResponse => ({
+    billing_available: true,
+    gate: 'on',
+    enforced: true,
+    leagues: [{ league_id: 'L1', entitled: true, pays: false, source: 'trial',
+      period_end: '2026-12-05T12:00:00Z', cancel_at_period_end: false, ...row }],
+    ...extra,
+  });
+
+  it('a trial league shows days left and the end date', () => {
+    expect(leaguePlanBanner(base({}), 'L1', today)).toEqual({
+      kind: 'trial', days: 30, endsOn: '5 December 2026',
+    });
+  });
+
+  it('never counts below zero', () => {
+    const b = leaguePlanBanner(base({ period_end: '2026-11-01T00:00:00Z' }), 'L1', today);
+    expect(b).toMatchObject({ kind: 'trial', days: 0 });
+  });
+
+  it('an uncovered league of an enforced director is locked', () => {
+    expect(leaguePlanBanner(base({ entitled: false, source: null }), 'L1', today)).toEqual({ kind: 'locked' });
+  });
+
+  it('says nothing when not enforced, paid, comped, unknown league, closed or failed', () => {
+    expect(leaguePlanBanner(base({ entitled: false, source: null }, { enforced: false }), 'L1', today)).toBeNull();
+    expect(leaguePlanBanner(base({ source: 'stripe' }), 'L1', today)).toBeNull();
+    expect(leaguePlanBanner(base({ source: 'comp' }), 'L1', today)).toBeNull();
+    expect(leaguePlanBanner(base({}), 'other', today)).toBeNull();
+    expect(leaguePlanBanner(base({}, { billing_available: false }), 'L1', today)).toBeNull();
+    expect(leaguePlanBanner(null, 'L1', today)).toBeNull();
+  });
+
+  it('daysLeftCopy', () => {
+    expect(daysLeftCopy(1)).toBe('1 day');
+    expect(daysLeftCopy(12)).toBe('12 days');
   });
 });
