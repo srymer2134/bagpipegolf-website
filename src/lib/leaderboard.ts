@@ -36,6 +36,9 @@ import {
   type TournamentTeeBox,
 } from './tournamentQueries';
 import { directCourseHandicapFor } from './directHandicap';
+import { describeCompetitionWinner } from './competitionWinner';
+import { ldHolesLabel, tracksLongestDrive } from './fieldCompetitions';
+import { longestDriveGenders } from './ctpHoles';
 
 export type LeaderboardRow = {
   rank: number;
@@ -54,6 +57,9 @@ export type CtpEntry = {
   hole: number;
   winnerId: string;
   winnerName: string;
+  /// True when the stored value names no roster player (typed text from
+  /// the old free-text editor) — shown with a "re-pick" hint.
+  legacy: boolean;
 };
 
 /// Rounds half AWAY FROM ZERO, which is what Dart's `num.round()`
@@ -533,19 +539,16 @@ export function buildBrigadeTotals(t: TournamentRow): BrigadeRow[] {
   return rows;
 }
 
-/// Extract every CTP winner across every round. Each entry
-/// carries the round's display name + the winning player's name
-/// (resolved from `tournament.players`). Returns [] when no
-/// round has any CTP winner recorded — page hides the section.
+/// Extract every CTP winner across every round. Each entry carries the
+/// round's display name and the winner's name, resolved by the app's
+/// rule (`describeCompetitionWinner`: exact roster id, else a UNIQUE
+/// case-insensitive name). Returns [] when no round has a CTP winner.
 export function extractCtpEntries(
   tournament: TournamentRow,
 ): CtpEntry[] {
-  const playerNameById = new Map<string, string>();
-  for (const p of tournament.players) {
-    playerNameById.set(p.id, p.name);
-  }
+  const players = tournament.players ?? [];
   const entries: CtpEntry[] = [];
-  for (const round of tournament.rounds) {
+  for (const round of tournament.rounds ?? []) {
     const raw = (round as unknown as {
       closest_to_pin_by_hole?: Record<string, string>;
       closestToPinByHole?: Record<string, string>;
@@ -555,16 +558,56 @@ export function extractCtpEntries(
     for (const [holeKey, winnerId] of Object.entries(map)) {
       const hole = Number(holeKey);
       if (!Number.isFinite(hole) || !winnerId) continue;
+      const d = describeCompetitionWinner(players, winnerId);
+      if (!d.player && !d.legacyText) continue;
       entries.push({
         roundName: round.name,
         hole,
         winnerId: winnerId as string,
-        winnerName:
-            playerNameById.get(winnerId as string) ?? (winnerId as string),
+        winnerName: d.player?.name ?? d.legacyText ?? String(winnerId),
+        legacy: d.player === null,
       });
     }
   }
   // Sort by hole number then round order for stable display.
   entries.sort((a, b) => a.hole - b.hole);
   return entries;
+}
+
+export type LdEntry = {
+  roundName: string;
+  /// "Men's" / "Women's" — omitted wording for a single-bracket event.
+  bracket: string;
+  /// `Hole #9` / `Holes #5, #15`, or null when no hole is configured.
+  holesLabel: string | null;
+  winnerName: string;
+  legacy: boolean;
+};
+
+/// Every recorded Longest Drive winner, per round and bracket, in round
+/// order. Only brackets the tournament tracks are listed (the app shows
+/// the men's row only on a men's field, and so on).
+export function extractLdEntries(tournament: TournamentRow): LdEntry[] {
+  if (!tracksLongestDrive(tournament)) return [];
+  const brackets = longestDriveGenders(tournament);
+  const players = tournament.players ?? [];
+  const out: LdEntry[] = [];
+  for (const round of tournament.rounds ?? []) {
+    const r = round as Record<string, unknown>;
+    for (const g of brackets) {
+      const stored = g === 'male'
+        ? r.longest_drive_male_id ?? r.longestDriveMaleId
+        : r.longest_drive_female_id ?? r.longestDriveFemaleId;
+      const d = describeCompetitionWinner(players, stored);
+      if (!d.player && !d.legacyText) continue;
+      out.push({
+        roundName: round.name,
+        bracket: g === 'male' ? "Men's" : "Women's",
+        holesLabel: ldHolesLabel(tournament, round),
+        winnerName: d.player?.name ?? d.legacyText ?? '',
+        legacy: d.player === null,
+      });
+    }
+  }
+  return out;
 }

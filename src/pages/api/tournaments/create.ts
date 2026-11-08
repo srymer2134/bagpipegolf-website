@@ -8,6 +8,8 @@ import {
   type WizardInput,
   type WizardRoundInput,
 } from '../../../lib/tournamentCreate';
+import { cleanHoleList } from '../../../lib/fieldCompetitions';
+import { parseCompetitionConfig } from '../../../lib/competitionConfig';
 import {
   PAIRING_MODES,
   type PairingMode,
@@ -206,11 +208,18 @@ function validateWizardInput(
       typeof e.courseKey === 'string' && e.courseKey.length > 0
         ? e.courseKey
         : null;
+    // Per-round competition holes (2026-11-08). `null` = untouched —
+    // for CTP that means "follow the par 3s", exactly as in the app.
+    const holeList = (v: unknown): number[] | null => (Array.isArray(v)
+      ? cleanHoleList(v, totalHoles)
+      : null);
     return {
       teeName,
       totalHoles,
       format,
       gender,
+      ctpHoles: holeList(e.ctpHoles),
+      ldHoles: holeList(e.ldHoles),
       courseRating: num(e.courseRating),
       slopeRating: num(e.slopeRating),
       parTotal: num(e.parTotal),
@@ -415,6 +424,23 @@ function validateWizardInput(
       templateId,
       trackCTPOnPar3s,
       trackLongestDrive,
+      // Skins + buy-ins + the mixed-field LD option, normalised by the
+      // same parser the competition-config route uses.
+      competitions: (() => {
+        const c = parseCompetitionConfig({
+          skins: r.skins,
+          buyIns: r.buyIns,
+          longestDriveGenders: r.longestDriveGenders,
+          closestToPin: trackCTPOnPar3s,
+          longestDrive: trackLongestDrive,
+        });
+        return { skins: c.skins, buyIns: c.buyIns, longestDriveGenders: c.longestDriveGenders };
+      })(),
+      coursePars: Array.isArray(r.coursePars)
+        && (r.coursePars.length === 9 || r.coursePars.length === 18)
+        && r.coursePars.every((p) => Number.isInteger(p) && (p as number) >= 3 && (p as number) <= 6)
+        ? (r.coursePars as number[])
+        : [],
       rounds,
       players,
       flights,

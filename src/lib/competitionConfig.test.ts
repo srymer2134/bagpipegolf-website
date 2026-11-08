@@ -110,11 +110,16 @@ describe('longest drive brackets follow the wizard, not the checkbox', () => {
     ]);
   });
 
-  it('a single-gender field leaves longest_drive_genders NULL', () => {
-    // Mirrors the wizard: that column only carries an explicit MIXED
-    // pick; a single-gender field lets the pool's tag carry it.
+  it('a single-gender field writes its one gender, as the app wizard does', () => {
+    // 2026-11-08: the wizard's `_longestDriveGenders` defaults to the
+    // field gender and is persisted whenever LD is on, so a women's
+    // field stores ['female'] (was null before the LD-option rework).
     const patch = buildCompetitionPatch(cfg({ longestDrive: true }), 'female');
-    expect(patch.longest_drive_genders).toBeNull();
+    expect(patch.longest_drive_genders).toEqual(['female']);
+    expect(buildCompetitionPatch(cfg({ longestDrive: true }), 'male')
+      .longest_drive_genders).toEqual(['male']);
+    expect(buildCompetitionPatch(cfg({ longestDrive: false }), 'male')
+      .longest_drive_genders).toBeNull();
     expect((patch.pools as Record<string, unknown>[])[0].config)
       .toEqual({ gender: 'female' });
   });

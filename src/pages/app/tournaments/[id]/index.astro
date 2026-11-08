@@ -12,6 +12,15 @@ import {
   type TournamentRound,
 } from '../../../../lib/tournamentQueries';
 import { leagueEventFor, type LeagueEventContext } from '../../../../lib/leagueEvents';
+import { fieldGenderOf, readCompetitionConfig } from '../../../../lib/competitionConfig';
+import { resolveCtpHoles } from '../../../../lib/ctpHoles';
+import {
+  formatHoleList,
+  LD_FORMAT_LABEL,
+  longestDriveFormatOf,
+  longestDriveTitleFor,
+  resolveLdHoles,
+} from '../../../../lib/fieldCompetitions';
 import PayButton from '../../../../components/payments/PayButton.astro';
 import { checkoutNotice, payNoticeCode, memberPayState } from '../../../../lib/payments';
 import { fixtureParam, listPayments, modeFor } from '../../../../lib/paymentsServer';
@@ -159,9 +168,11 @@ function formatLabel(f: string | null | undefined): string {
   return FORMAT_LABEL[f] ?? f.replace(/_/g, ' ');
 }
 
-// Skins + flights signals for the config card.
-const skinsList: string[] = (t?.skins_competitions ?? []) as string[];
-const skinsLabels = skinsList
+// Skins + flights signals for the config card. Read through
+// `readCompetitionConfig`, which prefers `pools` the way the app's
+// `fromJson` does — `skins_competitions` alone can be stale.
+const compConfig = t ? readCompetitionConfig(t) : null;
+const skinsLabels = (compConfig?.skins ?? [])
   .map((s) =>
     s === 'gross_skins' ? 'Gross Skins'
     : s === 'net_skins' ? 'Net Skins'
@@ -170,10 +181,21 @@ const skinsLabels = skinsList
   )
   .filter(Boolean);
 const flights = t?.flights ?? [];
-const trackCTP = (t as unknown as { track_ctp_on_par3s?: boolean } | null)
-  ?.track_ctp_on_par3s === true;
-const trackLD = (t as unknown as { track_longest_drive?: boolean } | null)
-  ?.track_longest_drive === true;
+const trackCTP = compConfig?.closestToPin === true;
+const trackLD = compConfig?.longestDrive === true;
+const ldField = t ? fieldGenderOf(t) : 'male';
+const ldTitle = longestDriveTitleFor(ldField);
+const ldOption = t && ldField === 'mixed' ? LD_FORMAT_LABEL[longestDriveFormatOf(t)] : null;
+// Per round: which holes carry CTP and Longest Drive, as the app
+// resolves them (an explicit `ctp_holes` list, else every par 3 when
+// CTP is on; `longest_drive_holes` when LD is on).
+const compRounds = t
+  ? (t.rounds ?? []).map((r) => ({
+      name: r.name,
+      ctp: resolveCtpHoles(t, r),
+      ld: resolveLdHoles(t, r),
+    })).filter((r) => r.ctp.length > 0 || r.ld.length > 0)
+  : [];
 
 // The "you should see this feature" signals — hides the whole
 // Config card when nothing is set.
@@ -424,9 +446,24 @@ const sortedPlayers = [...players].sort((a, b) => {
                 <article class="config-card">
                   <div class="config-card__hdr">Side events</div>
                   <div class="config-card__body">
-                    {trackCTP && <span class="chip chip--brand">Closest to Pin (par 3s)</span>}
-                    {trackLD && <span class="chip chip--brand">Longest Drive</span>}
+                    {trackCTP && <span class="chip chip--brand">Closest to Pin</span>}
+                    {trackLD && (
+                      <span class="chip chip--brand">
+                        {ldTitle}{ldOption && <> · {ldOption}</>}
+                      </span>
+                    )}
                   </div>
+                  {compRounds.length > 0 && (
+                    <ul class="config-card__rounds">
+                      {compRounds.map((r) => (
+                        <li>
+                          <strong>{r.name}</strong>
+                          {r.ctp.length > 0 && <> · CTP {formatHoleList(r.ctp)}</>}
+                          {r.ld.length > 0 && <> · LD {formatHoleList(r.ld)}</>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </article>
               )}
             </div>
@@ -770,6 +807,14 @@ const sortedPlayers = [...players].sort((a, b) => {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+  }
+  .config-card__rounds {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
   }
 
   .pagefoot { margin: 32px 0 16px; }

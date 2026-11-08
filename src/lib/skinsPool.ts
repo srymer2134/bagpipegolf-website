@@ -18,8 +18,7 @@
 //     independently. Un-flighted tournaments run as one implicit
 //     flight (all attending players).
 //   * superSkins           → cross-flight, all attending players
-//     in one pool. Net-only (mixing gross across flights with
-//     different HCs would misrank).
+//     in one pool. GROSS-only, matching the app's v1 spec.
 //
 // Output: leaderboard-style rows per pool (playerName, skinsWon,
 // holesWon). Sorted by skins desc + name asc. Ties allowed.
@@ -34,6 +33,7 @@ import {
   holeCountForRound,
 } from './tournamentQueries';
 import { allowanceAdjustedHandicap } from './handicapAllowance';
+import { readCompetitionConfig } from './competitionConfig';
 import { directCourseHandicapFor } from './directHandicap';
 import {
   courseHandicap,
@@ -59,20 +59,43 @@ export type SkinsSection = {
   rows: SkinsRow[];
 };
 
-/// Parse the tournament's `skins_competitions` set. Returns which
-/// pools are enabled — order-independent flags.
+/// Which skins pools are enabled — order-independent flags.
+///
+/// Read through `readCompetitionConfig`, which prefers the v2 `pools`
+/// array exactly as the app's `Tournament.fromJson` does and falls back
+/// to `skins_competitions`. This used to read `skins_competitions`
+/// alone, so a tournament whose pools had been edited (and whose v1
+/// list had not) showed the wrong boards.
+///
+/// `remove_side_games` wins over both, as on the app's leaderboard
+/// (`_addSkinsAndDeuces` returns early): an event that opted out of
+/// side games can still carry the wizard's old skins default.
 export function enabledSkinsPools(t: TournamentRow): {
   gross: boolean;
   net: boolean;
   superSkins: boolean;
 } {
-  const raw = t.skins_competitions ?? [];
-  const set = new Set(raw);
+  const row = t as unknown as Record<string, unknown>;
+  if ((row.remove_side_games ?? row.removeSideGames) === true) {
+    return { gross: false, net: false, superSkins: false };
+  }
+  const set = new Set(readCompetitionConfig(t).skins);
   return {
     gross: set.has('gross_skins'),
     net: set.has('net_skins'),
     superSkins: set.has('super_skins'),
   };
+}
+
+/// The round's attendance list, or null when everyone plays. A player
+/// who did not attend a round does not compete for its skins — the app's
+/// `ctx.isAttending` filter in `_runSkinsAcrossRounds`.
+function attendingOf(round: TournamentRound): Set<string> | null {
+  const r = round as Record<string, unknown>;
+  const raw = r.attending_player_ids ?? r.attendingPlayerIds;
+  return Array.isArray(raw)
+    ? new Set(raw.filter((x): x is string => typeof x === 'string'))
+    : null;
 }
 
 /// True when any pool is enabled — drives the Skins toolbar chip.
@@ -214,8 +237,10 @@ function computeSkinsForPool(
     const holeCount = holeCountForRound(tournament, round);
 
     // Score map keyed by playerId for O(1) hole lookups.
+    const attending = attendingOf(round);
     const scoreByPlayer = new Map<string, (number | null)[]>();
     for (const phs of playerHoleScoresFor(round)) {
+      if (attending !== null && !attending.has(phs.playerId)) continue;
       if (totals.has(phs.playerId)) {
         scoreByPlayer.set(phs.playerId, phs.holeScores);
       }
@@ -304,54 +329,47 @@ function sortAndRank(rows: SkinsRow[]): SkinsRow[] {
 }
 
 /// Build every enabled skins section (gross-per-flight, net-per-flight,
-/// super-skins). Empty sections (no winners) are omitted.
+/// super-skins).
+///
+/// A kind with no skins awarded anywhere is omitted, so the page can
+/// show its "No skins won yet" card. But once a flighted kind has a
+/// winner in ANY flight, every flight of that kind is listed — a flight
+/// with nothing yet renders as "none yet" rather than vanishing, which
+/// is how the app's `buildSkinsByFlight` groups it ("silently omitting
+/// it would make the board look like the flight does not exist").
 export function buildAllSkinsSections(t: TournamentRow): SkinsSection[] {
   const flags = enabledSkinsPools(t);
   const out: SkinsSection[] = [];
+  const flighted = (t.flights ?? []).length > 0;
 
-  if (flags.gross) {
+  const byFlight = (key: 'gross' | 'net', label: string, useGross: boolean) => {
+    const sections: SkinsSection[] = [];
     for (const flight of flightsOrAllField(t)) {
       const pids = playerIdsOfFlight(flight);
       if (pids.length === 0) continue;
-      const rows = computeSkinsForPool(t, pids, true);
-      if (rows.length === 0) continue;
-      out.push({
-        key: 'gross',
-        title:
-          (t.flights ?? []).length > 0
-            ? `Gross Skins · ${flight.name}`
-            : 'Gross Skins',
+      sections.push({
+        key,
+        title: flighted ? `${label} · ${flight.name}` : label,
         flightId: flight.id,
         flightName: flight.name,
-        rows,
+        rows: computeSkinsForPool(t, pids, useGross),
       });
     }
-  }
+    if (sections.some((sec) => sec.rows.length > 0)) out.push(...sections);
+  };
 
-  if (flags.net) {
-    for (const flight of flightsOrAllField(t)) {
-      const pids = playerIdsOfFlight(flight);
-      if (pids.length === 0) continue;
-      const rows = computeSkinsForPool(t, pids, false);
-      if (rows.length === 0) continue;
-      out.push({
-        key: 'net',
-        title:
-          (t.flights ?? []).length > 0
-            ? `Net Skins · ${flight.name}`
-            : 'Net Skins',
-        flightId: flight.id,
-        flightName: flight.name,
-        rows,
-      });
-    }
-  }
+  if (flags.gross) byFlight('gross', 'Gross Skins', true);
+  if (flags.net) byFlight('net', 'Net Skins', false);
 
   if (flags.superSkins) {
-    // All players across all flights, net-based (cross-flight
-    // comparison needs HC normalisation).
+    // All players across all flights, GROSS. The app's SuperSkins is
+    // gross-only by spec (`leaderboard_boards.dart`: "SuperSkins is
+    // gross-only by design"; `hasAwardedSkins`: "SuperSkins is
+    // gross-only per v1 spec"). This board used to compute it net, so
+    // the website and the app named different SuperSkins winners for
+    // the same cards.
     const allIds = t.players.map((p) => p.id);
-    const rows = computeSkinsForPool(t, allIds, false);
+    const rows = computeSkinsForPool(t, allIds, true);
     if (rows.length > 0) {
       out.push({
         key: 'super',
