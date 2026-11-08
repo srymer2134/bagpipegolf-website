@@ -3312,24 +3312,26 @@ try {
   .buyIns input { width: 6.5em; font-size: 1rem; padding: 6px; text-align: right; }
   .compHoles { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
   .compHoles__title { font-size: 1.0625rem; margin: 0 0 4px; }
-  .compRound { padding: 10px 0; border-top: 1px dashed var(--line); }
-  .compRound__h { font-weight: 700; margin: 0 0 6px; font-size: 1rem; }
-  .compPick { margin: 0 0 10px; }
-  .compPick__h { margin: 0 0 6px; font-size: 1rem; font-weight: 600; }
-  .compPick__sum { display: block; font-weight: 500; font-size: 0.875rem; color: var(--brand-green); }
-  .holeChips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .holeChip {
+  /* Built with innerHTML by renderCompHoles(), so Astro's scoped class
+     hashes never reach them — scope by the static container instead. */
+  #compHolesBody :global(.compRound) { padding: 10px 0; border-top: 1px dashed var(--line); }
+  #compHolesBody :global(.compRound__h) { font-weight: 700; margin: 0 0 6px; font-size: 1rem; }
+  #compHolesBody :global(.compPick) { margin: 0 0 10px; }
+  #compHolesBody :global(.compPick__h) { margin: 0 0 6px; font-size: 1rem; font-weight: 600; }
+  #compHolesBody :global(.compPick__sum) { display: block; font-weight: 500; font-size: 0.875rem; color: var(--brand-green); }
+  #compHolesBody :global(.holeChips) { display: flex; flex-wrap: wrap; gap: 6px; }
+  #compHolesBody :global(.holeChip) {
     display: inline-flex; align-items: center; gap: 6px; min-height: 40px; min-width: 3em;
     padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
     font-size: 1rem; font-variant-numeric: tabular-nums;
   }
-  .holeChip:has(input:checked) { background: var(--brand-green-pale); border-color: var(--brand-green); }
-  .quickChip {
+  #compHolesBody :global(.holeChip:has(input:checked)) { background: var(--brand-green-pale); border-color: var(--brand-green); }
+  #compHolesBody :global(.quickChip) {
     min-height: 40px; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 1rem;
     border: 1px solid var(--brand-green); background: #fff; color: var(--brand-green); font-weight: 600;
   }
-  .otherHoles { margin-top: 6px; }
-  .otherHoles > summary { cursor: pointer; color: var(--brand-green); font-size: 0.9375rem; padding: 4px 0; }
+  #compHolesBody :global(.otherHoles) { margin-top: 6px; }
+  #compHolesBody :global(.otherHoles > summary) { cursor: pointer; color: var(--brand-green); font-size: 0.9375rem; padding: 4px 0; }
   .fieldComps {
     margin-top: 18px;
     display: flex;
