@@ -211,7 +211,15 @@ import PromoBar from '../components/PromoBar.astro';
             </tr>
             <tr>
               <th scope="row">Golf Genius</th>
-              <td>$1,425 / year, with no mobile app, live scoring or payments (Premium only)</td>
+              <td>
+                $1,425 / year
+                <ul class="missing" aria-label="Not included at this price">
+                  <li><span class="ck ck--no" aria-hidden="true">✕</span>No mobile app</li>
+                  <li><span class="ck ck--no" aria-hidden="true">✕</span>No live scoring</li>
+                  <li><span class="ck ck--no" aria-hidden="true">✕</span>No online payments</li>
+                </ul>
+                <span class="missing__note">Those need Premium, $4,275 / year</span>
+              </td>
               <td>$4,275 / year</td>
               <td>$200; $500 for Premium</td>
               <td>Per facility, up to 36 holes</td>
@@ -599,4 +607,7 @@ import PromoBar from '../components/PromoBar.astro';
     font-weight: 800;
     color: var(--brand-green);
   }
+  .missing { list-style: none; margin: 6px 0 2px; padding: 0; }
+  .missing li { color: var(--error); font-weight: 700; font-size: 0.875rem; }
+  .missing__note { font-size: 0.8125rem; color: var(--ink-muted); }
 </style>
