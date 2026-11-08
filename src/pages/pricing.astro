@@ -140,14 +140,20 @@ import PromoBar from '../components/PromoBar.astro';
            Library", no count; FAQ "if there is no app"). BlueGolf
            /organizers: no side games or counts listed; branded iPhone and
            Android apps. Unknown Golf /clubs-groups/features: no count.
-           The claim we make is the one we can prove: every game and format
-           is NAMED on our site, and none of these publish a count.
+           The claim we can prove: every game and format is NAMED on our
+           site, and none of these publish a count. The "by far" line above
+           the numbers is Sam's decision (2026-11-07), not a sourced fact.
          Never claim a rival LACKS something its site says it has. A cross
          only where the rival's own page says so; Premium-only or paid extra
          is "partly"; unknown is left blank. Re-read the sources before
          changing a cell and update the date below. */}
     <section class="feeblock" id="compare">
       <h2 class="feeblock__h">More games. Everything included. Less to pay.</h2>
+      {/* Sam's call, 2026-11-07, made after being shown that Golf Genius
+           advertises the "widest variety" and "hundreds" of formats and that
+           no rival publishes a count: keep this line as written. Revisit if
+           a rival publishes a number above ours. */}
+      <p class="compare__claim">More side games and event formats than any other platform… by far.</p>
       <p class="feeblock__p">
         Most golf event software makes you pay extra for the things players
         actually notice: the app, the side games, taking money. Bagpipe
@@ -583,5 +589,11 @@ import PromoBar from '../components/PromoBar.astro';
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .compare__claim {
+    margin: 0 0 12px;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--brand-green);
   }
 </style>
