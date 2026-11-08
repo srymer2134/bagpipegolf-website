@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { sideGames } from '../lib/sideGames';
+import { ROUND_FORMAT_COUNT } from '../lib/roundFormats';
 import PoweredByStripe from '../components/payments/PoweredByStripe.astro';
 import PlanCards from '../components/PlanCards.astro';
 import PromoBar from '../components/PromoBar.astro';
@@ -131,14 +132,58 @@ import PromoBar from '../components/PromoBar.astro';
              Banker, Vegas, Cash "and more", Venmo settle-up.
              /players/pricing: free membership; Unknown+ $49.99/yr or
              $14.99/mo unlocks custom side wagers ("Challenges").
-         Never claim a rival LACKS something its site says it has. Re-read
-         the sources before changing a cell and update the date below. */}
+         RE-READ 2026-11-07 (Sam: "more aggressive", check boxes): Golf
+           Genius /products/tm unchanged — "Full library of tournament
+           formats", no count; its marketing elsewhere claims the "widest
+           variety" and "hundreds" of formats, so we DO NOT claim the most
+           formats. Live Tourney /pricing unchanged ("Extensive Game
+           Library", no count; FAQ "if there is no app"). BlueGolf
+           /organizers: no side games or counts listed; branded iPhone and
+           Android apps. Unknown Golf /clubs-groups/features: no count.
+           The claim we can prove: every game and format is NAMED on our
+           site, and none of these publish a count. The "by far" line above
+           the numbers is Sam's decision (2026-11-07), not a sourced fact.
+         Never claim a rival LACKS something its site says it has. A cross
+         only where the rival's own page says so; Premium-only or paid extra
+         is "partly"; unknown is left blank. Re-read the sources before
+         changing a cell and update the date below. */}
     <section class="feeblock" id="compare">
-      <h2 class="feeblock__h">How Bagpipe compares</h2>
+      <h2 class="feeblock__h">More games. Everything included. Less to pay.</h2>
+      {/* Sam's call, 2026-11-07, made after being shown that Golf Genius
+           advertises the "widest variety" and "hundreds" of formats and that
+           no rival publishes a count: keep this line as written. Revisit if
+           a rival publishes a number above ours. */}
+      <p class="compare__claim">More side games and event formats than any other platform… by far.</p>
       <p class="feeblock__p">
-        Golf event software is usually a yearly subscription, often with
-        a one-time setup fee before your first event. Here is how the
-        best-known options line up.
+        Most golf event software makes you pay extra for the things players
+        actually notice: the app, the side games, taking money. Bagpipe
+        puts all of it in every plan, and gives players every game free.
+      </p>
+
+      <div class="bignums" role="list">
+        <a class="bignum" role="listitem" href="/side-games">
+          <span class="bignum__n">{sideGames.length}</span>
+          <span class="bignum__l">side games, settled for you</span>
+        </a>
+        <a class="bignum" role="listitem" href="/tournaments#formats">
+          <span class="bignum__n">{ROUND_FORMAT_COUNT}</span>
+          <span class="bignum__l">tournament formats</span>
+        </a>
+        <a class="bignum" role="listitem" href="/tournaments">
+          <span class="bignum__n">4</span>
+          <span class="bignum__l">Buddies Trip Cup templates, plus build your own</span>
+        </a>
+        <div class="bignum" role="listitem">
+          <span class="bignum__n">$0</span>
+          <span class="bignum__l">for every player</span>
+        </div>
+      </div>
+      <p class="feeblock__p">
+        <strong>Every one of them is named, with its rules, on this site.</strong>
+        {' '}None of the platforms below publish how many side games or formats
+        they have. Here are ours:
+        {' '}<a href="/side-games">all {sideGames.length} side games</a> and
+        {' '}<a href="/tournaments#formats">all {ROUND_FORMAT_COUNT} formats</a>.
       </p>
 
       <h3 class="compare__h">Price</h3>
@@ -195,58 +240,89 @@ import PromoBar from '../components/PromoBar.astro';
 
       <h3 class="compare__h">Features</h3>
       <div class="compare">
-        <table class="compare__table">
+        <table class="compare__table compare__table--ck">
           <thead>
             <tr>
               <td></td>
-              <th scope="col">League management</th>
-              <th scope="col">Online payments</th>
-              <th scope="col">App scoring</th>
-              <th scope="col">Side games</th>
+              <th scope="col" class="compare__ushead">Bagpipe Golf</th>
+              <th scope="col">Golf Genius</th>
+              <th scope="col">BlueGolf</th>
+              <th scope="col">Live Tourney</th>
+              <th scope="col">Unknown Golf</th>
             </tr>
           </thead>
           <tbody>
-            <tr class="compare__us">
-              <th scope="row">Bagpipe Golf</th>
-              <td>Yes</td>
-              <td>Yes — dues and entry fees by card</td>
-              <td>Yes — iPhone and iPad (Android coming soon)</td>
-              <td>{sideGames.length} games, settled for you, free for every player</td>
+            <tr>
+              <th scope="row">Side games, each named with rules</th>
+              <td class="ckcell ckcell--y compare__uscell"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>{sideGames.length} games</td>
+              <td class="ckcell ckcell--u">No count published</td>
+              <td class="ckcell ckcell--u">No count published</td>
+              <td class="ckcell ckcell--u">No count published</td>
+              <td class="ckcell ckcell--u">No count published</td>
             </tr>
             <tr>
-              <th scope="row">Golf Genius</th>
-              <td>Yes</td>
-              <td>Premium only</td>
-              <td>Premium only</td>
-              <td>Skins variants, Nassau, Stableford and more; no count published</td>
+              <th scope="row">Tournament formats, each named</th>
+              <td class="ckcell ckcell--y compare__uscell"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>{ROUND_FORMAT_COUNT} formats</td>
+              <td class="ckcell ckcell--u">No count published</td>
+              <td class="ckcell ckcell--u">No count published</td>
+              <td class="ckcell ckcell--u">No count published</td>
+              <td class="ckcell ckcell--u">No count published</td>
             </tr>
             <tr>
-              <th scope="row">BlueGolf</th>
-              <td>Season-long standings</td>
-              <td>Yes</td>
-              <td>Yes</td>
-              <td>Skins, Cha Cha Cha, 3-2-1 and more; no count published</td>
+              <th scope="row">Side games settled for you: who owes whom</th>
+              <td class="ckcell ckcell--y compare__uscell"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Every game</td>
+              <td class="ckcell ckcell--u">Not published</td>
+              <td class="ckcell ckcell--u">Not published</td>
+              <td class="ckcell ckcell--u">Not published</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Yes, with Venmo</td>
             </tr>
             <tr>
-              <th scope="row">Live Tourney</th>
-              <td>Yes</td>
-              <td>Yes</td>
-              <td>No — web only</td>
-              <td>Game library; no count published</td>
+              <th scope="row">Every side game free for players</th>
+              <td class="ckcell ckcell--y compare__uscell"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Always</td>
+              <td class="ckcell ckcell--u">Not published</td>
+              <td class="ckcell ckcell--u">Not published</td>
+              <td class="ckcell ckcell--u">Not published</td>
+              <td class="ckcell ckcell--p"><span class="ck ck--part" aria-hidden="true">◐</span><span class="sr-only">Partly: </span>Custom wagers need Unknown+ ($49.99 / year)</td>
             </tr>
             <tr>
-              <th scope="row">Unknown Golf</th>
-              <td>Yes</td>
-              <td>Yes</td>
-              <td>Yes</td>
-              <td>Skins, Dots, Banker, Vegas and more; custom wagers need Unknown+ ($49.99 / year per player)</td>
+              <th scope="row">App scoring on the base plan</th>
+              <td class="ckcell ckcell--y compare__uscell"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>iPhone and iPad (Android coming soon)</td>
+              <td class="ckcell ckcell--p"><span class="ck ck--part" aria-hidden="true">◐</span><span class="sr-only">Partly: </span>Premium only</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>iPhone and Android</td>
+              <td class="ckcell ckcell--n"><span class="ck ck--no" aria-hidden="true">✕</span><span class="sr-only">No: </span>Web only</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Yes</td>
+            </tr>
+            <tr>
+              <th scope="row">Card payments on the base plan</th>
+              <td class="ckcell ckcell--y compare__uscell"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Dues and entry fees, to your own Stripe</td>
+              <td class="ckcell ckcell--p"><span class="ck ck--part" aria-hidden="true">◐</span><span class="sr-only">Partly: </span>Premium only</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Yes</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Yes</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Yes</td>
+            </tr>
+            <tr>
+              <th scope="row">League management and season standings</th>
+              <td class="ckcell ckcell--y compare__uscell"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Yes, plus a match-play companion league</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Yes</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Season-long standings</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Yes</td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Yes</td>
+            </tr>
+            <tr>
+              <th scope="row">No setup or onboarding fee</th>
+              <td class="ckcell ckcell--y compare__uscell"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>Free</td>
+              <td class="ckcell ckcell--n"><span class="ck ck--no" aria-hidden="true">✕</span><span class="sr-only">No: </span>$200; $500 for Premium</td>
+              <td class="ckcell ckcell--n"><span class="ck ck--no" aria-hidden="true">✕</span><span class="sr-only">No: </span>$500<sup>*</sup></td>
+              <td class="ckcell ckcell--y"><span class="ck ck--yes" aria-hidden="true">✓</span><span class="sr-only">Yes: </span>None listed</td>
+              <td class="ckcell ckcell--u">Not published</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p class="compare__key">✓ yes · ◐ partly or paid extra · ✕ no, per that company's own site · no mark: not published</p>
 
       <h3 class="compare__h compare__h--gap">Included in every Bagpipe price</h3>
-      <ul class="feeblock__list">
+      <ul class="feeblock__list checklist">
         <li><strong>No setup, onboarding or training fees.</strong> Create an event and send the invite.</li>
         <li><strong>A 30-day free trial for leagues</strong>, with no card needed.</li>
         <li>
@@ -254,15 +330,18 @@ import PromoBar from '../components/PromoBar.astro';
           {sideGames.length} side games with settle-up, and live
           leaderboards are free for every golfer in your field.
         </li>
+        <li><strong>All {ROUND_FORMAT_COUNT} tournament formats</strong>, from scrambles and best ball to Stableford, match play and team cups.</li>
+        <li><strong>The app, live scoring and card payments on every plan</strong>, not held back for a premium tier.</li>
         <li><strong>Leagues include their tournaments.</strong> Every event your league runs is covered by its plan.</li>
         <li><strong>Entry fees and dues go straight to you</strong>, through your own Stripe account.</li>
       </ul>
       <p class="compare__note">
-        Prices and features as published on 30 October 2026 by
+        Prices and features as published by each company, checked 7 November 2026:
         <a href="https://www.golfgenius.com/products/tm" rel="noopener">Golf Genius</a>,
         <a href="https://www.bluegolf.com/organizers/index.html" rel="noopener">BlueGolf</a>,
         <a href="https://www.livetourney.com/pricing" rel="noopener">Live Tourney</a> and
         <a href="https://www.unknowngolf.com/clubs-groups/features" rel="noopener">Unknown Golf</a>.
+        Where a company does not say whether it offers something, we leave it unmarked rather than guess.
         <sup>*</sup>BlueGolf does not publish pricing; its price and setup figures are as reported by
         <a href="https://livetourney.com/blog/level-up" rel="noopener">Live Tourney in January 2024</a>.
         Plans and prices change, so check with each company before you decide.
@@ -471,5 +550,50 @@ import PromoBar from '../components/PromoBar.astro';
     line-height: 1.5;
     color: var(--ink-muted);
     max-width: 62ch;
+  }
+  .bignums {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin: 18px 0 14px;
+  }
+  .bignum {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 16px 14px; border-radius: 12px;
+    background: var(--brand-green-pale); color: var(--brand-green-dark);
+    text-decoration: none;
+  }
+  a.bignum:hover { outline: 2px solid var(--brand-green); }
+  .bignum__n { font-size: 2.25rem; font-weight: 900; line-height: 1; }
+  .bignum__l { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+  @media (max-width: 640px) { .bignums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .compare__table--ck td { font-size: 0.875rem; }
+  .compare__table--ck .compare__ushead,
+  .compare__table--ck .compare__uscell {
+    color: var(--brand-green-dark);
+    font-weight: 700;
+    background: rgba(22, 101, 52, 0.06);
+  }
+  .ck { display: inline-block; width: 1.4em; font-weight: 900; }
+  .ck--yes { color: var(--brand-green); }
+  .ck--no { color: var(--error); }
+  .ck--part { color: var(--warning); }
+  .ckcell--u { color: var(--ink-hint); font-style: italic; }
+  .compare__key { margin: -14px 0 24px; font-size: 0.8125rem; color: var(--ink-muted); }
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li { position: relative; padding-left: 28px; }
+  .checklist li::before {
+    content: '✓'; position: absolute; left: 0; top: 0;
+    color: var(--brand-green); font-weight: 900;
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .compare__claim {
+    margin: 0 0 12px;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--brand-green);
   }
 </style>
