@@ -215,11 +215,17 @@ export function buildPools(
 /// "leave unchanged", so turning a competition off requires sending
 /// the false. `fromJson` reads a real bool, so it round-trips.
 ///
-/// `longest_drive_genders` is sent as `null` rather than `[]` when it
-/// does not apply, matching the model's own "null = no explicit pick"
-/// sentinel — and, per the wizard, it carries picks ONLY for a mixed
-/// field. A single-gender field leaves it null and lets the pool's
-/// gender tag carry the bracket.
+/// `longest_drive_genders` follows the app wizard as of 2026-11-08
+/// (`new_tournament_screen.dart`: `(_trackLongestDrive &&
+/// _longestDriveGenders.isNotEmpty) ? list : null`, where the set
+/// defaults to the field gender):
+///
+///   * LD off                    -> `null`
+///   * single-gender field       -> `[fieldGender]` — the one option it has
+///   * mixed + an option picked  -> that option's genders
+///   * mixed + nothing picked    -> `null`, the legacy "both rows" shape
+///                                  (kept so an untouched legacy row
+///                                  round-trips unchanged)
 export function buildCompetitionPatch(
   config: CompetitionConfig,
   fieldGender: string,
@@ -227,7 +233,7 @@ export function buildCompetitionPatch(
   const mixed = fieldGender === 'mixed';
   const picks = mixed
     ? config.longestDriveGenders.filter((g) => g === 'male' || g === 'female')
-    : [];
+    : fieldGender === 'female' ? ['female'] : ['male'];
   return {
     skins_competitions: SKINS_KINDS.filter((k) => config.skins.includes(k)),
     track_ctp_on_par3s: config.closestToPin,
@@ -236,6 +242,156 @@ export function buildCompetitionPatch(
       config.longestDrive && picks.length > 0 ? picks : null,
     pools: buildPools(config, fieldGender),
   };
+}
+
+// ── Merging pools instead of replacing them ─────────────────────
+//
+// 🚨 `buildPools` only knows five kinds (three skins, CTP, LD). A
+// tournament can carry others — `greenies`, `deuces_pool`, and the
+// stableford/quota pools — plus a `display_name` or a `config` the app
+// set, under ids that are not `legacy_*`. Writing `buildPools` straight
+// to `pools` deleted every one of those the first time a director saved
+// the website's competition setup. `mergePools` is the write path now.
+
+/// The pool kinds this site configures. Every other kind is passed
+/// through untouched.
+export const MANAGED_POOL_KINDS: readonly string[] = [
+  ...SKINS_KINDS,
+  'closest_to_pin',
+  'longest_drive',
+];
+
+function poolKindOf(p: Record<string, unknown>): string {
+  const k = typeof p.kind === 'string' ? p.kind : '';
+  // `PoolKindValue.fromValue` accepts the camelCase spelling too.
+  const camel: Record<string, string> = {
+    grossSkins: 'gross_skins', netSkins: 'net_skins', superSkins: 'super_skins',
+    closestToPin: 'closest_to_pin', longestDrive: 'longest_drive',
+  };
+  return camel[k] ?? k;
+}
+
+/// What identifies "the same pool" across a save: the kind, plus the
+/// gender tag for longest drive (an untagged LD pool is its own key).
+function poolMatchKey(p: Record<string, unknown>): string {
+  const kind = poolKindOf(p);
+  if (kind !== 'longest_drive') return kind;
+  const cfg = p.config as Record<string, unknown> | undefined;
+  const g = typeof cfg?.gender === 'string' ? cfg.gender.toLowerCase() : '';
+  return `longest_drive:${g}`;
+}
+
+/// Merge the pools a configuration wants onto the stored pools.
+///
+///   * a pool of a kind this site does not manage    -> kept, untouched
+///   * a managed pool the config still wants         -> kept, same id,
+///     same display name and config; only `buy_in_amount` is updated
+///   * a managed pool the config no longer wants     -> dropped, and
+///     reported in `removed` (the spine pool row is marked removed)
+///   * a wanted pool with no stored match            -> appended
+export function mergePools(
+  existing: unknown,
+  config: CompetitionConfig,
+  fieldGender: string,
+): { pools: Record<string, unknown>[]; removed: Record<string, unknown>[] } {
+  const desired = buildPools(config, fieldGender);
+  const wanted = new Map<string, Record<string, unknown>>();
+  for (const d of desired) wanted.set(poolMatchKey(d), d);
+
+  const pools: Record<string, unknown>[] = [];
+  const removed: Record<string, unknown>[] = [];
+  const satisfied = new Set<string>();
+  for (const raw of Array.isArray(existing) ? existing : []) {
+    if (!raw || typeof raw !== 'object') continue;
+    const p = raw as Record<string, unknown>;
+    const kind = poolKindOf(p);
+    if (!MANAGED_POOL_KINDS.includes(kind)) {
+      pools.push(p);
+      continue;
+    }
+    const key = poolMatchKey(p);
+    if (!wanted.has(key)) {
+      removed.push(p);
+      continue;
+    }
+    satisfied.add(key);
+    const next: Record<string, unknown> = { ...p };
+    const amount = config.buyIns[kind];
+    if (Number.isFinite(amount) && amount > 0) next.buy_in_amount = amount;
+    else delete next.buy_in_amount;
+    delete next.buyInAmount;
+    pools.push(next);
+  }
+  for (const [key, d] of wanted) {
+    if (!satisfied.has(key)) pools.push(d);
+  }
+  return { pools, removed };
+}
+
+// ── Per-round competition fields ─────────────────────────────────
+
+/// What one round's CTP / LD hole fields should become after a save.
+/// Mirrors the app wizard:
+///
+///   * `_ctpHolesForSave` — with CTP OFF an explicit hole list would keep
+///     CTP alive on its own (the resolver honours an explicit list
+///     regardless of the flag), so it saves as `[]`. An absent list stays
+///     absent.
+///   * `_onCtpToggled(true)` — turning CTP on resets a round's `[]` back
+///     to absent, so every round starts from "all par 3s" again, unless
+///     the director sent holes for that round in the same save.
+///   * `_onLongestDriveToggled(true)` — turning LD on suggests the
+///     round's par 5s where no hole is picked yet.
+///   * LD off leaves `longest_drive_holes` alone — readers ignore it
+///     while LD is off, as in the app.
+///
+/// `submitted.ctpHoles` / `submitted.ldHoles` are the director's picks
+/// for this round, or `undefined` when they did not touch it. Returns a
+/// NEW round; every key it does not own is carried over as-is.
+export function nextRoundCompetitionFields(
+  round: Record<string, unknown>,
+  opts: {
+    prev: CompetitionConfig;
+    next: CompetitionConfig;
+    submitted?: { ctpHoles?: number[]; ldHoles?: number[] };
+    par5s: readonly number[];
+  },
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...round };
+  const list = (v: unknown): number[] | null => (Array.isArray(v)
+    ? v.map(Number).filter((n) => Number.isInteger(n) && n >= 1)
+    : null);
+
+  // ── CTP holes ──
+  const currentCtp = list(round.ctp_holes ?? round.ctpHoles);
+  let ctp: number[] | null = opts.submitted?.ctpHoles !== undefined
+    ? [...opts.submitted.ctpHoles]
+    : currentCtp;
+  if (!opts.next.closestToPin) {
+    if (ctp !== null) ctp = [];
+  } else if (!opts.prev.closestToPin && opts.submitted?.ctpHoles === undefined
+      && ctp !== null && ctp.length === 0) {
+    ctp = null;
+  }
+  delete out.ctpHoles;
+  if (ctp === null) delete out.ctp_holes;
+  else out.ctp_holes = ctp;
+
+  // ── LD holes ──
+  const currentLd = list(round.longest_drive_holes ?? round.longestDriveHoles);
+  let ld: number[] | null = opts.submitted?.ldHoles !== undefined
+    ? [...opts.submitted.ldHoles]
+    : currentLd;
+  if (opts.next.longestDrive && !opts.prev.longestDrive
+      && opts.submitted?.ldHoles === undefined
+      && (ld === null || ld.length === 0) && opts.par5s.length > 0) {
+    ld = [...opts.par5s];
+  }
+  delete out.longestDriveHoles;
+  if (ld === null) delete out.longest_drive_holes;
+  else out.longest_drive_holes = ld;
+
+  return out;
 }
 
 /// Normalise untrusted input from the browser into a config.

@@ -4,6 +4,9 @@ import { createSupabaseClient } from '../../../../lib/supabase';
 import { getPublicTournament } from '../../../../lib/tournamentQueries';
 import { mergeCtpWinners, resolveCtpHoles } from '../../../../lib/ctpHoles';
 import { ScoreLossError, withFreshRounds } from '../../../../lib/tournamentWrite';
+import { acceptWinnerValue } from '../../../../lib/competitionWinner';
+import { syncRoundDecisions, type SpineCall } from '../../../../lib/spineCompetitions';
+import type { TournamentRound, TournamentRow } from '../../../../lib/tournamentQueries';
 
 // POST /api/tournaments/[id]/competitions
 //
@@ -44,7 +47,7 @@ export const POST: APIRoute = async (ctx) => {
     closestToPin?: unknown;
     longestDriveMaleId?: unknown;
     longestDriveFemaleId?: unknown;
-  };
+  } & Record<string, unknown>;
   try {
     raw = (await ctx.request.json()) as typeof raw;
   } catch {
@@ -62,6 +65,11 @@ export const POST: APIRoute = async (ctx) => {
     });
     const fresh = await getPublicTournament(supabase, id);
     if (!fresh) return json({ error: 'Tournament not found.' }, 404);
+    if (fresh.user_id !== locals.user.id) {
+      // The competitions page is owner-gated, so the route is too.
+      // Railway alone would accept any roster member's PATCH.
+      return json({ error: 'Only the tournament host can record winners.' }, 403);
+    }
 
     const round = (fresh.rounds ?? []).find((r) => r.id === roundId);
     if (!round) {
@@ -106,15 +114,33 @@ export const POST: APIRoute = async (ctx) => {
       }, 400);
     }
 
-    const ldMale = str(raw.longestDriveMaleId);
-    const ldFemale = str(raw.longestDriveFemaleId);
-    for (const [label, v] of [['male', ldMale], ['female', ldFemale]] as const) {
-      if (v !== null && !rosterIds.has(v)) {
-        return json({
-          error: `The ${label} longest-drive winner is not on the roster.`,
-        }, 400);
+    // Longest drive: a roster id, a clear, or the value already stored
+    // re-submitted untouched (a legacy typed name the picker shows with
+    // a "re-pick" hint — see `acceptWinnerValue`). A key the client did
+    // not send at all leaves that winner alone.
+    const roundRow = round as Record<string, unknown>;
+    const ldValue = (
+      key: 'longestDriveMaleId' | 'longestDriveFemaleId',
+      storedKeys: [string, string],
+    ): { ok: true; value: string | null } | { ok: false } => {
+      const stored = roundRow[storedKeys[0]] ?? roundRow[storedKeys[1]];
+      if (!(key in raw)) {
+        return { ok: true, value: typeof stored === 'string' && stored.length > 0 ? stored : null };
       }
+      return acceptWinnerValue(raw[key], stored, rosterIds);
+    };
+    const male = ldValue('longestDriveMaleId',
+      ['longest_drive_male_id', 'longestDriveMaleId']);
+    const female = ldValue('longestDriveFemaleId',
+      ['longest_drive_female_id', 'longestDriveFemaleId']);
+    if (!male.ok) {
+      return json({ error: "The men's longest-drive winner is not on the roster." }, 400);
     }
+    if (!female.ok) {
+      return json({ error: "The women's longest-drive winner is not on the roster." }, 400);
+    }
+    const ldMale = male.value;
+    const ldFemale = female.value;
 
     const rounds = withFreshRounds(fresh, roundId, (r) => {
       const next: Record<string, unknown> = {
@@ -148,7 +174,30 @@ export const POST: APIRoute = async (ctx) => {
       path: `/api/tournaments/${encodeURIComponent(id)}`,
       body: { rounds },
     });
-    return json({ ok: true, roundId, ctpRecorded: Object.keys(ctp).length }, 200);
+
+    // Spine dual-write, after the legacy write has landed — the same
+    // reconcile the app runs from `setClosestToPin` / LD setters. Only
+    // a bridged round (`spine_round_id`) is touched; failure is logged
+    // and never fails the save.
+    const written = rounds.find((r) => r.id === roundId) as unknown as TournamentRound;
+    const call: SpineCall = (init) => callRailway(ctx, init);
+    const spine = await syncRoundDecisions(
+      call,
+      { ...fresh, rounds: rounds as unknown as TournamentRound[] } as TournamentRow,
+      written,
+    );
+    if (spine.outcome === 'failed' || spine.unresolved.length > 0) {
+      console.warn('[api/tournaments/competitions] spine', {
+        tournament: id, round: roundId, outcome: spine.outcome,
+        error: spine.error, unresolved: spine.unresolved,
+      });
+    }
+    return json({
+      ok: true,
+      roundId,
+      ctpRecorded: Object.keys(ctp).length,
+      spine: spine.outcome,
+    }, 200);
   } catch (err) {
     if (err instanceof ScoreLossError) {
       console.error('[api/tournaments/competitions] score-loss guard', {

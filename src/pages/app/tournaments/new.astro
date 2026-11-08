@@ -371,27 +371,79 @@ try {
         </label>
 
         <fieldset class="field field--group fieldComps">
+          <legend class="field__label">Skins</legend>
+          <label class="checkbox checkbox--stacked">
+            <input type="checkbox" data-skins="gross_skins" />
+            <span><strong>Gross skins</strong>
+              <em class="checkbox__hint">Lowest gross score on a hole wins it; ties carry. Per flight.</em></span>
+          </label>
+          <label class="checkbox checkbox--stacked">
+            <input type="checkbox" data-skins="net_skins" />
+            <span><strong>Net skins</strong>
+              <em class="checkbox__hint">Same, after handicap strokes. Per flight.</em></span>
+          </label>
+          <label class="checkbox checkbox--stacked">
+            <input type="checkbox" data-skins="super_skins" />
+            <span><strong>Super skins</strong>
+              <em class="checkbox__hint">One gross pool across every flight.</em></span>
+          </label>
+        </fieldset>
+
+        <fieldset class="field field--group fieldComps">
           <legend class="field__label">Field Competitions</legend>
           <label class="checkbox checkbox--stacked">
             <input type="checkbox" id="trackCTPOnPar3s" />
             <span>
-              <strong>Track Closest-to-Pin on par 3s</strong>
+              <strong>Closest to the Pin</strong>
               <em class="checkbox__hint">
-                Leaderboard shows the CTP winner for each par 3 across
-                the tournament.
+                On every par 3 by default — pick the holes for each round
+                on the Rounds step.
               </em>
             </span>
           </label>
           <label class="checkbox checkbox--stacked">
             <input type="checkbox" id="trackLongestDrive" />
             <span>
-              <strong>Track Longest Drive</strong>
-              <em class="checkbox__hint">
-                Leaderboard shows the LD winner for each designated
-                hole.
+              <strong id="ldTitle">Men's Longest Drive</strong>
+              <em class="checkbox__hint" id="ldNote">
+                Men's field — one men's winner each round.
               </em>
             </span>
           </label>
+          <div id="ldFormats" class="ldFormats" role="radiogroup" aria-label="Who competes for longest drive" hidden>
+            <label class="checkbox checkbox--stacked">
+              <input type="radio" name="ldFormat" value="mensAndWomens" checked />
+              <span><strong>Men's &amp; Women's</strong>
+                <em class="checkbox__hint">Two winners each round — one men's, one women's.</em></span>
+            </label>
+            <label class="checkbox checkbox--stacked">
+              <input type="radio" name="ldFormat" value="mensOnly" />
+              <span><strong>Men's only</strong>
+                <em class="checkbox__hint">One men's winner each round. Women don't compete.</em></span>
+            </label>
+            <label class="checkbox checkbox--stacked">
+              <input type="radio" name="ldFormat" value="womensOnly" />
+              <span><strong>Women's only</strong>
+                <em class="checkbox__hint">One women's winner each round. Men don't compete.</em></span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="field field--group fieldComps" id="buyInsGroup" hidden>
+          <legend class="field__label">Entry per player</legend>
+          <p class="wizard__stepSub">Leave at 0 to run a competition without money.</p>
+          <div class="buyIns">
+            <label data-buyin-row="gross_skins" hidden><span>Gross skins</span>
+              <input type="number" min="0" step="1" inputmode="decimal" data-buyin="gross_skins" value="0" /></label>
+            <label data-buyin-row="net_skins" hidden><span>Net skins</span>
+              <input type="number" min="0" step="1" inputmode="decimal" data-buyin="net_skins" value="0" /></label>
+            <label data-buyin-row="super_skins" hidden><span>Super skins</span>
+              <input type="number" min="0" step="1" inputmode="decimal" data-buyin="super_skins" value="0" /></label>
+            <label data-buyin-row="closest_to_pin" hidden><span>Closest to the pin</span>
+              <input type="number" min="0" step="1" inputmode="decimal" data-buyin="closest_to_pin" value="0" /></label>
+            <label data-buyin-row="longest_drive" hidden><span>Longest drive</span>
+              <input type="number" min="0" step="1" inputmode="decimal" data-buyin="longest_drive" value="0" /></label>
+          </div>
         </fieldset>
       </section>
 
@@ -408,6 +460,12 @@ try {
         <button type="button" id="addRoundBtn" class="btn btn--ghost">
           + Add round
         </button>
+
+        <div id="compHoles" class="compHoles" hidden>
+          <h3 class="compHoles__title">Competition holes</h3>
+          <p class="wizard__stepSub" id="compHolesNote"></p>
+          <div id="compHolesBody"></div>
+        </div>
       </section>
 
       <!-- Step 4 — Players -->
@@ -696,6 +754,13 @@ try {
     useNetScoringOverride: null,
     trackCTPOnPar3s: false,
     trackLongestDrive: false,
+    // Skins pools + per-kind buy-ins + the mixed-field LD option
+    // (2026-11-08 parity with the app wizard). Per-round CTP / LD hole
+    // picks live on state.rounds[i].ctpHoles / .ldHoles: `null` =
+    // untouched (CTP: follow the par 3s; LD: not suggested yet).
+    skins: [],
+    buyIns: {},
+    ldFormat: 'mensAndWomens',
     players: [],
     // Flights (Step 5). `mode` = 'off' | 'auto' | 'manual'; `off`
     // means single competition (empty flights on submit). `auto`
@@ -761,7 +826,7 @@ try {
     nextBtn.hidden = step === 7;
     submitBtn.hidden = step !== 7;
     errorBox.hidden = true;
-    if (step === 3) renderRounds();
+    if (step === 3) { renderRounds(); renderCompHoles(); }
     if (step === 4) renderPlayers();
     if (step === 5) renderFlights();
     if (step === 6) renderPairings();
@@ -833,11 +898,190 @@ try {
   // user's explicit intent on a subsequent step re-render (state
   // is the source of truth; syncFormatRadiosToState only fires on
   // template application).
+  // Toggle rules mirror the app wizard (`_onCtpToggled` /
+  // `_onLongestDriveToggled`): CTP back on resets a round's explicit
+  // "none" to "all par 3s"; LD on suggests each round's par 5s where no
+  // hole is picked yet (done lazily in renderCompHoles, once pars load).
   trackCTPEl.addEventListener('change', () => {
     state.trackCTPOnPar3s = !!trackCTPEl.checked;
+    if (state.trackCTPOnPar3s) {
+      for (const r of state.rounds) {
+        if (Array.isArray(r.ctpHoles) && r.ctpHoles.length === 0) r.ctpHoles = null;
+      }
+    }
+    refreshCompetitionControls();
   });
   trackLDEl.addEventListener('change', () => {
     state.trackLongestDrive = !!trackLDEl.checked;
+    if (state.trackLongestDrive) state.ldFormat = 'mensAndWomens';
+    refreshCompetitionControls();
+  });
+  document.querySelectorAll('[data-skins]').forEach((el) => {
+    el.addEventListener('change', () => {
+      state.skins = [...document.querySelectorAll('[data-skins]')]
+        .filter((x) => x.checked).map((x) => x.dataset.skins);
+      refreshCompetitionControls();
+    });
+  });
+  document.querySelectorAll('input[name="ldFormat"]').forEach((el) => {
+    el.addEventListener('change', () => { if (el.checked) state.ldFormat = el.value; });
+  });
+  document.querySelectorAll('[data-buyin]').forEach((el) => {
+    el.addEventListener('input', () => {
+      const n = Number(el.value);
+      if (Number.isFinite(n) && n > 0) state.buyIns[el.dataset.buyin] = n;
+      else delete state.buyIns[el.dataset.buyin];
+    });
+  });
+  document.querySelectorAll('input[name="fieldGender"]').forEach((el) => {
+    el.addEventListener('change', refreshCompetitionControls);
+  });
+
+  function currentFieldGender() {
+    const fg = document.querySelector('input[name="fieldGender"]:checked');
+    return fg ? fg.value : 'male';
+  }
+
+  // LD title / note / option picker follow the field gender exactly as
+  // the app's `longestDriveTitleFor` / `longestDriveFieldNoteFor` /
+  // `longestDriveFormatsFor`: a men's field runs Men's LD only, a
+  // women's field Women's only, and only a mixed field chooses.
+  function refreshCompetitionControls() {
+    const field = currentFieldGender();
+    document.getElementById('ldTitle').textContent =
+      field === 'female' ? "Women's Longest Drive"
+      : field === 'mixed' ? 'Longest Drive' : "Men's Longest Drive";
+    document.getElementById('ldNote').textContent =
+      field === 'female' ? "Women's field — one women's winner each round."
+      : field === 'mixed' ? 'Mixed field — choose who competes:'
+      : "Men's field — one men's winner each round.";
+    document.getElementById('ldFormats').hidden =
+      !(field === 'mixed' && state.trackLongestDrive);
+    document.querySelectorAll('input[name="ldFormat"]').forEach((el) => {
+      el.checked = el.value === state.ldFormat;
+    });
+    document.querySelectorAll('[data-skins]').forEach((el) => {
+      el.checked = state.skins.includes(el.dataset.skins);
+    });
+    const on = {
+      gross_skins: state.skins.includes('gross_skins'),
+      net_skins: state.skins.includes('net_skins'),
+      super_skins: state.skins.includes('super_skins'),
+      closest_to_pin: !!state.trackCTPOnPar3s,
+      longest_drive: !!state.trackLongestDrive,
+    };
+    let any = false;
+    document.querySelectorAll('[data-buyin-row]').forEach((row) => {
+      const k = row.dataset.buyinRow;
+      row.hidden = !on[k];
+      any = any || on[k];
+    });
+    document.getElementById('buyInsGroup').hidden = !any;
+    if (state.step === 3) renderCompHoles();
+  }
+
+  // ── Per-round CTP / LD hole pickers (Rounds step) ────────
+  // Mirrors the app wizard's `_buildCtpHolesSetup` /
+  // `_buildLongestDriveSetup`: CTP shows the par 3s up front (all on by
+  // default) with every other hole behind "Other holes"; LD shows the
+  // par 5s up front with the par 4s behind "Other holes" and never a
+  // par 3. With no pars loaded, every hole is offered up front.
+  function parsForWizardRound(r) {
+    const pars = state.course && Array.isArray(state.course.pars) ? state.course.pars : [];
+    const n = Number(r.totalHoles) || 18;
+    return pars.length >= n ? pars.slice(0, n) : null;
+  }
+  function holesWithPar(pars, par) {
+    const out = [];
+    pars.forEach((p, i) => { if (p === par) out.push(i + 1); });
+    return out;
+  }
+  function holeListLabel(holes) {
+    return [...holes].sort((a, b) => a - b).map((h) => `#${h}`).join(', ');
+  }
+  function holeChips(kind, ri, holes, selected) {
+    return holes.map((h) => `
+      <label class="holeChip">
+        <input type="checkbox" data-comp-kind="${kind}" data-comp-round="${ri}" data-comp-hole="${h}"
+               ${selected.includes(h) ? 'checked' : ''} />
+        <span>#${h}</span>
+      </label>`).join('');
+  }
+  function renderCompHoles() {
+    const wrap = document.getElementById('compHoles');
+    const body = document.getElementById('compHolesBody');
+    const ctpOn = !!state.trackCTPOnPar3s;
+    const ldOn = !!state.trackLongestDrive;
+    wrap.hidden = !(ctpOn || ldOn);
+    if (wrap.hidden) { body.innerHTML = ''; return; }
+    const anyPars = state.rounds.some((r) => parsForWizardRound(r));
+    document.getElementById('compHolesNote').textContent = anyPars
+      ? 'Which holes carry each competition, round by round.'
+      : 'Pick a course on Basics to see its par 3s and par 5s — until then every hole is listed.';
+    const parts = [];
+    state.rounds.forEach((r, ri) => {
+      const n = Number(r.totalHoles) || 18;
+      const all = Array.from({ length: n }, (_, i) => i + 1);
+      const pars = parsForWizardRound(r);
+      const par3s = pars ? holesWithPar(pars, 3) : [];
+      const par5s = pars ? holesWithPar(pars, 5) : [];
+      const label = escapeHtml(r.roundName || `Round ${ri + 1}`);
+      let html = `<div class="compRound"><p class="compRound__h">${label}</p>`;
+      if (ctpOn) {
+        const sel = Array.isArray(r.ctpHoles) ? r.ctpHoles : par3s;
+        const primary = pars ? par3s : all;
+        const other = pars ? all.filter((h) => !par3s.includes(h)) : [];
+        const otherOpen = other.some((h) => sel.includes(h));
+        html += `<div class="compPick"><p class="compPick__h">Closest to the Pin
+            <span class="compPick__sum">${sel.length ? 'On ' + holeListLabel(sel) : 'No CTP this round'}</span></p>
+          <div class="holeChips" role="group" aria-label="Closest to the pin holes, ${label}">
+            ${par3s.length ? `<button type="button" class="quickChip" data-comp-quick="ctp" data-comp-round="${ri}">All par 3s</button>` : ''}
+            ${holeChips('ctp', ri, primary, sel)}
+          </div>
+          ${other.length ? `<details class="otherHoles" ${otherOpen ? 'open' : ''}><summary>Other holes (e.g. a short par 4)</summary>
+            <div class="holeChips">${holeChips('ctp', ri, other, sel)}</div></details>` : ''}
+        </div>`;
+      }
+      if (ldOn) {
+        if (r.ldHoles == null && par5s.length > 0) r.ldHoles = [...par5s];
+        const sel = Array.isArray(r.ldHoles) ? r.ldHoles : [];
+        const primary = pars ? par5s : all;
+        const other = pars ? all.filter((h) => !par3s.includes(h) && !par5s.includes(h)) : [];
+        const otherOpen = other.some((h) => sel.includes(h));
+        html += `<div class="compPick"><p class="compPick__h">Longest Drive
+            <span class="compPick__sum">${sel.length ? 'On ' + holeListLabel(sel) : 'No hole picked yet'}</span></p>
+          <div class="holeChips" role="group" aria-label="Longest drive holes, ${label}">
+            ${holeChips('ld', ri, primary, sel)}
+          </div>
+          ${other.length ? `<details class="otherHoles" ${otherOpen ? 'open' : ''}><summary>Other holes (par 4s)</summary>
+            <div class="holeChips">${holeChips('ld', ri, other, sel)}</div></details>` : ''}
+        </div>`;
+      }
+      html += '</div>';
+      parts.push(html);
+    });
+    body.innerHTML = parts.join('');
+  }
+  document.getElementById('compHolesBody').addEventListener('change', (e) => {
+    const el = e.target;
+    if (!el || !el.dataset || !el.dataset.compKind) return;
+    const r = state.rounds[Number(el.dataset.compRound)];
+    if (!r) return;
+    const key = el.dataset.compKind === 'ctp' ? 'ctpHoles' : 'ldHoles';
+    const boxes = document.querySelectorAll(
+      `[data-comp-kind="${el.dataset.compKind}"][data-comp-round="${el.dataset.compRound}"]`);
+    r[key] = [...boxes].filter((b) => b.checked).map((b) => Number(b.dataset.compHole))
+      .sort((a, b) => a - b);
+    renderCompHoles();
+  });
+  document.getElementById('compHolesBody').addEventListener('click', (e) => {
+    const btn = e.target.closest ? e.target.closest('[data-comp-quick]') : null;
+    if (!btn) return;
+    const r = state.rounds[Number(btn.dataset.compRound)];
+    const pars = r ? parsForWizardRound(r) : null;
+    if (!r || !pars) return;
+    r.ctpHoles = holesWithPar(pars, 3);
+    renderCompHoles();
   });
 
   function templateById(id) {
@@ -972,6 +1216,7 @@ try {
     // return so the DOM never lags state when the user picks Blank.
     trackCTPEl.checked = !!state.trackCTPOnPar3s;
     trackLDEl.checked = !!state.trackLongestDrive;
+    refreshCompetitionControls();
     if (state.scoringModeOverride == null) return;
     const target =
       state.scoringModeOverride === 'match_points' ? 'matchPlay'
@@ -1115,6 +1360,17 @@ try {
                   ? dJson.course.tee_boxes
                   : [];
                 state.course.teeBoxes = teeBoxes;
+                // Per-hole pars, for the CTP (par 3) and Longest Drive
+                // (par 5) pickers, and stamped onto the tee boxes on
+                // submit so the site can resolve par 3s / skins later.
+                const holes = (dJson && dJson.course && Array.isArray(dJson.course.holes))
+                  ? [...dJson.course.holes]
+                      .filter((h) => h && Number.isInteger(h.number) && Number.isInteger(h.par))
+                      .sort((a, b) => a.number - b.number)
+                  : [];
+                state.course.pars = holes.length === 9 || holes.length === 18
+                  ? holes.map((h) => h.par) : [];
+                if (state.step === 3) renderCompHoles();
                 // If the user has already advanced past Basics, re-
                 // render Rounds so the tee options refresh in place.
                 if (state.step === 3) renderRounds();
@@ -2662,8 +2918,20 @@ try {
     const rvFieldCompsRow = document.getElementById('rvFieldCompsRow');
     const rvFieldComps = document.getElementById('rvFieldComps');
     const fieldCompsOn = [];
-    if (state.trackCTPOnPar3s) fieldCompsOn.push('Closest-to-Pin');
-    if (state.trackLongestDrive) fieldCompsOn.push('Longest Drive');
+    const skinsNames = { gross_skins: 'Gross skins', net_skins: 'Net skins', super_skins: 'Super skins' };
+    for (const k of state.skins) fieldCompsOn.push(skinsNames[k] || k);
+    const holesBit = (key) => state.rounds
+      .map((r, i) => (Array.isArray(r[key]) && r[key].length
+        ? `R${i + 1} ${holeListLabel(r[key])}` : null))
+      .filter(Boolean).join(', ');
+    if (state.trackCTPOnPar3s) {
+      const h = holesBit('ctpHoles');
+      fieldCompsOn.push(`Closest-to-Pin${h ? ` (${h})` : ' (par 3s)'}`);
+    }
+    if (state.trackLongestDrive) {
+      const h = holesBit('ldHoles');
+      fieldCompsOn.push(`${document.getElementById('ldTitle').textContent}${h ? ` (${h})` : ''}`);
+    }
     if (fieldCompsOn.length > 0) {
       rvFieldCompsRow.hidden = false;
       rvFieldComps.textContent = fieldCompsOn.join(', ');
@@ -2770,6 +3038,15 @@ try {
       templateId: state.templateId || 'blank',
       trackCTPOnPar3s: !!state.trackCTPOnPar3s,
       trackLongestDrive: !!state.trackLongestDrive,
+      skins: state.skins,
+      buyIns: state.buyIns,
+      // Only a mixed field chooses; the server derives a single-gender
+      // field's one bracket from field_gender.
+      longestDriveGenders: (fg && fg.value === 'mixed')
+        ? (state.ldFormat === 'mensOnly' ? ['male']
+          : state.ldFormat === 'womensOnly' ? ['female'] : ['male', 'female'])
+        : [],
+      coursePars: state.course && Array.isArray(state.course.pars) ? state.course.pars : [],
       rounds: state.rounds,
       players: state.players,
       // Empty flights array when the user picked "No flights" —
@@ -3029,6 +3306,30 @@ try {
     color: var(--ink-muted);
     line-height: 1.4;
   }
+  .ldFormats { display: grid; gap: 6px; margin: 4px 0 0 28px; }
+  .buyIns { display: grid; gap: 8px; max-width: 360px; }
+  .buyIns label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 1rem; }
+  .buyIns input { width: 6.5em; font-size: 1rem; padding: 6px; text-align: right; }
+  .compHoles { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .compHoles__title { font-size: 1.0625rem; margin: 0 0 4px; }
+  .compRound { padding: 10px 0; border-top: 1px dashed var(--line); }
+  .compRound__h { font-weight: 700; margin: 0 0 6px; font-size: 1rem; }
+  .compPick { margin: 0 0 10px; }
+  .compPick__h { margin: 0 0 6px; font-size: 1rem; font-weight: 600; }
+  .compPick__sum { display: block; font-weight: 500; font-size: 0.875rem; color: var(--brand-green); }
+  .holeChips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .holeChip {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 40px; min-width: 3em;
+    padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+    font-size: 1rem; font-variant-numeric: tabular-nums;
+  }
+  .holeChip:has(input:checked) { background: var(--brand-green-pale); border-color: var(--brand-green); }
+  .quickChip {
+    min-height: 40px; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 1rem;
+    border: 1px solid var(--brand-green); background: #fff; color: var(--brand-green); font-weight: 600;
+  }
+  .otherHoles { margin-top: 6px; }
+  .otherHoles > summary { cursor: pointer; color: var(--brand-green); font-size: 0.9375rem; padding: 4px 0; }
   .fieldComps {
     margin-top: 18px;
     display: flex;

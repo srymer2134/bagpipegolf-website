@@ -195,6 +195,21 @@ export function withFreshRounds(
   return after;
 }
 
+/// Apply [mutate] to EVERY round of a fresh read and return the full
+/// `rounds` array, guard already run. The multi-round sibling of
+/// `withFreshRounds`, for a save that touches each round's competition
+/// fields (CTP / LD holes) at once. Same contract: the mutator receives
+/// the fresh round and must spread it.
+export function withFreshRoundsAll(
+  fresh: TournamentRow,
+  mutate: (round: Record<string, unknown>, index: number) => Record<string, unknown>,
+): Record<string, unknown>[] {
+  const before = (fresh.rounds ?? []) as unknown as Record<string, unknown>[];
+  const after = before.map((r, i) => mutate(r, i));
+  assertNoScoreLoss(before, after);
+  return after;
+}
+
 // ── Normalising a pairing payload from the browser ──────────────
 
 /// One group/team as the browser sends it. Deliberately narrow: the
@@ -289,6 +304,42 @@ export const SCORE_KEYS = [
   'teamHoleScores',
 ] as const;
 
+/// Round keys the `/rounds` editors never edit, but other writers do —
+/// the app's live scoring, the competitions page, the spine bridge,
+/// attendance and finalize. `rebaseRoundsOntoFresh` restores every one
+/// of them from the FRESH read, exactly as it does scores.
+///
+/// 🚨 Why this list exists: the rebase used to overlay the client's
+/// whole round (`{...fresh, ...client}`), and `manage.astro` sends rounds
+/// from a PAGE-LOAD snapshot. So a CTP winner recorded on a phone after
+/// the director opened Manage was overwritten with the snapshot's older
+/// map the moment they renamed a round or changed a tee — and the same
+/// for longest-drive winners, per-round CTP / LD holes, the spine round
+/// id, attendance, and a round's completion. Scores were protected; none
+/// of these were.
+///
+/// A key here can still be CHANGED — by its own route (`competitions`,
+/// `competition-config`, the app), which edits it on a fresh read. It
+/// just cannot be changed by a stale snapshot riding a rename.
+export const PROTECTED_ROUND_KEYS = [
+  // Field competition winners + per-round config
+  'closest_to_pin_by_hole', 'closestToPinByHole',
+  'longest_drive_male_id', 'longestDriveMaleId',
+  'longest_drive_female_id', 'longestDriveFemaleId',
+  'longest_drive_overall_id', 'longestDriveOverallId',
+  'ctp_holes', 'ctpHoles',
+  'longest_drive_holes', 'longestDriveHoles',
+  // Spine bridge + segmented rounds
+  'spine_round_id', 'spineRoundId',
+  'segments',
+  // Who played, what handicap they played off, what bets ride on it
+  'attending_player_ids', 'attendingPlayerIds',
+  'player_handicap_index_snapshot', 'playerHandicapIndexSnapshot',
+  'bet_game_ids', 'betGameIds',
+  // Completion — a stale `completed: false` must not reopen a round
+  'completed', 'completed_at', 'completedAt',
+] as const;
+
 /// Rebase a client's `rounds` array onto a FRESH server read.
 ///
 /// `withFreshRounds` above is the right shape for a surface that edits
@@ -302,9 +353,10 @@ export const SCORE_KEYS = [
 ///
 ///   * each client round is overlaid on the FRESH round of the same id,
 ///     so fields the client never knew about survive;
-///   * every score key is then restored from the fresh round, so the
-///     client's score values are DISCARDED rather than validated — a
-///     stale snapshot physically cannot carry scores through;
+///   * every score key — and every `PROTECTED_ROUND_KEYS` key — is then
+///     restored from the fresh round, so the client's values for them
+///     are DISCARDED rather than validated — a stale snapshot physically
+///     cannot carry scores, competition winners or spine ids through;
 ///   * a round the server does not have is accepted as new, minus any
 ///     score keys it invented;
 ///   * ordering follows the client, which is what the drag-to-reorder
@@ -340,7 +392,7 @@ export function rebaseRoundsOntoFresh(
     }
 
     const next: Record<string, unknown> = { ...base, ...client };
-    for (const k of SCORE_KEYS) {
+    for (const k of [...SCORE_KEYS, ...PROTECTED_ROUND_KEYS]) {
       if (k in base) next[k] = base[k];
       else delete next[k];
     }

@@ -37,6 +37,20 @@ export const POST: APIRoute = async (ctx) => {
     return json({ error: 'Body must be an object.' }, 400);
   }
 
+  // 🚨 `rounds` never goes through this proxy. Railway writes that array
+  // wholesale with no per-record merge, so anything sent here replaces
+  // scores, competition winners, CTP / LD holes and spine ids with
+  // whatever the browser had. Every rounds write has a guarded route
+  // that rebuilds from a fresh read: `/rounds`, `/pairings`,
+  // `/competitions`, `/competition-config`. No caller sends `rounds`
+  // here today; this makes sure none starts to.
+  if ('rounds' in (raw as Record<string, unknown>)) {
+    return json({
+      error: 'Rounds cannot be saved through this route — use the guarded '
+        + '/rounds, /pairings, /competitions or /competition-config route.',
+    }, 400);
+  }
+
   try {
     const result = await callRailway<{ tournament: { id: string } }>(ctx, {
       method: 'PATCH',

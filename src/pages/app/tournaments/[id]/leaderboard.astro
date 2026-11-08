@@ -8,6 +8,7 @@ import {
   buildTotalLeaderboard,
   buildBrigadeTotals,
   extractCtpEntries,
+  extractLdEntries,
   formatVsPar,
   isBallynealBrigade,
   type LeaderboardRow,
@@ -82,6 +83,7 @@ let matchGroups: { round: TournamentRound; matches: MatchStatus[] }[] = [];
 let skinsSections: SkinsSection[] = [];
 let anySkinsEnabled = false;
 let ctpEntries: ReturnType<typeof extractCtpEntries> = [];
+let ldEntries: ReturnType<typeof extractLdEntries> = [];
 type RoundTab = { id: string; name: string; format: string };
 let rounds: RoundTab[] = [];
 let activeRoundId: string | null = null;
@@ -162,6 +164,7 @@ try {
         }
       }
       ctpEntries = extractCtpEntries(t);
+      ldEntries = extractLdEntries(t);
     }
   }
 } catch (err: any) {
@@ -560,6 +563,10 @@ function buildUrl(overrides: Record<string, string | null>): string {
         {skinsSections.map((s) => (
           <section class="skins-section">
             <h2 class="skins-title">{s.title}</h2>
+            {s.rows.length === 0 && (
+              <p class="skins-none">None yet.</p>
+            )}
+            {s.rows.length > 0 && (
             <table class="lbtable">
               <thead>
                 <tr>
@@ -578,6 +585,7 @@ function buildUrl(overrides: Record<string, string | null>): string {
                 ))}
               </tbody>
             </table>
+            )}
           </section>
         ))}
       </div>
@@ -599,7 +607,40 @@ function buildUrl(overrides: Record<string, string | null>): string {
               <tr>
                 <td>{c.roundName}</td>
                 <td>#{c.hole}</td>
-                <td>{c.winnerName}</td>
+                <td>
+                  {c.winnerName}
+                  {c.legacy && <span class="legacy-hint"> · not on the roster</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    )}
+
+    {!loadError && !notFound && ldEntries.length > 0 && (
+      <section class="ctp-section">
+        <h2 class="ctp-title">Longest Drive</h2>
+        <table class="ctptable">
+          <thead>
+            <tr>
+              <th>Round</th>
+              <th>Bracket</th>
+              <th>Winner</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ldEntries.map((e) => (
+              <tr>
+                <td>
+                  {e.roundName}
+                  {e.holesLabel && <span class="legacy-hint"> · {e.holesLabel}</span>}
+                </td>
+                <td>{e.bracket}</td>
+                <td>
+                  {e.winnerName}
+                  {e.legacy && <span class="legacy-hint"> · not on the roster</span>}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -882,12 +923,14 @@ function buildUrl(overrides: Record<string, string | null>): string {
     margin: 0 0 10px;
   }
   .kiosk .skins-title { font-size: 1.25rem; }
+  .skins-none { margin: 0; color: var(--ink-muted, #4b5b54); font-size: 1rem; }
 
   .card--warn {
     border-color: #b00020;
   }
 
   /* CTP section */
+  .legacy-hint { color: var(--ink-muted); font-size: 0.8125rem; }
   .ctp-section {
     margin-top: 32px;
   }

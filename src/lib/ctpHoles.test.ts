@@ -66,7 +66,10 @@ function build(c: Case): { t: TournamentRow; r: TournamentRound } {
     players: [],
     tee_boxes: c.tournamentPars === null ? [] : [tee(c.tournamentPars)],
     rounds: [r],
-    track_ctp_on_par_3s: c.trackCTPOnPar3s,
+    // The real wire key (`Tournament.toApiJson`). This fixture used to
+    // carry `track_ctp_on_par_3s`, matching a misspelt read in the port
+    // — both wrong together, so the test passed while live rows failed.
+    track_ctp_on_par3s: c.trackCTPOnPar3s,
   } as unknown as TournamentRow;
   return { t, r };
 }

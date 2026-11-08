@@ -74,7 +74,7 @@ export function par3Holes(
 /// Precedence, mirroring `resolveCtpHolesFor`:
 ///   1. an explicit `ctp_holes` list wins — including `[]`, which
 ///      means "no CTP on this round";
-///   2. otherwise, if the tournament's `track_ctp_on_par_3s` is on,
+///   2. otherwise, if the tournament's `track_ctp_on_par3s` is on,
 ///      every par 3 on the round;
 ///   3. otherwise nothing.
 ///
@@ -89,8 +89,16 @@ export function resolveCtpHoles(
   const explicit = explicitCtpHoles(round);
   if (explicit !== null) return [...explicit].sort((a, b) => a - b);
 
-  const flag = (tournament as Record<string, unknown>).track_ctp_on_par_3s
-    ?? (tournament as Record<string, unknown>).trackCTPOnPar3s;
+  // 🚨 The wire key is `track_ctp_on_par3s` (no underscore before the
+  // 3) — `Tournament.toApiJson` / `fromJson`. This read used to look
+  // for `track_ctp_on_par_3s`, a key nothing has ever written, so every
+  // round without an explicit `ctp_holes` list resolved to NO holes on
+  // the website even when the app showed a CTP on every par 3. The
+  // misspelling is still read last, harmlessly, in case a fixture or a
+  // hand-built row carries it.
+  const row = tournament as Record<string, unknown>;
+  const flag = row.track_ctp_on_par3s ?? row.trackCTPOnPar3s
+    ?? row.track_ctp_on_par_3s;
   if (flag !== true) return [];
 
   return par3Holes(tournament, round);
@@ -172,6 +180,8 @@ export function longestDriveGenders(tournament: TournamentRow): string[] {
 ///   * a submitted hole with a winner  -> set it
 ///   * a submitted hole with `''`/null -> CLEAR it (a deliberate blank)
 ///   * a hole not submitted at all     -> LEAVE IT ALONE
+///   * a hole re-submitted unchanged   -> LEAVE IT ALONE, even when the
+///     stored value is legacy free text that is not a roster id
 export function mergeCtpWinners(
   existing: Record<string, unknown>,
   submitted: Record<string, unknown>,
@@ -195,6 +205,15 @@ export function mergeCtpWinners(
     if (winner === null) {
       // A deliberate blank clears that hole and only that hole.
       delete winners[String(hole)];
+      continue;
+    }
+    // Re-submitting exactly what is stored is a no-op, and is accepted
+    // whatever it is. The roster picker sends every slot back on save —
+    // including a LEGACY typed name it shows as "not on the roster ·
+    // re-pick", which is not a roster id. Rejecting it would block every
+    // save on a round holding one old name; dropping it would delete a
+    // winner nobody chose to delete.
+    if (winners[String(hole)] !== undefined && winners[String(hole)].trim() === winner) {
       continue;
     }
     if (!opts.tracked.has(hole)) {

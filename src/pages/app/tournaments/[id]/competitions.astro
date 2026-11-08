@@ -14,11 +14,18 @@
 //     had to pick up a phone.
 //   * LONGEST DRIVE — per gender bracket, per round. Same reason.
 //
-//   * SKINS are deliberately NOT editable. They are computed from
-//     scores (`skinsPool.ts`), so "editing" one would mean overriding
-//     the engine — which is a different and much riskier feature than
-//     recording an observation. The read-only result is shown so the
-//     page answers "who won what" completely.
+//   * SKINS results are deliberately NOT editable. They are computed
+//     from scores (`skinsPool.ts`), so "editing" one would mean
+//     overriding the engine. Which skins pools run (gross / net /
+//     super) and their buy-ins ARE configured here, under "Set up
+//     competitions".
+//
+// Setup also carries, per round, which holes run CTP and Longest Drive
+// (`ctp_holes`, `longest_drive_holes`), and the Longest Drive option
+// the field gender allows — the same choices as the app wizard
+// (2026-11-08). Winners are picked from the roster by tournament player
+// id; an old typed name stays visible with a "re-pick" hint and is
+// never silently cleared.
 //
 // Which holes offer a CTP picker comes from `resolveCtpHoles`, a port
 // of the app's resolver pinned by fixtures generated from it
@@ -35,16 +42,39 @@ import TournamentSubnav from '../../../../components/TournamentSubnav.astro';
 import { createSupabaseClient } from '../../../../lib/supabase';
 import {
   getPublicTournament,
+  holeCountForRound,
+  parsForRound,
   type TournamentPlayer,
   type TournamentRound,
 } from '../../../../lib/tournamentQueries';
-import { longestDriveGenders, par3Holes, resolveCtpHoles, explicitCtpHoles }
-  from '../../../../lib/ctpHoles';
+import {
+  explicitCtpHoles,
+  longestDriveGenders,
+  par3Holes,
+  resolveCtpHoles,
+} from '../../../../lib/ctpHoles';
 import {
   fieldGenderOf,
   readCompetitionConfig,
   SKINS_KINDS,
 } from '../../../../lib/competitionConfig';
+import {
+  explicitLdHoles,
+  formatHoleList,
+  holesWithPar,
+  LD_FORMAT_DESCRIPTION,
+  LD_FORMAT_LABEL,
+  ldHolesLabel,
+  longestDriveFieldNoteFor,
+  longestDriveFormatFrom,
+  longestDriveFormatsFor,
+  longestDriveTitleFor,
+  resolveLdHoles,
+} from '../../../../lib/fieldCompetitions';
+import {
+  competitionRosterFor,
+  describeCompetitionWinner,
+} from '../../../../lib/competitionWinner';
 
 const { id } = Astro.params;
 const user = Astro.locals.user;
@@ -75,10 +105,12 @@ const wanted = Astro.url.searchParams.get('round');
 const round = rounds.find((r) => r.id === wanted) ?? rounds[0] ?? null;
 const players: TournamentPlayer[] = tournament?.players ?? [];
 
+// ── Winners (the observation side) ───────────────────────────────
 const ctpHoles = tournament && round ? resolveCtpHoles(tournament, round) : [];
 const ldGenders = tournament ? longestDriveGenders(tournament) : [];
+const roundLdLabel = tournament && round ? ldHolesLabel(tournament, round) : null;
 
-function currentCtp(r: TournamentRound | null): Record<string, string> {
+function storedCtp(r: TournamentRound | null): Record<string, string> {
   if (!r) return {};
   const raw = (r as Record<string, unknown>).closest_to_pin_by_hole
     ?? (r as Record<string, unknown>).closestToPinByHole;
@@ -93,44 +125,95 @@ function currentCtp(r: TournamentRound | null): Record<string, string> {
   }
   return out;
 }
+const ctp = storedCtp(round);
 
-const ctp = currentCtp(round);
+// One picker per configured CTP hole, plus any hole that still holds a
+// recorded winner after the director narrowed `ctp_holes` — the app's
+// `ctpRowHolesFor`, so an entry is never hidden. An untracked hole only
+// offers "keep" or "clear", which is all the route permits there.
+const ctpRows = Array.from(new Set([
+  ...ctpHoles,
+  ...Object.keys(ctp).map(Number).filter((h) => Number.isInteger(h)),
+])).sort((a, b) => a - b).map((hole) => ({
+  hole,
+  tracked: ctpHoles.includes(hole),
+  current: describeCompetitionWinner(players, ctp[String(hole)]),
+}));
 
-// Holes that carry a recorded winner but are NOT tracked by this round
-// any more — because the director later narrowed `ctp_holes`.
-//
-// The write path preserves these (the app's own sync layer defends
-// against dropping them), but preserved-and-invisible is its own
-// problem: the director cannot see a prize they recorded, nor remove
-// one that no longer applies. So they render in their own group, and
-// the only action offered is to clear — which is exactly what the
-// route permits for an untracked hole.
-const staleCtpHoles = Object.keys(ctp)
-  .map((k) => Number(k))
-  .filter((h) => Number.isInteger(h) && !ctpHoles.includes(h))
-  .sort((a, b) => a - b);
+// The pickers list the round's players (attendance honoured), by
+// tournament player id — never typed names. A stored value that is not
+// a roster id is resolved by the app's rule (id, else a UNIQUE name);
+// anything else stays visible as legacy text with a "re-pick" hint and
+// is sent back untouched, so a save never deletes it.
+const ctpRoster = tournament && round ? competitionRosterFor(tournament, round) : [];
 const roundRow = (round ?? {}) as Record<string, unknown>;
-const ldMale = (roundRow.longest_drive_male_id ?? roundRow.longestDriveMaleId ?? '') as string;
-const ldFemale = (roundRow.longest_drive_female_id ?? roundRow.longestDriveFemaleId ?? '') as string;
-
-const nameOf = (pid: string) => players.find((p) => p.id === pid)?.name ?? pid;
+const ldRows = ldGenders.map((g) => {
+  let roster = tournament && round ? competitionRosterFor(tournament, round, g) : [];
+  // A mixed field whose players carry no gender would offer an empty
+  // women's list (unset defaults to men, as in the app). Rather than a
+  // picker nobody can use, offer the round's whole field and say so.
+  const fellBack = roster.length === 0 && ctpRoster.length > 0;
+  if (fellBack) roster = ctpRoster;
+  const stored = g === 'male'
+    ? roundRow.longest_drive_male_id ?? roundRow.longestDriveMaleId
+    : roundRow.longest_drive_female_id ?? roundRow.longestDriveFemaleId;
+  return {
+    gender: g,
+    label: g === 'male' ? "Men's" : "Women's",
+    roster,
+    fellBack,
+    current: describeCompetitionWinner(players, stored),
+  };
+});
 
 // ── Setup (the config side) ──────────────────────────────────────
 const config = tournament ? readCompetitionConfig(tournament) : null;
 const fieldGender = tournament ? fieldGenderOf(tournament) : 'male';
-// Candidate holes for the CTP picker. The par 3s are the suggestion;
-// `ctp_holes` may legitimately name any hole, so an already-chosen
-// non-par-3 is offered too rather than silently dropped from the UI.
-const par3s = tournament && round ? par3Holes(tournament, round) : [];
-const explicitHoles = round ? explicitCtpHoles(round) : null;
-const candidateHoles = Array.from(
-  new Set([...par3s, ...(explicitHoles ?? [])]),
-).sort((a, b) => a - b);
+const ldFormats = longestDriveFormatsFor(fieldGender);
+const ldRawGenders = tournament
+  ? ((tournament as Record<string, unknown>).longest_drive_genders
+      ?? (tournament as Record<string, unknown>).longestDriveGenders)
+  : null;
+const ldFormat = longestDriveFormatFrom(
+  Array.isArray(ldRawGenders) ? (ldRawGenders as unknown[]).map(String)
+    : config && config.longestDriveGenders.length > 0 ? config.longestDriveGenders : null,
+  fieldGender,
+);
+
+// Per-round hole pickers, mirroring the app wizard's
+// `_buildCtpHolesSetup` / `_buildLongestDriveSetup`: CTP offers the par
+// 3s up front (all selected by default) with every other hole behind
+// "Other holes"; LD offers the par 5s up front with the par 4s behind
+// "Other holes" and never a par 3. With no pars loaded every hole is
+// offered up front.
+const roundSetups = tournament
+  ? rounds.map((r) => {
+      const pars = parsForRound(tournament!, r);
+      const count = holeCountForRound(tournament!, r) || 18;
+      const all = Array.from({ length: count }, (_, i) => i + 1);
+      const noPars = pars.length === 0;
+      const p3 = par3Holes(tournament!, r);
+      const p5 = holesWithPar(pars, 5);
+      const explicitCtp = explicitCtpHoles(r);
+      return {
+        id: r.id,
+        name: r.name,
+        noPars,
+        par3s: p3,
+        ctpPrimary: noPars ? all : p3,
+        ctpOther: noPars ? [] : all.filter((h) => !p3.includes(h)),
+        ctpSelected: explicitCtp ?? p3,
+        ldPrimary: noPars ? all : p5,
+        ldOther: noPars ? [] : all.filter((h) => !p3.includes(h) && !p5.includes(h)),
+        ldSelected: explicitLdHoles(r) ?? [],
+      };
+    })
+  : [];
 
 const SKINS_LABELS: Record<string, string> = {
   gross_skins: 'Gross skins',
   net_skins: 'Net skins',
-  super_skins: 'Super skins (across flights)',
+  super_skins: 'Super skins (gross, across flights)',
 };
 
 const BUYIN_KINDS: Array<{ key: string; label: string; on: boolean }> = config
@@ -142,8 +225,8 @@ const BUYIN_KINDS: Array<{ key: string; label: string; on: boolean }> = config
       { key: 'longest_drive', label: 'Longest drive', on: config.longestDrive },
     ]
   : [];
-const hasAnything =
-  ctpHoles.length > 0 || ldGenders.length > 0 || staleCtpHoles.length > 0;
+const hasAnything = ctpRows.length > 0 || ldRows.length > 0;
+const optLabel = (p: TournamentPlayer) => p.name;
 ---
 
 <BaseLayout title="Competitions · Bagpipe Golf">
@@ -163,19 +246,8 @@ const hasAnything =
           <div class="notice notice--warn">This tournament has no rounds yet.</div>
         )}
 
-        {round && rounds.length > 1 && (
-          <nav class="rounds" aria-label="Choose a round">
-            {rounds.map((r) => (
-              <a
-                href={`/app/tournaments/${id}/competitions?round=${encodeURIComponent(r.id)}`}
-                class:list={['rounds__chip', r.id === round.id && 'is-active']}
-              >{r.name}</a>
-            ))}
-          </nav>
-        )}
-
         {config && (
-          <details class="setup">
+          <details class="setup" open={!hasAnything && config.skins.length === 0}>
             <summary>Set up competitions</summary>
             <p class="hint">
               Which field-wide competitions this tournament runs, and what each
@@ -183,99 +255,162 @@ const hasAnything =
               pin and longest drive are recorded by hand below.
             </p>
 
-            <div id="cfgMsg" class="notice" hidden></div>
+            <div id="cfgMsg" class="notice" role="status" hidden></div>
 
-            <ul class="list">
-              {SKINS_KINDS.map((k) => (
-                <li class="item">
-                  <label class="chk">
-                    <input type="checkbox" data-cfg="skins" value={k}
-                           checked={config.skins.includes(k)} />
-                    <span>{SKINS_LABELS[k]}</span>
-                  </label>
-                </li>
-              ))}
-              <li class="item">
-                <label class="chk">
-                  <input type="checkbox" data-cfg="ctp" checked={config.closestToPin} />
-                  <span>Closest to the pin</span>
-                </label>
-              </li>
-              <li class="item">
-                <label class="chk">
-                  <input type="checkbox" data-cfg="ld" checked={config.longestDrive} />
-                  <span>Longest drive</span>
-                </label>
-              </li>
-            </ul>
-
-            {fieldGender === 'mixed' && (
-              <div class="sub">
-                <p class="hint">
-                  Longest drive brackets. Leave both unticked to score one
-                  combined longest drive.
-                </p>
-                <ul class="list">
-                  {['male', 'female'].map((g) => (
-                    <li class="item">
-                      <label class="chk">
-                        <input type="checkbox" data-cfg="ldg" value={g}
-                               checked={config.longestDriveGenders.includes(g)} />
-                        <span>{g === 'male' ? 'Men' : 'Women'}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {fieldGender !== 'mixed' && config.longestDrive && (
-              <p class="hint">
-                This is a {fieldGender === 'female' ? "women's" : "men's"} field, so
-                longest drive is scored as a single bracket.
-              </p>
-            )}
-
-            <div class="sub">
-              <p class="hint">Entry per player. Leave at 0 to track without money.</p>
+            <fieldset class="grp">
+              <legend class="grp__h">Skins</legend>
               <ul class="list">
-                {BUYIN_KINDS.map((b) => (
+                {SKINS_KINDS.map((k) => (
                   <li class="item">
-                    <span class="item__label">{b.label}</span>
-                    <input class="item__buyin" type="number" min="0" step="1"
-                           data-buyin={b.key}
-                           value={String(config.buyIns[b.key] ?? 0)}
-                           aria-label={`Entry for ${b.label}`} />
+                    <label class="chk">
+                      <input type="checkbox" data-cfg="skins" value={k}
+                             checked={config.skins.includes(k)} />
+                      <span>{SKINS_LABELS[k]}</span>
+                    </label>
                   </li>
                 ))}
               </ul>
-            </div>
+            </fieldset>
 
-            {round && config.closestToPin && candidateHoles.length > 0 && (
-              <div class="sub">
+            <fieldset class="grp">
+              <legend class="grp__h">Closest to the pin</legend>
+              <label class="chk">
+                <input type="checkbox" data-cfg="ctp" checked={config.closestToPin} />
+                <span>Closest to the pin</span>
+              </label>
+              <div class="perRound" data-show-when="ctp" hidden={!config.closestToPin}>
                 <p class="hint">
-                  Which holes carry closest to the pin on
-                  <strong> {round.name}</strong>? Tick none to use every par 3.
-                  {explicitHoles !== null && explicitHoles.length === 0
-                    && ' Right now this round has closest to the pin switched off.'}
+                  Pick the CTP holes for each round. The par 3s are on by
+                  default; add any other hole (a short par 4) under
+                  &ldquo;Other holes&rdquo;.
                 </p>
-                <div class="holes">
-                  {candidateHoles.map((h) => (
-                    <label class:list={['hole', !par3s.includes(h) && 'hole--odd']}>
-                      <input type="checkbox" data-ctphole={String(h)}
-                             checked={(explicitHoles ?? []).includes(h)} />
-                      <span>{h}</span>
-                    </label>
+                {roundSetups.map((r) => (
+                  <div class="roundPick" data-round={r.id} data-kind="ctp">
+                    <p class="roundPick__h">{r.name}</p>
+                    <p class="roundPick__sum" data-summary
+                       data-none="No CTP this round — tick a hole to add one">
+                      {r.ctpSelected.length > 0
+                        ? `On ${formatHoleList(r.ctpSelected)}`
+                        : 'No CTP this round — tick a hole to add one'}
+                    </p>
+                    <div class="holes" role="group" aria-label={`Closest to the pin holes, ${r.name}`}>
+                      {r.par3s.length > 0 && (
+                        <button type="button" class="quick" data-quick={JSON.stringify(r.par3s)}>
+                          All par 3s
+                        </button>
+                      )}
+                      {r.ctpPrimary.map((h) => (
+                        <label class="hole">
+                          <input type="checkbox" data-hole={String(h)}
+                                 checked={r.ctpSelected.includes(h)} />
+                          <span>#{h}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {r.ctpOther.length > 0 && (
+                      <details class="other"
+                               open={r.ctpOther.some((h) => r.ctpSelected.includes(h))}>
+                        <summary>Other holes (e.g. a short par 4)</summary>
+                        <div class="holes">
+                          {r.ctpOther.map((h) => (
+                            <label class="hole hole--odd">
+                              <input type="checkbox" data-hole={String(h)}
+                                     checked={r.ctpSelected.includes(h)} />
+                              <span>#{h}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset class="grp">
+              <legend class="grp__h">Longest drive</legend>
+              <label class="chk">
+                <input type="checkbox" data-cfg="ld" checked={config.longestDrive} />
+                <span>{longestDriveTitleFor(fieldGender)}</span>
+              </label>
+              <div data-show-when="ld" hidden={!config.longestDrive}>
+                <p class="hint">{longestDriveFieldNoteFor(fieldGender)}</p>
+                {ldFormats.length > 1 && (
+                  <div class="formats" role="radiogroup" aria-label="Who competes for longest drive">
+                    {ldFormats.map((f) => (
+                      <label class="fmt">
+                        <input type="radio" name="ldFormat" value={f}
+                               data-genders={JSON.stringify(
+                                 f === 'mensAndWomens' ? ['male', 'female']
+                                 : f === 'mensOnly' ? ['male'] : ['female'])}
+                               checked={ldFormat === f} />
+                        <span>
+                          <strong>{LD_FORMAT_LABEL[f]}</strong>
+                          <em>{LD_FORMAT_DESCRIPTION[f]}</em>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <div class="perRound">
+                  <p class="hint">
+                    The longest-drive hole(s) for each round. Par 5s are
+                    suggested; par 4s are under &ldquo;Other holes&rdquo;.
+                  </p>
+                  {roundSetups.map((r) => (
+                    <div class="roundPick" data-round={r.id} data-kind="ld">
+                      <p class="roundPick__h">{r.name}</p>
+                      <p class="roundPick__sum" data-summary
+                         data-none="No hole picked yet — tick the LD hole">
+                        {r.ldSelected.length > 0
+                          ? `On ${formatHoleList(r.ldSelected)}`
+                          : 'No hole picked yet — tick the LD hole'}
+                      </p>
+                      <div class="holes" role="group" aria-label={`Longest drive holes, ${r.name}`}>
+                        {r.ldPrimary.map((h) => (
+                          <label class="hole">
+                            <input type="checkbox" data-hole={String(h)}
+                                   checked={r.ldSelected.includes(h)} />
+                            <span>#{h}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {r.ldOther.length > 0 && (
+                        <details class="other"
+                                 open={r.ldOther.some((h) => r.ldSelected.includes(h))}>
+                          <summary>Other holes (par 4s)</summary>
+                          <div class="holes">
+                            {r.ldOther.map((h) => (
+                              <label class="hole hole--odd">
+                                <input type="checkbox" data-hole={String(h)}
+                                       checked={r.ldSelected.includes(h)} />
+                                <span>#{h}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </div>
                   ))}
                 </div>
-                {candidateHoles.some((h) => !par3s.includes(h)) && (
-                  <p class="hint">
-                    Shaded holes are not par 3s &mdash; kept because this round
-                    already lists them.
-                  </p>
-                )}
               </div>
-            )}
+            </fieldset>
+
+            <fieldset class="grp">
+              <legend class="grp__h">Entry per player</legend>
+              <p class="hint">Leave at 0 to track without money.</p>
+              <ul class="list">
+                {BUYIN_KINDS.map((b) => (
+                  <li class="item">
+                    <label class="item__label" for={`buyin_${b.key}`}>{b.label}</label>
+                    <input class="item__buyin" type="number" min="0" step="1"
+                           inputmode="decimal" id={`buyin_${b.key}`}
+                           data-buyin={b.key}
+                           value={String(config.buyIns[b.key] ?? 0)} />
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
 
             <button type="button" class="btn btn--primary" id="saveCfg">
               Save setup
@@ -283,101 +418,121 @@ const hasAnything =
           </details>
         )}
 
+        {round && rounds.length > 1 && (
+          <nav class="rounds" aria-label="Choose a round">
+            {rounds.map((r) => (
+              <a
+                href={`/app/tournaments/${id}/competitions?round=${encodeURIComponent(r.id)}`}
+                class:list={['rounds__chip', r.id === round.id && 'is-active']}
+                aria-current={r.id === round.id ? 'page' : undefined}
+              >{r.name}</a>
+            ))}
+          </nav>
+        )}
+
         {round && !hasAnything && (
           <div class="notice">
-            No field-wide competitions are switched on for this round. Turn on
-            closest-to-pin or longest drive in the app's tournament setup, or
-            pick CTP holes for this round, and they will appear here.
+            No closest-to-pin or longest-drive prize is set up for this round.
+            Turn them on under &ldquo;Set up competitions&rdquo; above, and the
+            winner pickers will appear here.
           </div>
         )}
 
         {round && hasAnything && (
           <>
-            <div id="saveMsg" class="notice" hidden></div>
+            <div id="saveMsg" class="notice" role="status" hidden></div>
 
-            {ctpHoles.length > 0 && (
+            {ctpRows.length > 0 && (
               <section class="block">
                 <h2 class="block__h">Closest to the pin</h2>
                 <p class="hint">
-                  {ctpHoles.length} hole{ctpHoles.length === 1 ? '' : 's'} on this
-                  round. Leave a hole blank if nobody hit the green.
+                  {ctpHoles.length > 0
+                    ? `${round.name}: ${formatHoleList(ctpHoles)}. Leave a hole on “nobody” if no one hit the green.`
+                    : `No CTP holes on ${round.name} any more.`}
                 </p>
                 <ul class="list">
-                  {ctpHoles.map((hole) => (
-                    <li class="item">
-                      <span class="item__label">Hole {hole}</span>
-                      <select class="item__pick" data-ctp={String(hole)}
-                              aria-label={`Closest to pin winner, hole ${hole}`}>
-                        <option value="">&mdash; nobody &mdash;</option>
-                        {players.map((p) => (
-                          <option value={p.id} selected={ctp[String(hole)] === p.id}>
-                            {p.name}
+                  {ctpRows.map((row) => (
+                    <li class="item item--stack">
+                      <label class="item__label" for={`ctp_${row.hole}`}>
+                        Hole {row.hole}
+                        {!row.tracked && <span class="tag">no longer a CTP hole</span>}
+                      </label>
+                      <select class="item__pick" id={`ctp_${row.hole}`} data-ctp={String(row.hole)}>
+                        <option value="">{row.tracked ? '— nobody —' : '— clear —'}</option>
+                        {row.current.legacyText && (
+                          <option value={row.current.stored ?? ''} selected>
+                            {row.current.legacyText} (not on the roster · re-pick)
                           </option>
-                        ))}
+                        )}
+                        {row.tracked
+                          ? ctpRoster.map((p) => (
+                              <option value={p.id} selected={row.current.player?.id === p.id}>
+                                {optLabel(p)}
+                              </option>
+                            ))
+                          : row.current.player && (
+                              <option value={row.current.stored ?? row.current.player.id} selected>
+                                {row.current.player.name}
+                              </option>
+                            )}
                       </select>
+                      {row.current.legacyText && (
+                        <p class="legacy">
+                          &ldquo;{row.current.legacyText}&rdquo; was typed in by hand
+                          and matches no one on the roster. Pick the winner from
+                          the list to link them.
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>
               </section>
             )}
 
-            {staleCtpHoles.length > 0 && (
-              <section class="block">
-                <h2 class="block__h">Recorded on holes no longer in play</h2>
-                <p class="hint">
-                  {staleCtpHoles.length === 1 ? 'This hole' : 'These holes'} had a
-                  closest-to-pin winner recorded, but closest-to-pin is no longer
-                  tracked {staleCtpHoles.length === 1 ? 'there' : 'on them'} for
-                  this round. Kept so nothing is lost silently &mdash; clear
-                  {staleCtpHoles.length === 1 ? ' it' : ' them'} if the prize
-                  no longer applies.
-                </p>
-                <ul class="list">
-                  {staleCtpHoles.map((hole) => (
-                    <li class="item">
-                      <span class="item__label">Hole {hole}</span>
-                      <select class="item__pick" data-ctp={String(hole)}
-                              aria-label={`Closest to pin, hole ${hole} (no longer tracked)`}>
-                        <option value={ctp[String(hole)]} selected>
-                          {nameOf(ctp[String(hole)])}
-                        </option>
-                        <option value="">&mdash; clear &mdash;</option>
-                      </select>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {ldGenders.length > 0 && (
+            {ldRows.length > 0 && (
               <section class="block">
                 <h2 class="block__h">Longest drive</h2>
-                <p class="hint">One winner per bracket, per round.</p>
+                <p class="hint">
+                  One winner per {ldRows.length > 1 ? 'bracket, ' : ''}per round.
+                  {roundLdLabel ? ` ${round.name}: ${roundLdLabel}.` : ''}
+                </p>
                 <ul class="list">
-                  {ldGenders.includes('male') && (
-                    <li class="item">
-                      <span class="item__label">Men</span>
-                      <select class="item__pick" data-ld="male"
-                              aria-label="Longest drive winner, men">
+                  {ldRows.map((row) => (
+                    <li class="item item--stack">
+                      <label class="item__label" for={`ld_${row.gender}`}>{row.label}</label>
+                      <select class="item__pick" id={`ld_${row.gender}`} data-ld={row.gender}>
                         <option value="">&mdash; nobody &mdash;</option>
-                        {players.map((p) => (
-                          <option value={p.id} selected={ldMale === p.id}>{p.name}</option>
+                        {row.current.legacyText && (
+                          <option value={row.current.stored ?? ''} selected>
+                            {row.current.legacyText} (not on the roster · re-pick)
+                          </option>
+                        )}
+                        {row.roster.map((p) => (
+                          <option value={p.id} selected={row.current.player?.id === p.id}>
+                            {optLabel(p)}
+                          </option>
                         ))}
+                        {row.current.player && !row.roster.some((p) => p.id === row.current.player!.id) && (
+                          <option value={row.current.player.id} selected>
+                            {row.current.player.name}
+                          </option>
+                        )}
                       </select>
+                      {row.fellBack && (
+                        <p class="legacy">
+                          No player on this round is marked {row.gender === 'female' ? 'female' : 'male'},
+                          so the whole field is listed.
+                        </p>
+                      )}
+                      {row.current.legacyText && (
+                        <p class="legacy">
+                          &ldquo;{row.current.legacyText}&rdquo; was typed in by hand
+                          and matches no one on the roster. Pick the winner from
+                          the list to link them.
+                        </p>
+                      )}
                     </li>
-                  )}
-                  {ldGenders.includes('female') && (
-                    <li class="item">
-                      <span class="item__label">Women</span>
-                      <select class="item__pick" data-ld="female"
-                              aria-label="Longest drive winner, women">
-                        <option value="">&mdash; nobody &mdash;</option>
-                        {players.map((p) => (
-                          <option value={p.id} selected={ldFemale === p.id}>{p.name}</option>
-                        ))}
-                      </select>
-                    </li>
-                  )}
+                  ))}
                 </ul>
               </section>
             )}
@@ -385,13 +540,14 @@ const hasAnything =
             <button type="button" class="btn btn--primary" id="save">
               Save winners
             </button>
-
-            <p class="foot">
-              Skins are computed from the scorecards, not recorded here &mdash;
-              see the <a href={`/app/tournaments/${id}/payouts`}>payouts</a> page.
-            </p>
           </>
         )}
+
+        <p class="foot">
+          Skins are computed from the scorecards, not recorded here &mdash;
+          see the <a href={`/app/tournaments/${id}/leaderboard?board=skins`}>skins board</a>
+          and the <a href={`/app/tournaments/${id}/payouts`}>payouts</a> page.
+        </p>
       </>
     )}
   </main>
@@ -405,7 +561,51 @@ const hasAnything =
       isMixed: fieldGender === 'mixed',
     }}
   >
-    // ── Setup save (config side) ──────────────────────────────
+    // ── Setup: show the per-round pickers only for what is switched on ──
+    for (const kind of ['ctp', 'ld']) {
+      const box = document.querySelector(`[data-cfg="${kind}"]`);
+      const panel = document.querySelector(`[data-show-when="${kind}"]`);
+      if (box && panel) {
+        box.addEventListener('change', () => { panel.hidden = !box.checked; });
+      }
+    }
+
+    // ── Per-round hole pickers ──
+    // A round's list is only SENT when the director touched it. An
+    // untouched round keeps what it has — in particular an absent
+    // `ctp_holes`, which means "follow the par 3s" — instead of being
+    // frozen into an explicit list by an unrelated save.
+    const holesOf = (pick) =>
+      [...pick.querySelectorAll('input[data-hole]')]
+        .filter((el) => el.checked)
+        .map((el) => Number(el.dataset.hole))
+        .sort((a, b) => a - b);
+    const summarise = (pick) => {
+      const sum = pick.querySelector('[data-summary]');
+      const holes = holesOf(pick);
+      sum.textContent = holes.length > 0
+        ? `On ${holes.map((h) => `#${h}`).join(', ')}`
+        : sum.dataset.none;
+    };
+    document.querySelectorAll('.roundPick').forEach((pick) => {
+      pick.addEventListener('change', (e) => {
+        if (!e.target.matches('input[data-hole]')) return;
+        pick.dataset.dirty = '1';
+        summarise(pick);
+      });
+      const quick = pick.querySelector('[data-quick]');
+      if (quick) {
+        quick.addEventListener('click', () => {
+          const want = new Set(JSON.parse(quick.dataset.quick));
+          pick.querySelectorAll('input[data-hole]').forEach((el) => {
+            el.checked = want.has(Number(el.dataset.hole));
+          });
+          pick.dataset.dirty = '1';
+          summarise(pick);
+        });
+      }
+    });
+
     const saveCfg = document.getElementById('saveCfg');
     if (saveCfg) {
       const cfgNote = (msg, kind) => {
@@ -423,30 +623,24 @@ const hasAnything =
           const n = Number(el.value);
           if (Number.isFinite(n) && n > 0) buyIns[el.dataset.buyin] = n;
         });
+        const fmt = document.querySelector('input[name="ldFormat"]:checked');
 
         const config = {
           skins: checked('[data-cfg="skins"]').map((el) => el.value),
           closestToPin: !!document.querySelector('[data-cfg="ctp"]')?.checked,
           longestDrive: !!document.querySelector('[data-cfg="ld"]')?.checked,
-          // Brackets only mean anything on a mixed field; a
-          // single-gender event derives its bracket server-side from
-          // field_gender, so sending picks here would be noise.
-          longestDriveGenders: isMixed
-            ? checked('[data-cfg="ldg"]').map((el) => el.value)
-            : [],
+          // A single-gender event derives its bracket server-side from
+          // field_gender; only a mixed field sends its one LD option.
+          longestDriveGenders: isMixed && fmt ? JSON.parse(fmt.dataset.genders) : [],
           buyIns,
         };
 
-        const body = { config };
-        // Which holes carry CTP is per-round, so it rides along only
-        // when this round is showing a hole picker.
-        const holePickers = document.querySelectorAll('[data-ctphole]');
-        if (roundId && holePickers.length > 0) {
-          body.roundId = roundId;
-          body.ctpHoles = [...holePickers]
-            .filter((el) => el.checked)
-            .map((el) => Number(el.dataset.ctphole));
-        }
+        const byRound = new Map();
+        document.querySelectorAll('.roundPick[data-dirty="1"]').forEach((pick) => {
+          const entry = byRound.get(pick.dataset.round) || { roundId: pick.dataset.round };
+          entry[pick.dataset.kind === 'ctp' ? 'ctpHoles' : 'ldHoles'] = holesOf(pick);
+          byRound.set(pick.dataset.round, entry);
+        });
 
         saveCfg.disabled = true;
         saveCfg.textContent = 'Saving…';
@@ -454,7 +648,7 @@ const hasAnything =
           const res = await fetch(cfgPath, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify({ config, rounds: [...byRound.values()] }),
           });
           const out = await res.json().catch(() => ({}));
           if (!res.ok) {
@@ -464,8 +658,7 @@ const hasAnything =
             return;
           }
           // The page renders its pickers FROM this config, so a reload
-          // is the honest way to show the new shape rather than
-          // patching the DOM and hoping it matches the server.
+          // is the honest way to show the new shape.
           cfgNote('Setup saved — reloading…', 'ok');
           window.location.reload();
         } catch {
@@ -485,10 +678,13 @@ const hasAnything =
           document.querySelectorAll('[data-ctp]').forEach((el) => {
             closestToPin[el.dataset.ctp] = el.value || '';
           });
-          const ld = {};
-          document.querySelectorAll('[data-ld]').forEach((el) => {
-            ld[el.dataset.ld] = el.value || '';
-          });
+          const body = { roundId, closestToPin };
+          // Only brackets that render are sent; an absent key leaves that
+          // winner alone on the server.
+          const male = document.querySelector('[data-ld="male"]');
+          const female = document.querySelector('[data-ld="female"]');
+          if (male) body.longestDriveMaleId = male.value || null;
+          if (female) body.longestDriveFemaleId = female.value || null;
 
           const note = (msg, kind) => {
             const n = document.getElementById('saveMsg');
@@ -503,18 +699,13 @@ const hasAnything =
             const res = await fetch(apiPath, {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                roundId,
-                closestToPin,
-                longestDriveMaleId: ld.male || null,
-                longestDriveFemaleId: ld.female || null,
-              }),
+              body: JSON.stringify(body),
             });
-            const body = await res.json().catch(() => ({}));
+            const out = await res.json().catch(() => ({}));
             if (!res.ok) {
-              note(body.guard === 'score_loss'
-                ? `${body.error} Reload this page to pick up the latest.`
-                : (body.error || 'Could not save the winners.'), 'warn');
+              note(out.guard === 'score_loss'
+                ? `${out.error} Reload this page to pick up the latest.`
+                : (out.error || 'Could not save the winners.'), 'warn');
               return;
             }
             note('Winners saved.', 'ok');
@@ -532,7 +723,7 @@ const hasAnything =
   <style>
     .rounds { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
     .rounds__chip {
-      font-size: 0.8125rem; padding: 5px 11px; border-radius: 999px;
+      font-size: 0.875rem; padding: 6px 12px; border-radius: 999px;
       border: 1px solid var(--line, #dfe6e2); text-decoration: none;
       color: var(--ink-muted, #4b5b54);
     }
@@ -541,52 +732,90 @@ const hasAnything =
     }
 
     .block { margin: 0 0 26px; }
-    .block__h { font-size: 0.9375rem; margin: 0 0 4px; }
+    .block__h { font-size: 1rem; margin: 0 0 4px; }
     .hint {
-      font-size: 0.78125rem; color: var(--ink-muted, #4b5b54);
+      font-size: 0.875rem; color: var(--ink-muted, #4b5b54);
       margin: 0 0 10px; line-height: 1.5;
     }
-    .list { list-style: none; margin: 0; padding: 0; max-width: 460px; }
+    .list { list-style: none; margin: 0; padding: 0; max-width: 520px; }
     .item {
       display: flex; gap: 12px; align-items: center; justify-content: space-between;
       padding: 8px 0; border-top: 1px solid var(--line, #dfe6e2);
     }
+    .item--stack { flex-wrap: wrap; }
     .item__label {
-      font-size: 0.84375rem; font-weight: 600;
+      font-size: 0.9375rem; font-weight: 600;
       font-variant-numeric: tabular-nums; flex: none;
     }
-    .item__pick { flex: 1; min-width: 0; max-width: 16em; font-size: 0.8125rem; padding: 5px 6px; }
+    .item__pick {
+      flex: 1; min-width: 0; max-width: 18em; font-size: 1rem; padding: 6px;
+    }
+    .tag {
+      display: inline-block; margin-left: 6px; font-size: 0.75rem; font-weight: 500;
+      color: var(--ink-muted, #4b5b54);
+    }
+    .legacy {
+      flex-basis: 100%; margin: 4px 0 0; font-size: 0.8125rem; line-height: 1.45;
+      color: #8a5a00;
+    }
     .setup {
       border: 1px solid var(--line, #dfe6e2); border-radius: 8px;
       padding: 12px 14px; margin: 0 0 26px;
       background: var(--surface, #fff);
     }
     .setup > summary {
-      font-size: 0.875rem; font-weight: 650; cursor: pointer; padding: 2px 0;
+      font-size: 0.9375rem; font-weight: 650; cursor: pointer; padding: 2px 0;
     }
-    .sub {
-      margin-top: 14px; padding-top: 12px;
+    .grp {
+      border: 0; margin: 14px 0 0; padding: 12px 0 0; min-width: 0;
       border-top: 1px solid var(--line, #dfe6e2);
     }
-    .chk { display: flex; gap: 8px; align-items: center; font-size: 0.84375rem; cursor: pointer; }
-    .chk input { flex: none; }
+    .grp__h { font-size: 0.9375rem; font-weight: 700; padding: 0; margin: 0 0 6px; }
+    .chk { display: flex; gap: 8px; align-items: center; font-size: 0.9375rem; cursor: pointer; padding: 4px 0; }
+    .chk input { flex: none; width: 18px; height: 18px; }
     .item__buyin {
-      flex: none; width: 6.5em; font-size: 0.8125rem; padding: 5px 6px;
+      flex: none; width: 6.5em; font-size: 1rem; padding: 6px;
       font-variant-numeric: tabular-nums; text-align: right;
     }
+    .perRound { margin-top: 8px; }
+    .roundPick { padding: 10px 0; border-top: 1px dashed var(--line, #dfe6e2); }
+    .roundPick__h { margin: 0; font-size: 0.9375rem; font-weight: 700; }
+    .roundPick__sum { margin: 2px 0 8px; font-size: 0.875rem; color: var(--brand-green, #1A5C38); font-weight: 600; }
     .holes { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; }
     .hole {
       display: inline-flex; align-items: center; justify-content: center;
-      min-width: 2.6em; padding: 5px 7px; gap: 5px;
+      min-width: 3em; min-height: 40px; padding: 4px 8px; gap: 6px;
       border: 1px solid var(--line, #dfe6e2); border-radius: 6px;
-      font-size: 0.8125rem; font-variant-numeric: tabular-nums; cursor: pointer;
+      font-size: 0.9375rem; font-variant-numeric: tabular-nums; cursor: pointer;
+    }
+    .hole:has(input:checked) {
+      background: var(--brand-green-pale, #E8F5EE); border-color: var(--brand-green, #1A5C38);
     }
     .hole--odd { background: var(--wash, #f3f6f4); }
     .hole input { flex: none; margin: 0; }
+    .quick {
+      min-height: 40px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+      border: 1px solid var(--brand-green, #1A5C38); background: #fff;
+      color: var(--brand-green, #1A5C38); font-size: 0.9375rem; font-weight: 600;
+    }
+    .other { margin-top: 8px; }
+    .other > summary { font-size: 0.875rem; cursor: pointer; color: var(--brand-green, #1A5C38); padding: 4px 0; }
+    .formats { display: grid; gap: 6px; margin: 0 0 8px; max-width: 520px; }
+    .fmt {
+      display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px;
+      border: 1px solid var(--line, #dfe6e2); border-radius: 8px; cursor: pointer;
+    }
+    .fmt:has(input:checked) { border-color: var(--brand-green, #1A5C38); background: var(--brand-green-pale, #E8F5EE); }
+    .fmt input { margin-top: 3px; flex: none; }
+    .fmt strong { display: block; font-size: 0.9375rem; }
+    .fmt em { display: block; font-style: normal; font-size: 0.8125rem; color: var(--ink-muted, #4b5b54); }
 
     .foot {
-      font-size: 0.78125rem; color: var(--ink-muted, #4b5b54);
+      font-size: 0.875rem; color: var(--ink-muted, #4b5b54);
       margin: 18px 0 0; line-height: 1.5;
+    }
+    @media (max-width: 480px) {
+      .item__pick { max-width: none; flex-basis: 100%; }
     }
   </style>
 </BaseLayout>

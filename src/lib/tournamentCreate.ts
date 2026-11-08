@@ -11,6 +11,7 @@
 // in the flutter repo) will populate `flights`, `skins_competitions`,
 // `sponsors`, `pools`, and the pairing composer fields.
 
+import { buildCompetitionPatch, type SkinsKind } from './competitionConfig';
 import {
   pairingToRoundTeamsWire,
   pairingsToSeasonTeamsWire,
@@ -117,6 +118,13 @@ export type WizardRoundInput = {
   slopeRating?: number | null;
   parTotal?: number | null;
   gender?: FieldGender;
+  /** Per-round Closest-to-Pin holes (`rounds[].ctp_holes`). `null` /
+   *  absent = untouched: CTP follows the round's par 3s, as in the
+   *  app. With CTP off, an explicit list saves as `[]`. */
+  ctpHoles?: number[] | null;
+  /** Per-round Longest Drive holes (`rounds[].longest_drive_holes`).
+   *  Emitted only when non-null, as the app does. */
+  ldHoles?: number[] | null;
   /** Phase 2a: how groups start the round. `teeTimes` (default) =
    *  historical sequential-from-hole-1 flow; `shotgun` = every
    *  group starts simultaneously from their assigned start hole
@@ -202,6 +210,18 @@ export type WizardInput = {
    *  is set on the tournament. */
   trackCTPOnPar3s?: boolean;
   trackLongestDrive?: boolean;
+  /** Skins pools, per-kind buy-ins and (mixed field only) the Longest
+   *  Drive option. Built into `skins_competitions` + `pools` +
+   *  `longest_drive_genders` by `buildCompetitionPatch`, so the wizard
+   *  writes the same two representations the competitions page does. */
+  competitions?: {
+    skins: SkinsKind[];
+    buyIns: Record<string, number>;
+    longestDriveGenders: string[];
+  };
+  /** Per-hole pars from the picked course (9 or 18), or []. Stamped
+   *  onto each tee box as `pars` so par 3s / par 5s / skins resolve. */
+  coursePars?: number[];
   rounds: WizardRoundInput[];
   players: WizardPlayerInput[];
   /** Optional handicap-bucketed sub-competitions. Empty = no
@@ -337,8 +357,30 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
     // PATCH from the mobile app or Manage page sees the same
     // shape it wrote.
     base.teams = roundTeams;
+    // Field competitions per round. Same save rule as the app wizard's
+    // `_ctpHolesForSave`: with CTP off an explicit list would keep CTP
+    // alive on its own, so it saves as `[]`; untouched stays absent.
+    const ctpOn = input.trackCTPOnPar3s === true;
+    if (Array.isArray(r.ctpHoles)) base.ctp_holes = ctpOn ? r.ctpHoles : [];
+    if (Array.isArray(r.ldHoles)) base.longest_drive_holes = r.ldHoles;
     return base;
   });
+
+  // Skins + CTP + LD, written as BOTH representations (v1 flags and v2
+  // pools) with the app's deterministic pool ids — see
+  // `competitionConfig.ts` for why one without the other is a trap.
+  const competitionPatch = buildCompetitionPatch({
+    skins: input.competitions?.skins ?? [],
+    closestToPin: input.trackCTPOnPar3s === true,
+    longestDrive: input.trackLongestDrive === true,
+    longestDriveGenders: input.competitions?.longestDriveGenders ?? [],
+    buyIns: input.competitions?.buyIns ?? {},
+  }, input.fieldGender);
+
+  const pars = input.coursePars ?? [];
+  const teeBoxes = pars.length > 0
+    ? input.teeBoxes.map((t) => ({ ...t, pars: [...pars] }))
+    : input.teeBoxes;
 
   // Players carry a stable local id so subsequent PATCHes can
   // address them even before they sign in.  Handicap is stored as
@@ -409,7 +451,7 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
     // Full tee catalog from the picked course.  Empty when the
     // upstream provider returned no per-tee data — mobile app's
     // `parResolver` chain fills the gap on read.
-    tee_boxes: input.teeBoxes,
+    tee_boxes: teeBoxes,
     // Season teams (roadmap #6 — pairing composer, Teams mode).
     // Derived from any `mode: 'teams'` pairing entry — first
     // round wins on team identity (name), later rounds merge
@@ -425,12 +467,15 @@ export function buildCreatePayload(input: WizardInput): Record<string, unknown> 
     // for the wire shape; each entry is emitted snake_case to
     // match the mobile app's `TournamentFlight.toJson()`.
     flights,
-    skins_competitions: [],
-    pools: [],
+    skins_competitions: competitionPatch.skins_competitions,
+    pools: competitionPatch.pools,
     sponsors: [],
     captain_user_ids: [],
-    track_ctp_on_par3s: input.trackCTPOnPar3s === true,
-    track_longest_drive: input.trackLongestDrive === true,
+    track_ctp_on_par3s: competitionPatch.track_ctp_on_par3s,
+    track_longest_drive: competitionPatch.track_longest_drive,
+    ...(competitionPatch.longest_drive_genders
+      ? { longest_drive_genders: competitionPatch.longest_drive_genders }
+      : {}),
   };
 }
 

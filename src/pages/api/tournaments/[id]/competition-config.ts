@@ -1,13 +1,28 @@
 import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../../lib/railway';
 import { createSupabaseClient } from '../../../../lib/supabase';
-import { getPublicTournament } from '../../../../lib/tournamentQueries';
+import {
+  getPublicTournament,
+  holeCountForRound,
+  type TournamentRound,
+  type TournamentRow,
+} from '../../../../lib/tournamentQueries';
 import {
   buildCompetitionPatch,
   fieldGenderOf,
+  mergePools,
+  nextRoundCompetitionFields,
   parseCompetitionConfig,
+  readCompetitionConfig,
 } from '../../../../lib/competitionConfig';
-import { ScoreLossError, withFreshRounds } from '../../../../lib/tournamentWrite';
+import { cleanHoleList, par5Holes } from '../../../../lib/fieldCompetitions';
+import { ScoreLossError, withFreshRoundsAll } from '../../../../lib/tournamentWrite';
+import {
+  syncPools,
+  syncRoundDecisions,
+  type SpineCall,
+  type SpineSyncResult,
+} from '../../../../lib/spineCompetitions';
 
 // POST /api/tournaments/[id]/competition-config
 //
@@ -32,9 +47,15 @@ import { ScoreLossError, withFreshRounds } from '../../../../lib/tournamentWrite
 //    emits both, rebuilt together, with Dart's deterministic ids.
 //    See `lib/competitionConfig.ts`.
 //
-// 2. Round-level `ctp_holes`. Goes through `withFreshRounds` + the
-//    score-loss guard like every other rounds write here, because
-//    Railway writes that array wholesale with no server-side merge.
+// 2. Round-level `ctp_holes` + `longest_drive_holes`, for every round
+//    the director touched, plus the app's toggle rules (CTP off ->
+//    explicit lists become `[]`; CTP back on -> `[]` resets to "all
+//    par 3s"; LD on -> par 5s suggested). Goes through
+//    `withFreshRoundsAll` + the score-loss guard like every other
+//    rounds write here, because Railway writes that array wholesale.
+//
+// 3. Spine. Pools and each bridged round's decision-game config are
+//    mirrored through the Railway spine routes, as the app does.
 
 const ALLOWED_KEYS = [
   'skins_competitions',
@@ -43,6 +64,8 @@ const ALLOWED_KEYS = [
   'longest_drive_genders',
   'pools',
 ];
+
+type RoundInput = { roundId?: unknown; ctpHoles?: unknown; ldHoles?: unknown };
 
 export const POST: APIRoute = async (ctx) => {
   const id = ctx.params.id;
@@ -55,11 +78,36 @@ export const POST: APIRoute = async (ctx) => {
     return json({ error: 'Sign in to change competitions.' }, 401);
   }
 
-  let raw: { config?: unknown; roundId?: unknown; ctpHoles?: unknown };
+  let raw: {
+    config?: unknown;
+    rounds?: unknown;
+    // Single-round shape, kept for older tabs.
+    roundId?: unknown;
+    ctpHoles?: unknown;
+  };
   try {
     raw = (await ctx.request.json()) as typeof raw;
   } catch {
     return json({ error: 'Request body must be valid JSON.' }, 400);
+  }
+
+  // Per-round hole picks, keyed by round id. `undefined` for a list the
+  // director did not touch, so the round keeps (or derives) its own.
+  const picks = new Map<string, { ctpHoles?: unknown; ldHoles?: unknown }>();
+  if (Array.isArray(raw.rounds)) {
+    for (const e of raw.rounds as RoundInput[]) {
+      if (!e || typeof e !== 'object' || typeof e.roundId !== 'string') continue;
+      picks.set(e.roundId, {
+        ...(e.ctpHoles !== undefined ? { ctpHoles: e.ctpHoles } : {}),
+        ...(e.ldHoles !== undefined ? { ldHoles: e.ldHoles } : {}),
+      });
+    }
+  }
+  if (typeof raw.roundId === 'string' && raw.ctpHoles !== undefined) {
+    picks.set(raw.roundId.trim(), {
+      ...(picks.get(raw.roundId.trim()) ?? {}),
+      ctpHoles: raw.ctpHoles,
+    });
   }
 
   try {
@@ -70,52 +118,61 @@ export const POST: APIRoute = async (ctx) => {
     });
     const fresh = await getPublicTournament(supabase, id);
     if (!fresh) return json({ error: 'Tournament not found.' }, 404);
-
-    const body: Record<string, unknown> = {};
-
-    // ── Tournament-level competitions ────────────────────────────
-    if (raw.config !== undefined) {
-      const config = parseCompetitionConfig(raw.config);
-      const patch = buildCompetitionPatch(config, fieldGenderOf(fresh));
-      // Belt and braces: only competition keys leave this route, so a
-      // future edit here cannot accidentally patch scoring or roster
-      // fields through the same call.
-      for (const k of ALLOWED_KEYS) body[k] = patch[k];
+    if (fresh.user_id !== locals.user.id) {
+      // Configuring prizes is a director action, and the page is
+      // owner-gated. Railway alone would accept any roster member.
+      return json({ error: 'Only the tournament host can change competitions.' }, 403);
     }
 
-    // ── Round-level: WHICH holes carry closest-to-pin ────────────
-    const roundId = typeof raw.roundId === 'string' && raw.roundId.trim().length > 0
-      ? raw.roundId.trim()
-      : null;
-    if (roundId && raw.ctpHoles !== undefined) {
-      const round = (fresh.rounds ?? []).find((r) => r.id === roundId);
-      if (!round) {
+    for (const rid of picks.keys()) {
+      if (!(fresh.rounds ?? []).some((r) => r.id === rid)) {
         return json({ error: 'That round is no longer on this tournament.' }, 404);
       }
-      // Hole numbers are 1-indexed and bounded by the round's own
-      // length. `ctp_holes` may legitimately name a NON-par-3 hole —
-      // the model is hole-agnostic and a director may put a CTP
-      // anywhere — so this does not filter by par.
-      const totalHoles = Number(fresh.total_holes) > 0 ? Number(fresh.total_holes) : 18;
-      const holes = Array.isArray(raw.ctpHoles)
-        ? (raw.ctpHoles as unknown[])
-            .map((h) => Number(h))
-            .filter((h) => Number.isInteger(h) && h >= 1 && h <= totalHoles)
-            .filter((h, i, a) => a.indexOf(h) === i)
-            .sort((a, b) => a - b)
-        : [];
-
-      body.rounds = withFreshRounds(fresh, roundId, (r) => {
-        const next: Record<string, unknown> = { ...r, ctp_holes: holes };
-        // Drop the camelCase twin or `fromJson` would read the stale
-        // one — it checks `ctpHoles` first.
-        delete (next as Record<string, unknown>).ctpHoles;
-        return next as never;
-      });
     }
 
+    const field = fieldGenderOf(fresh);
+    const prev = readCompetitionConfig(fresh);
+    const next = raw.config !== undefined ? parseCompetitionConfig(raw.config) : prev;
+    const body: Record<string, unknown> = {};
+
+    // ── Tournament-level: BOTH representations, pools MERGED ─────
+    let removedPools: Record<string, unknown>[] = [];
+    if (raw.config !== undefined) {
+      const patch = buildCompetitionPatch(next, field);
+      // Belt and braces: only competition keys leave this route.
+      for (const k of ALLOWED_KEYS) body[k] = patch[k];
+      // Never `buildPools` straight onto the column: that deleted every
+      // greenies / deuces / stableford / quota pool, and re-minted the
+      // ids of pools the app created. See `mergePools`.
+      const merged = mergePools((fresh as Record<string, unknown>).pools, next, field);
+      body.pools = merged.pools;
+      removedPools = merged.removed;
+    }
+
+    // ── Round-level: CTP holes + LD holes, every round at once ───
+    // Through `withFreshRoundsAll` + the score-loss guard, because
+    // Railway writes `rounds` wholesale with no server-side merge.
+    const nextRounds = withFreshRoundsAll(fresh, (r) => {
+      const round = r as unknown as TournamentRound;
+      const maxHole = holeCountForRound(fresh, round) || 18;
+      const pick = picks.get(String(r.id));
+      return nextRoundCompetitionFields(r, {
+        prev,
+        next,
+        par5s: par5Holes(fresh, round),
+        submitted: pick === undefined ? undefined : {
+          ...(pick.ctpHoles !== undefined
+            ? { ctpHoles: cleanHoleList(pick.ctpHoles, maxHole) } : {}),
+          ...(pick.ldHoles !== undefined
+            ? { ldHoles: cleanHoleList(pick.ldHoles, maxHole) } : {}),
+        },
+      });
+    });
+    const roundsChanged = JSON.stringify(nextRounds) !== JSON.stringify(fresh.rounds ?? []);
+    if (roundsChanged) body.rounds = nextRounds;
+
     if (Object.keys(body).length === 0) {
-      return json({ error: 'Nothing to change.' }, 400);
+      return json({ ok: true, changed: [] }, 200);
     }
 
     await callRailway<{ tournament: { id: string } }>(ctx, {
@@ -123,7 +180,37 @@ export const POST: APIRoute = async (ctx) => {
       path: `/api/tournaments/${encodeURIComponent(id)}`,
       body,
     });
-    return json({ ok: true, changed: Object.keys(body) }, 200);
+
+    // ── Spine dual-write (after the legacy write landed) ─────────
+    // Pools on the bridged event, and every bridged round's decision-game
+    // config (its CTP holes, LD holes and LD option ride on that game).
+    // Mirrors the app's `competitionConfigSignature` re-sync. Never fatal.
+    const call: SpineCall = (init) => callRailway(ctx, init);
+    const after = {
+      ...fresh,
+      ...body,
+      rounds: (body.rounds ?? fresh.rounds ?? []) as TournamentRound[],
+    } as TournamentRow;
+    const spine: SpineSyncResult[] = [];
+    if (raw.config !== undefined) {
+      spine.push(await syncPools(call, after,
+        (body.pools as Record<string, unknown>[]) ?? [], removedPools));
+    }
+    for (const round of after.rounds ?? []) {
+      spine.push(await syncRoundDecisions(call, after, round));
+    }
+    const failed = spine.filter((s) => s.outcome === 'failed');
+    if (failed.length > 0) {
+      console.warn('[api/tournaments/competition-config] spine', {
+        tournament: id, failed: failed.map((f) => f.error),
+      });
+    }
+    return json({
+      ok: true,
+      changed: Object.keys(body),
+      spine: failed.length > 0 ? 'failed'
+        : spine.some((s) => s.outcome === 'synced') ? 'synced' : 'skipped',
+    }, 200);
   } catch (err) {
     if (err instanceof ScoreLossError) {
       console.error('[api/tournaments/competition-config] score-loss guard', {
