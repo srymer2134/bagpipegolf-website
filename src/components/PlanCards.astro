@@ -12,7 +12,8 @@
 // events, plus a match-play companion league. Club $2,970/yr = unlimited
 // leagues + up to 4 admins; Club checkout is live but set up by hand (api
 // #196) until the self-serve Club ships, so its admins each run their own
-// leagues — no shared editing yet. Club trial: 30 days, granted by hand. League trial: 30 days, no card, one per director.
+// leagues — no shared editing yet. Club covers every tournament its admins
+// run, league or standalone, any field size (flutter 20261206, 2026-11-07). Club trial: 30 days, granted by hand. League trial: 30 days, no card, one per director.
 import { sideGames } from '../lib/sideGames';
 import {
   PLANS,
@@ -105,7 +106,7 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
       {full && (
         <ul class="plan__list">
           <li>Everything in League, for every league you run</li>
-          <li>Unlimited events in every league</li>
+          <li>Unlimited tournaments, in a league or on their own, any field size</li>
           <li>Up to 4 admins, each running their own leagues</li>
         </ul>
       )}
