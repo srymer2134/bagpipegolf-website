@@ -137,6 +137,35 @@ describe('Privacy — payments are disclosed', () => {
   });
 });
 
+// The contact address users are told to write to — for privacy requests
+// (Privacy §10) and for arbitration notices (Terms §15/§16). Casey moved it
+// from the Wyoming registered agent to Denver in flutter #1625 and fixed the
+// P.O. Box in #1631 (100352 → 100532), but only in that repo's markdown
+// copies, so for a few hours the PUBLISHED pages — the ones that count —
+// still named Casper, WY. Pinned here so a one-sided edit shows up as a
+// failure rather than as a wrong address on a live legal page.
+const MAILING_ADDRESS = '3800 Buchtel Blvd, P.O. Box 100532, Denver, CO 80250';
+
+describe('contact address', () => {
+  it('is the current Denver address on both pages', () => {
+    for (const f of [TERMS, PRIVACY]) {
+      expect(read(f), f).toContain(`<strong>Mailing address:</strong> ${MAILING_ADDRESS}`);
+    }
+  });
+
+  it('keeps no trace of the old Wyoming agent address', () => {
+    for (const f of [TERMS, PRIVACY]) {
+      expect(read(f), f).not.toMatch(/Greenspire|Casper/);
+    }
+  });
+
+  it('does not carry the mistyped P.O. Box from flutter #1625', () => {
+    for (const f of [TERMS, PRIVACY]) {
+      expect(read(f), f).not.toContain('100352');
+    }
+  });
+});
+
 describe('both pages were re-dated when the money clauses changed', () => {
   it('carries the 2026-11-09 revision date', () => {
     for (const f of [TERMS, PRIVACY]) {
