@@ -26,50 +26,62 @@ const IOS_APP_ID = '5X8U8RN3FJ.com.taybuta.bagpipe';
 // Android production package, mirrored from android/app/build.gradle.kts
 // `applicationId`.
 //
-// ┌─────────────────────────────────────────────────────────────────┐
-// │  ⚠️  TODO — REAL SHA-256 FINGERPRINT NEEDED                     │
+// Android accepts a match against ANY entry in
+// `sha256_cert_fingerprints`, so the list below is every certificate
+// that may legitimately sign a build claiming bagpipegolf.com.
+//
+// ┌─────────────────────────────────────────────────────────────┐
+// │  ⚠️  HALF-DONE 2026-11-09 — upload key landed, Play app        │
+// │  signing key still missing.                                     │
 // │                                                                 │
-// │  The sha256_cert_fingerprints value below is a sentinel that    │
-// │  will fail every Android autoVerify install-check. This means   │
-// │  Android users who tap a `https://bagpipegolf.com/join/<CODE>`  │
-// │  link see the OS chooser sheet ("Open with…") instead of the    │
-// │  app auto-launching straight into the join flow — a real UX     │
-// │  regression now that the app is live on the App Store           │
-// │  (2026-08-25) and Android is a real target.                     │
+// │  Google RE-SIGNS every uploaded AAB with its own app signing     │
+// │  key, so a Play Store install presents Google's certificate      │
+// │  and NOT the upload certificate below. Until that second value   │
+// │  is listed here, Play Store users who tap a                      │
+// │  `https://bagpipegolf.com/join/<CODE>` link still get the OS     │
+// │  chooser sheet ("Open with…") instead of the app opening on      │
+// │  the join flow.                                                  │
 // │                                                                 │
-// │  Sam or Casey fills this in from the Play Console value below   │
-// │  and merges. iOS Universal Links via the AASA above are         │
-// │  unaffected either way; only Android autoVerify is degraded.    │
-// └─────────────────────────────────────────────────────────────────┘
+// │  Builds installed DIRECTLY — Firebase App Distribution, a       │
+// │  local `flutter build apk --release` — keep the upload key and  │
+// │  do verify as of this change.                                    │
+// │                                                                 │
+// │  iOS Universal Links via the AASA above are unaffected either    │
+// │  way; only Android autoVerify is degraded.                       │
+// └─────────────────────────────────────────────────────────────┘
 //
-// How to extract the real fingerprint:
+// To add the Play app signing key:
+//   Play Console → Bagpipe Golf → Test and release → Setup →
+//   App integrity → App signing → "App signing key certificate",
+//   the SHA-256 line. Append it to ANDROID_SHA256_FINGERPRINTS below.
+//   A test asserts the current count on purpose, so it will go red and
+//   tell you to update it rather than passing silently.
 //
-//   • PREFERRED — Play App Signing (production, once uploaded to the
-//     Play Store):
-//       Play Console → your app → Setup → App integrity →
-//       App signing → "App signing key certificate SHA-256"
-//     Copy the colon-separated 32-byte value verbatim.
-//
-//   • Upload key (pre–Play App Signing, or if you also want links to
-//     work for pre-Play internal APKs):
-//       keytool -list -v \
-//         -keystore /path/to/release.jks \
-//         -alias upload -storepass '<pw>'
-//     Take the "SHA256:" line, strip spaces so it's colons-every-2-chars.
-//
-// If BOTH keys are in play, list them as two array entries in
-// `sha256_cert_fingerprints` — Android will accept a match against
-// any one of them.
-//
-// Reference: docs/handoffs/SHARE_INVITE_UNIVERSAL_LINK_BRIEF.md in
-// the fairwayiq-flutter repo — the standing Casey blocker item.
+// Reference: docs/handoffs/SHARE_INVITE_UNIVERSAL_LINK_BRIEF.md in the
+// fairwayiq-flutter repo; PATRICK_BACKLOG §32.
 const ANDROID_PACKAGE = 'com.taybuta.bagpipe';
-// TODO(sam-or-casey): replace with the real SHA-256 from Play Console
-// per the block comment above. This placeholder value causes silent
-// autoVerify failure on every Android install.
-const ANDROID_SHA256_PLACEHOLDER =
-  'AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:' +
-  'AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA';
+
+// Upload key — the certificate in the keystore CI decodes from
+// ANDROID_KEYSTORE_BASE64, and the one android/key.properties points at
+// for a local release build.
+//
+// Provenance: read off the signed bundle itself rather than copied from
+// a console, so it cannot be a transcription error. Build 1.1.1 (353),
+// GitHub Actions run 41696498571 (firebase_app_distribution_android,
+// 2026-11-03), artifact `bagpipe-golf-1.1.1-353-aab`:
+//
+//   unzip -o app-release.aab META-INF/RELEASE.RSA
+//   openssl pkcs7 -inform DER -in META-INF/RELEASE.RSA -print_certs \
+//     | openssl x509 -noout -fingerprint -sha256
+//
+// Certificate: CN=Bagpipe Golf, O=FairwayIQ, OU=Mobile, C=US;
+// self-signed; valid 2026-05-05 → 2051-04-29.
+const ANDROID_UPLOAD_KEY_SHA256 =
+  '8B:C4:6C:38:9F:18:53:4B:95:93:17:A8:13:3A:42:09:' +
+  '36:40:F1:F3:24:C4:2A:FF:80:86:61:87:74:9B:44:3A';
+
+// Every certificate allowed to claim the domain.
+const ANDROID_SHA256_FINGERPRINTS = [ANDROID_UPLOAD_KEY_SHA256];
 
 const APPLE_APP_SITE_ASSOCIATION = {
   applinks: {
@@ -130,7 +142,7 @@ const ASSETLINKS = [
     target: {
       namespace: 'android_app',
       package_name: ANDROID_PACKAGE,
-      sha256_cert_fingerprints: [ANDROID_SHA256_PLACEHOLDER],
+      sha256_cert_fingerprints: ANDROID_SHA256_FINGERPRINTS,
     },
   },
 ];

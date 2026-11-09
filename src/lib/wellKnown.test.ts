@@ -67,16 +67,39 @@ describe('assetlinks.json', () => {
     expect(body[0].target.package_name).toBe('com.taybuta.bagpipe');
   });
 
-  it('is still on the placeholder fingerprint — Android autoVerify cannot pass', async () => {
-    // Deliberate: this asserts the KNOWN-BROKEN state so that whoever
-    // fills in the real SHA-256 from Play Console (PATRICK_BACKLOG §32)
-    // is told by a red test to update it here too, rather than leaving
-    // a test that silently kept passing. Flip it to a real-value
-    // assertion in that same PR.
+  it('serves the real upload-key fingerprint, not a placeholder', async () => {
     const res = handleWellKnownRequest('/.well-known/assetlinks.json')!;
     const body = (await res.json()) as Array<{
       target: { sha256_cert_fingerprints: string[] };
     }>;
-    expect(body[0].target.sha256_cert_fingerprints[0]).toMatch(/^(AA:){31}AA$/);
+    const fingerprints = body[0].target.sha256_cert_fingerprints;
+
+    // Read off the signed bundle for build 1.1.1 (353) with openssl, not
+    // transcribed from a console — see the provenance note in wellKnown.ts.
+    expect(fingerprints).toContain(
+      '8B:C4:6C:38:9F:18:53:4B:95:93:17:A8:13:3A:42:09:' +
+        '36:40:F1:F3:24:C4:2A:FF:80:86:61:87:74:9B:44:3A',
+    );
+
+    for (const fingerprint of fingerprints) {
+      // 32 upper-case hex pairs, colon separated. Android silently fails
+      // autoVerify on a malformed value rather than reporting an error.
+      expect(fingerprint).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+      expect(fingerprint).not.toMatch(/^(AA:){31}AA$/);
+    }
+  });
+
+  it('still lacks the Play app signing key — Play Store installs cannot autoVerify', async () => {
+    // Deliberate, and the same device as the placeholder assertion this
+    // replaced: Google re-signs every uploaded AAB with its own app
+    // signing key, so a Play Store install presents Google's certificate
+    // and not our upload certificate. Whoever appends that second
+    // fingerprint gets a red test telling them to update this file too,
+    // rather than one that silently kept passing. PATRICK_BACKLOG §32.
+    const res = handleWellKnownRequest('/.well-known/assetlinks.json')!;
+    const body = (await res.json()) as Array<{
+      target: { sha256_cert_fingerprints: string[] };
+    }>;
+    expect(body[0].target.sha256_cert_fingerprints).toHaveLength(1);
   });
 });
