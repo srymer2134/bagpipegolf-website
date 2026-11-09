@@ -134,13 +134,22 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
       <h3>What we sell</h3>
       <ul>
-        <li><strong>Single event — $240 per tournament</strong>, for a field of 37 players or more. A tournament with 36 players or fewer is free. This is a one-time charge, not a subscription.</li>
-        <li><strong>League — $2,140 per year, per league.</strong> An annual subscription covering one league, one organizer login, and unlimited events in that league.</li>
-        <li><strong>Club — $2,970 per year.</strong> An annual subscription covering unlimited leagues and up to four admin accounts. Club plans are currently set up with us directly rather than fully self-serve.</li>
+        <li><strong>An event pass</strong> — a one-time charge covering a single tournament. Smaller fields are free; the player count at which a pass is required is published with the price.</li>
+        <li><strong>A League plan</strong> — an annual subscription covering one league, one organizer login, and unlimited events in that league.</li>
+        <li><strong>A Club plan</strong> — an annual subscription covering unlimited leagues and multiple admin accounts. Club plans are currently set up with us directly rather than fully self-serve.</li>
       </ul>
       <p>
-        Players are never charged to take part in a league or tournament
-        someone else has paid for.
+        <strong>Current prices, and what each plan includes, are published
+        on our <a href="/pricing">pricing page</a> and shown again at
+        checkout before you pay.</strong> Prices are subject to change, and
+        the price that applies to you is the one shown when you buy — see
+        "Price changes and taxes" below.
+      </p>
+      <p>
+        Players are never charged by us to take part in a league or
+        tournament someone else has paid for. A league or tournament host
+        may separately collect dues or an entry fee from their players;
+        that is their charge, not ours, and it is covered below.
       </p>
 
       <h3>Free trial</h3>
@@ -180,10 +189,34 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
       <h3>Refunds</h3>
       <p>
-        Payments are <strong>non-refundable</strong> except where the law
-        requires otherwise. If you think you have been charged in error,
-        or something went wrong with a charge, contact us at the address
-        in §16 and we will look into it.
+        <strong>There is a 7-day refund window.</strong> A refund must be
+        requested <strong>within 7 days of the purchase</strong>. This
+        applies at every level — club, league, tournament, and event —
+        and to both kinds of payment described below. After 7 days,
+        payments are non-refundable except where the law requires
+        otherwise.
+      </p>
+      <p>
+        <strong>Plan and pass payments</strong> — the subscription dues
+        and event passes you pay us. Ask us within the 7 days, at the
+        address in §16, and we will refund the payment.
+      </p>
+      <p>
+        <strong>Player dues and entry fees</strong> — what a player pays
+        a league or tournament. <strong>These refunds are managed by the
+        league director or tournament host, not by us</strong>, from their
+        own tools, within the same 7-day window. When one is issued the
+        player gets their <strong>full payment back</strong> on their
+        card; <strong>our 2% platform fee is non-refundable</strong>, as
+        is the card processor's own fee, and both are borne by the league
+        or tournament rather than deducted from the player. A dispute
+        about dues or an entry fee is between the player and their
+        director.
+      </p>
+      <p>
+        If you think you have been charged in error, or something went
+        wrong with a charge, contact us at the address in §16 whether or
+        not the 7 days have passed.
       </p>
 
       <h3>Failed payments, and what happens if a plan lapses</h3>
@@ -210,17 +243,24 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         required to collect one, it is added at checkout.
       </p>
 
-      <h3>Card entry fees</h3>
+      <h3>Player dues and card entry fees</h3>
       <p>
-        Where it is switched on for an organizer, a director can collect
-        tournament entry fees from players by card. Those fees are
-        processed by Stripe <strong>into the director's own Stripe
-        account</strong>, not ours: Bagpipe Golf provides the software and
-        takes no custody of entry-fee money. Setting the fee, collecting
-        it, and refunding it are the director's responsibility, and any
-        dispute over an entry fee is between the director and their
-        players. This capability is enabled per organizer and is not
-        available to every account.
+        Where it is switched on for an organizer, a league director or
+        tournament host can collect dues or an entry fee from their
+        players by card. Those payments are processed by Stripe
+        <strong>into the host's own Stripe account</strong>, not ours:
+        Bagpipe Golf provides the software and takes no custody of that
+        money. Setting the amount, collecting it, and refunding it are
+        the host's responsibility, and any dispute about it is between
+        the host and their players.
+      </p>
+      <p>
+        <strong>We take a 2% platform fee</strong> on each such card
+        payment, before the money reaches the host. Players see one total
+        at checkout, not a separate line for us. That fee, and the card
+        processor's own fee, are not returned if the payment is later
+        refunded — see "Refunds" above. This capability is enabled per
+        organizer and is not available to every account.
       </p>
 
       <h2>8. Tournaments and invites</h2>

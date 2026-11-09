@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dollars, PLANS, PROMO_CODE } from './offer';
 
+const PRICING = 'src/pages/pricing.astro';
+
 // Billing went live on 2026-11-05 (Stripe LIVE, lib/offer.ts). Until
 // 2026-11-09 both legal pages still said we never touch money — Terms §6
 // said "Bagpipe Golf does not hold, transfer, or process money", Terms §7
@@ -46,11 +48,27 @@ describe('Terms — the money claims match what we actually do', () => {
     expect(t).toMatch(/never receive or store\s+your full card number/);
   });
 
-  it('states every plan price, read from PLANS so a change fails here', () => {
+  // Sam, 2026-11-09: the Terms do NOT list prices — prices change, and a
+  // contract that quotes them has to be amended every time they do. The
+  // Terms name the plan shapes and point at /pricing, which pricingCopy.test.ts
+  // already pins. Same reasoning as the promo clause above.
+  it('names the plan shapes without quoting a price', () => {
+    const t = read(TERMS);
+    expect(t).toMatch(/<strong>An event pass<\/strong>/);
+    expect(t).toMatch(/<strong>A League plan<\/strong>/);
+    expect(t).toMatch(/<strong>A Club plan<\/strong>/);
+    expect(t).toMatch(/href="\/pricing"/);
+    expect(t).toMatch(/Prices are subject to change/);
+  });
+
+  it('quotes no plan price, so a price change cannot strand the Terms', () => {
     const t = read(TERMS);
     for (const plan of Object.values(PLANS)) {
-      expect(t, `${plan.name} price ${dollars(plan.price)}`).toContain(dollars(plan.price));
+      expect(t, `${plan.name} price ${dollars(plan.price)} must not be in the Terms`)
+        .not.toContain(dollars(plan.price));
     }
+    // No dollar figure at all, so a future price cannot creep in either.
+    expect(t).not.toMatch(/\$\d/);
   });
 
   it('discloses auto-renewal and how cancelling behaves', () => {
@@ -81,10 +99,48 @@ describe('Terms — the money claims match what we actually do', () => {
     expect(dates.map((m) => m[0])).toEqual(['November 9, 2026']);
   });
 
-  it('states the refund stance and the trial', () => {
+  it('states the trial', () => {
+    expect(read(TERMS)).toMatch(/one<\/strong> free trial of\s+<strong>30 days<\/strong>/);
+  });
+
+  // Sam's policy, 2026-11-09. Refunds EXIST — the earlier blanket
+  // "non-refundable" was my default, not his call.
+  it('states the 7-day window, at every level', () => {
     const t = read(TERMS);
-    expect(t).toMatch(/<strong>non-refundable<\/strong>/);
-    expect(t).toMatch(/one<\/strong> free trial of\s+<strong>30 days<\/strong>/);
+    expect(t).toMatch(/<strong>There is a 7-day refund window\.<\/strong>/);
+    expect(t).toMatch(/<strong>within 7 days of the purchase<\/strong>/);
+    expect(t).toMatch(/club, league, tournament, and event/);
+  });
+
+  it('separates the two kinds of refund, and says who handles each', () => {
+    const t = read(TERMS);
+    // What we charge: we refund it.
+    expect(t).toMatch(/<strong>Plan and pass payments<\/strong>/);
+    // What a player pays a host: the host refunds it.
+    expect(t).toMatch(/<strong>Player dues and entry fees<\/strong>/);
+    expect(t).toMatch(/managed by the\s+league director or tournament host, not by us<\/strong>/);
+  });
+
+  // Matches the shipped behaviour, not a looser reading of it: the API
+  // refund path keeps the application fee on purpose (payments.ts D2, no
+  // `refund_application_fee`), and the in-app confirm copy
+  // (lib/paymentsRefunds.ts) tells the host they do not get it back. The
+  // player is made whole; the host absorbs both fees.
+  it('refunds the player in full and says whose 2% is kept', () => {
+    const t = read(TERMS);
+    expect(t).toMatch(/<strong>full payment back<\/strong>/);
+    expect(t).toMatch(/<strong>our 2% platform fee is non-refundable<\/strong>/);
+    expect(t).toMatch(/borne by the league\s+or tournament rather than deducted from the player/);
+  });
+
+  // One fee, one number. Joined to the pricing page instead of restated,
+  // so the two cannot disagree (F2, 2026-10-09; application_fee_bps=200).
+  it('uses the same platform-fee percentage the pricing page states', () => {
+    const stated = read(PRICING).match(/Our platform fee is (\d+(?:\.\d+)?)%/);
+    expect(stated, 'pricing page must state the platform fee').not.toBeNull();
+    const t = read(TERMS);
+    expect(t).toContain(`our ${stated![1]}% platform fee is non-refundable`);
+    expect(t).toContain(`We take a ${stated![1]}% platform fee`);
   });
 
   it('describes the lapse behaviour the plan gate actually enforces', () => {
@@ -95,9 +151,9 @@ describe('Terms — the money claims match what we actually do', () => {
     expect(t).toMatch(/nothing is deleted because of non-payment/);
   });
 
-  it('points entry fees at the director’s own Stripe account', () => {
+  it('points player dues at the host’s own Stripe account', () => {
     const t = read(TERMS);
-    expect(t).toMatch(/into the director's own Stripe\s+account/);
+    expect(t).toMatch(/into the host's own Stripe account<\/strong>, not ours/);
   });
 
   it('is numbered 1..17 with no gap, and cross-refs resolve', () => {
