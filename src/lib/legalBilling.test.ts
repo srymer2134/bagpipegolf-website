@@ -103,34 +103,53 @@ describe('Terms — the money claims match what we actually do', () => {
     expect(read(TERMS)).toMatch(/one<\/strong> free trial of\s+<strong>30 days<\/strong>/);
   });
 
-  // Sam's policy, 2026-11-09. Refunds EXIST — the earlier blanket
-  // "non-refundable" was my default, not his call.
-  it('states the 7-day window, at every level', () => {
+  // Sam's policy, 2026-11-09, corrected the same day: the 7-day window is
+  // ONLY for what people buy from us — Single Event, League, Club. It does
+  // NOT reach player dues. An earlier draft applied it to both, which put
+  // a deadline on a relationship that is not ours to govern.
+  it('scopes the 7-day window to what we sell, by name', () => {
     const t = read(TERMS);
-    expect(t).toMatch(/<strong>There is a 7-day refund window\.<\/strong>/);
-    expect(t).toMatch(/<strong>within 7 days of the purchase<\/strong>/);
-    expect(t).toMatch(/club, league, tournament, and event/);
+    expect(t).toContain('<h3>Refunds of what you buy from us</h3>');
+    expect(t).toMatch(/<strong>You have 7 days\.<\/strong>/);
+    expect(t).toMatch(/<strong>7 days of\s+the purchase<\/strong>/);
+    expect(t).toMatch(/the Single Event pass, the\s+League plan, and the Club plan/);
   });
 
-  it('separates the two kinds of refund, and says who handles each', () => {
+  it('puts player dues entirely at the director\u2019s discretion', () => {
     const t = read(TERMS);
-    // What we charge: we refund it.
-    expect(t).toMatch(/<strong>Plan and pass payments<\/strong>/);
-    // What a player pays a host: the host refunds it.
-    expect(t).toMatch(/<strong>Player dues and entry fees<\/strong>/);
-    expect(t).toMatch(/managed by the\s+league director or tournament host, not by us<\/strong>/);
+    expect(t).toContain("<h3>Refunds of player dues — the director's call, not ours</h3>");
+    expect(t).toMatch(/<strong>not our money and not our decision<\/strong>/);
+    expect(t).toMatch(
+      /Whether a player is refunded, when, and on what terms is\s+entirely at the discretion of the league director or tournament\s+host\.<\/strong>/,
+    );
+    // We neither impose terms nor arbitrate them.
+    expect(t).toMatch(/we do not impose a deadline, a condition, or a right to a refund/i);
+    expect(t).toMatch(/we do not arbitrate it/);
+  });
+
+  it('says plainly that the 7-day window does not reach player dues', () => {
+    expect(read(TERMS)).toMatch(
+      /<strong>The 7-day window above does not apply to player dues\.<\/strong>/,
+    );
   });
 
   // Matches the shipped behaviour, not a looser reading of it: the API
   // refund path keeps the application fee on purpose (payments.ts D2, no
   // `refund_application_fee`), and the in-app confirm copy
   // (lib/paymentsRefunds.ts) tells the host they do not get it back. The
-  // player is made whole; the host absorbs both fees.
+  // player is made whole; the host absorbs both fees. Stated as mechanics
+  // a director can price around, NOT as a term we impose on their policy.
   it('refunds the player in full and says whose 2% is kept', () => {
     const t = read(TERMS);
-    expect(t).toMatch(/<strong>full payment back<\/strong>/);
-    expect(t).toMatch(/<strong>our 2% platform fee is non-refundable<\/strong>/);
-    expect(t).toMatch(/borne by the league\s+or tournament rather than deducted from the player/);
+    expect(t).toMatch(/<strong>full\s+payment back<\/strong>/);
+    expect(t).toMatch(/<strong>our 2% platform\s+fee is not returned<\/strong>/);
+    expect(t).toMatch(/Both are borne by the league or tournament, not deducted\s+from the player/);
+  });
+
+  it('leaves the refund terms for dues to the host in both cross-references', () => {
+    const t = read(TERMS);
+    expect(t).toMatch(/<strong>including the terms on which they refund, which are\s+theirs to set<\/strong>/);
+    expect(t).toMatch(/<strong>whether and how you refund a player is your decision, on your terms<\/strong>/);
   });
 
   // One fee, one number. Joined to the pricing page instead of restated,
@@ -139,7 +158,7 @@ describe('Terms — the money claims match what we actually do', () => {
     const stated = read(PRICING).match(/Our platform fee is (\d+(?:\.\d+)?)%/);
     expect(stated, 'pricing page must state the platform fee').not.toBeNull();
     const t = read(TERMS);
-    expect(t).toContain(`our ${stated![1]}% platform fee is non-refundable`);
+    expect(t).toContain(`our ${stated![1]}% platform`);
     expect(t).toContain(`We take a ${stated![1]}% platform fee`);
   });
 
