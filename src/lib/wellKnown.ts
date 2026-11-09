@@ -30,32 +30,28 @@ const IOS_APP_ID = '5X8U8RN3FJ.com.taybuta.bagpipe';
 // `sha256_cert_fingerprints`, so the list below is every certificate
 // that may legitimately sign a build claiming bagpipegolf.com.
 //
-// ┌─────────────────────────────────────────────────────────────┐
-// │  ⚠️  HALF-DONE 2026-11-09 — upload key landed, Play app        │
-// │  signing key still missing.                                     │
-// │                                                                 │
-// │  Google RE-SIGNS every uploaded AAB with its own app signing     │
-// │  key, so a Play Store install presents Google's certificate      │
-// │  and NOT the upload certificate below. Until that second value   │
-// │  is listed here, Play Store users who tap a                      │
-// │  `https://bagpipegolf.com/join/<CODE>` link still get the OS     │
-// │  chooser sheet ("Open with…") instead of the app opening on      │
-// │  the join flow.                                                  │
-// │                                                                 │
-// │  Builds installed DIRECTLY — Firebase App Distribution, a       │
-// │  local `flutter build apk --release` — keep the upload key and  │
-// │  do verify as of this change.                                    │
-// │                                                                 │
-// │  iOS Universal Links via the AASA above are unaffected either    │
-// │  way; only Android autoVerify is degraded.                       │
-// └─────────────────────────────────────────────────────────────┘
+// COMPLETE as of 2026-11-09. Every install path verifies: Play Store
+// (Google's three certificates), Firebase App Distribution and local
+// release builds (our upload key).
 //
-// To add the Play app signing key:
-//   Play Console → Bagpipe Golf → Test and release → Setup →
-//   App integrity → App signing → "App signing key certificate",
-//   the SHA-256 line. Append it to ANDROID_SHA256_FINGERPRINTS below.
-//   A test asserts the current count on purpose, so it will go red and
-//   tell you to update it rather than passing silently.
+// The history is worth keeping, because the failure was silent for
+// months. This list was a single sentinel value
+// (`AA:AA:…:AA`) from the day the file was written. Android fetches it
+// at install, compares it to the signing certificate of the delivered
+// APK, and on mismatch downgrades to the "Open with…" chooser sheet
+// WITHOUT logging an error, raising an exception or failing a build. The
+// only visible symptom was Play Console's Deep links page reporting the
+// domain unverified — which nobody was reading.
+//
+// Where to re-fetch these if they ever change: Play Console → Bagpipe
+// Golf → Protected with Play → Play App Signing. (The old "App
+// integrity" page was retired in June 2026; searching for it wastes
+// time.) Download the certificates and fingerprint them locally rather
+// than copying hex from the page — see the openssl line below.
+//
+// A test pins the length of this array, so adding or removing a
+// certificate goes red and tells you to update it rather than passing
+// silently.
 //
 // Reference: docs/handoffs/SHARE_INVITE_UNIVERSAL_LINK_BRIEF.md in the
 // fairwayiq-flutter repo; PATRICK_BACKLOG §32.
@@ -80,8 +76,45 @@ const ANDROID_UPLOAD_KEY_SHA256 =
   '8B:C4:6C:38:9F:18:53:4B:95:93:17:A8:13:3A:42:09:' +
   '36:40:F1:F3:24:C4:2A:FF:80:86:61:87:74:9B:44:3A';
 
+// ── Play App Signing certificates, downloaded from Play Console on
+// 2026-11-09 and fingerprinted locally with openssl, never transcribed:
+//
+//   openssl x509 -inform DER -in <cert>.der -noout -fingerprint -sha256
+//
+// All three are issued to `O=Google Inc., OU=Android, CN=Android`,
+// valid 2026-11-02 → 2056-11-02. Google GENERATED this key; our upload
+// key (above) was not imported, which is why Play Store installs could
+// never verify while only the upload key was listed.
+//
+// Play issues three because it now signs with a hybrid scheme as well as
+// the classical one, and the certificate a given device sees depends on
+// which Play uses for that delivery. Listing all three is additive —
+// Android accepts a match against any array entry — and removes the
+// guesswork about which one a device will present.
+
+// Play app signing key — the classical deployment certificate. This is
+// the one a Play Store install presents.
+const ANDROID_PLAY_APP_SIGNING_SHA256 =
+  'C5:DF:79:FC:05:91:75:F2:2D:21:CB:10:0D:62:F9:54:' +
+  'A0:F7:BC:BC:5E:10:12:BB:CA:F1:05:F0:4D:14:45:46';
+
+// Play hybrid signing, classical half.
+const ANDROID_PLAY_HYBRID_CLASSICAL_SHA256 =
+  'C0:34:40:26:05:77:70:06:00:17:1E:80:E8:BA:73:E6:' +
+  '46:84:A3:15:4C:47:35:E8:3E:9F:1B:28:94:A7:AF:20';
+
+// Play hybrid signing, post-quantum half.
+const ANDROID_PLAY_HYBRID_PQC_SHA256 =
+  '79:98:E8:15:DA:D6:93:B3:D7:A8:A9:BE:4B:EA:15:82:' +
+  '4F:CA:70:1F:30:83:75:05:D8:E8:E5:87:1D:D2:B1:0D';
+
 // Every certificate allowed to claim the domain.
-const ANDROID_SHA256_FINGERPRINTS = [ANDROID_UPLOAD_KEY_SHA256];
+const ANDROID_SHA256_FINGERPRINTS = [
+  ANDROID_UPLOAD_KEY_SHA256,
+  ANDROID_PLAY_APP_SIGNING_SHA256,
+  ANDROID_PLAY_HYBRID_CLASSICAL_SHA256,
+  ANDROID_PLAY_HYBRID_PQC_SHA256,
+];
 
 const APPLE_APP_SITE_ASSOCIATION = {
   applinks: {
