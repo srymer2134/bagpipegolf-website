@@ -135,6 +135,11 @@ const leagueJoinable = isLeague && !eventFinished;
 const appScheme =
   kind === 'invite' ? `fairwayiq://join/${token}` : kind === 'code' ? `fairwayiq://join/${code}` : null;
 const appStoreHref = 'https://apps.apple.com/app/id6775045734';
+// Android shipped after this page did, and "Get the app" pointed at the
+// iPhone store only — so an Android user whose deep link fell through to
+// this page (which, until the assetlinks fingerprint is right, is EVERY
+// Android user) was sent to a store they cannot install from.
+const playStoreHref = 'https://play.google.com/store/apps/details?id=com.taybuta.bagpipe';
 
 const title =
   kind === 'invite'
@@ -223,6 +228,7 @@ const title =
             <div class="cta-row">
               {appScheme && <a class="btn btn--ghost" href={appScheme}>Open in the app</a>}
               <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
+              <a class="btn btn--ghost" href={playStoreHref}>Get the app (Google Play)</a>
             </div>
           </>
         )}
@@ -276,6 +282,7 @@ const title =
         <div class="cta-row">
           {appScheme && <a class="btn btn--ghost" href={appScheme}>Open in the app</a>}
           <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
+          <a class="btn btn--ghost" href={playStoreHref}>Get the app (Google Play)</a>
           <a class="btn btn--ghost" href={`/l/${league.id}/standings`}>Standings</a>
         </div>
       </>
@@ -331,6 +338,7 @@ const title =
         <div class="cta-row">
           {appScheme && <a class="btn btn--ghost" href={appScheme}>Open in the app</a>}
           <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
+          <a class="btn btn--ghost" href={playStoreHref}>Get the app (Google Play)</a>
           <a class="btn btn--ghost" href={`/app/tournaments/${tournament.id}/leaderboard`}>Leaderboard</a>
         </div>
       </>
@@ -353,6 +361,7 @@ const title =
         <div class="cta-row">
           {appScheme && <a class="btn btn--primary" href={appScheme}>Open in the app</a>}
           <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
+          <a class="btn btn--ghost" href={playStoreHref}>Get the app (Google Play)</a>
         </div>
 
         <details class="manual">

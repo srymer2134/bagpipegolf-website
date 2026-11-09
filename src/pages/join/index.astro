@@ -1,0 +1,180 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { classifyJoinParam } from '../../lib/inviteTokenShape';
+
+// Bare `https://bagpipegolf.com/join` — the join path with no code on it.
+//
+// This used to 404, which mattered more than it looks:
+//
+//   * The Android manifest claims `pathPrefix:/join` for autoVerify, so
+//     Play Console lists `https://bagpipegolf.com/join` (and the www
+//     twin) as the associated web link and probes it. A 404 there reads
+//     as "Link not working" next to the real fingerprint problem.
+//   * Anyone who retypes or truncates a shared invite — losing the code
+//     off the end — landed on a dead page instead of a way back in.
+//
+// So this is the code-entry front door. It hands off to
+// `/join/<CODE>`, which already resolves tournaments, leagues, side
+// games and UUID invite tokens, and already renders the malformed case.
+// No validation logic is duplicated here on purpose.
+//
+// `?code=ABC123` is honoured server-side so a link can carry the code
+// in a query string and still land on the right page.
+const requested = Astro.url.searchParams.get('code')?.trim() ?? '';
+if (requested !== '' && classifyJoinParam(requested) !== 'invalid') {
+  return Astro.redirect(`/join/${encodeURIComponent(requested)}`, 302);
+}
+const rejected = requested !== '';
+
+const appStoreHref = 'https://apps.apple.com/app/id6775045734';
+const playStoreHref = 'https://play.google.com/store/apps/details?id=com.taybuta.bagpipe';
+---
+
+<BaseLayout title="Join a game · Bagpipe Golf">
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">Join a live game</p>
+    <h1 class="pagewrap__title">Enter your join code.</h1>
+    <p class="pagewrap__sub">
+      Every tournament, league and side game has a 6-character code — something like <code>ABC123</code>. Type it below and we'll take you straight there. If you were sent a full invite link, open that instead.
+    </p>
+
+    {rejected && (
+      <p class="errorbar" role="alert">
+        That code doesn't look right. Join codes are 6 letters and numbers.
+      </p>
+    )}
+
+    <form class="codeform" method="get" action="/join" id="codeForm">
+      <label class="codeform__label" for="code">Join code</label>
+      <input
+        class="codeform__input"
+        id="code"
+        name="code"
+        type="text"
+        inputmode="latin"
+        autocomplete="off"
+        autocapitalize="characters"
+        spellcheck="false"
+        maxlength="36"
+        placeholder="ABC123"
+        aria-describedby="codeHelp"
+        value={rejected ? requested : ''}
+      />
+      <p class="codeform__help" id="codeHelp">6 letters and numbers, or paste an invite link.</p>
+      <button class="btn btn--primary" type="submit">Continue</button>
+    </form>
+
+    <div class="cta-row">
+      <a class="btn btn--ghost" href={appStoreHref}>Get the app (App Store)</a>
+      <a class="btn btn--ghost" href={playStoreHref}>Get the app (Google Play)</a>
+    </div>
+
+    <details class="manual">
+      <summary>Or enter the code in the app</summary>
+      <ol>
+        <li>Open <strong>Bagpipe Golf</strong> on your phone.</li>
+        <li>For a <strong>side game</strong>: tap the <strong>Play</strong> tab and choose <strong>Join Game</strong>.</li>
+        <li>For a <strong>tournament</strong>: tap the <strong>Events</strong> tab and choose <strong>Join Tournament</strong>.</li>
+        <li>Not sure which? Either flow bounces you to the right screen once the code resolves.</li>
+      </ol>
+    </details>
+  </main>
+</BaseLayout>
+
+<script>
+  // Progressive enhancement only. Without JS the form still GETs
+  // /join?code=…, which the server redirects.
+  const form = document.getElementById('codeForm') as HTMLFormElement | null;
+  const input = document.getElementById('code') as HTMLInputElement | null;
+  if (form && input) {
+    // A pasted invite link carries the code on the end — keep the last
+    // path segment so "paste the link" works as the hint promises.
+    const tidy = (raw: string): string => {
+      const trimmed = raw.trim();
+      if (trimmed === '') return '';
+      if (/^https?:\/\//i.test(trimmed)) {
+        try {
+          const segments = new URL(trimmed).pathname.split('/').filter(Boolean);
+          return segments[segments.length - 1] ?? '';
+        } catch {
+          return trimmed;
+        }
+      }
+      return trimmed;
+    };
+
+    form.addEventListener('submit', (event) => {
+      const value = tidy(input.value);
+      if (value === '') {
+        event.preventDefault();
+        input.focus();
+        return;
+      }
+      // Go straight to the landing page rather than round-tripping
+      // through the redirect.
+      event.preventDefault();
+      window.location.assign(`/join/${encodeURIComponent(value)}`);
+    });
+  }
+</script>
+
+<style>
+  .pagewrap--narrow { max-width: 560px; }
+
+  .codeform {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 24px 0 20px;
+  }
+  .codeform__label {
+    font-weight: 700;
+    font-size: 0.875rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-muted, #4b5b54);
+  }
+  .codeform__input {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 14px 16px;
+    border: 1px solid var(--brand-green, #2f7d44);
+    border-radius: 12px;
+    background: #fff;
+    color: inherit;
+    width: 100%;
+  }
+  .codeform__input::placeholder {
+    color: #9bb0a6;
+    font-weight: 500;
+  }
+  .codeform__help {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--ink-muted, #4b5b54);
+  }
+  .codeform .btn { align-self: flex-start; }
+
+  .errorbar {
+    background: #fdecec;
+    border: 1px solid #d64545;
+    color: #7a1f1f;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 0.875rem;
+  }
+
+  .cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 8px 0 24px;
+  }
+
+  .manual { margin-top: 8px; }
+  .manual summary { cursor: pointer; font-weight: 700; }
+  .manual ol { line-height: 1.6; }
+</style>
