@@ -89,17 +89,46 @@ describe('assetlinks.json', () => {
     }
   });
 
-  it('still lacks the Play app signing key — Play Store installs cannot autoVerify', async () => {
-    // Deliberate, and the same device as the placeholder assertion this
-    // replaced: Google re-signs every uploaded AAB with its own app
-    // signing key, so a Play Store install presents Google's certificate
-    // and not our upload certificate. Whoever appends that second
-    // fingerprint gets a red test telling them to update this file too,
-    // rather than one that silently kept passing. PATRICK_BACKLOG §32.
+  it('carries all three Play App Signing certificates', async () => {
+    // Downloaded from Play Console on 2026-11-09 and fingerprinted with
+    // openssl locally, never transcribed. Google GENERATED this key --
+    // all three are issued to O=Google Inc., CN=Android -- so a Play
+    // Store install presents one of these, never our upload cert.
+    //
+    // Play signs with a hybrid scheme as well as the classical one, and
+    // which certificate a device sees depends on the delivery, so all
+    // three are listed.
     const res = handleWellKnownRequest('/.well-known/assetlinks.json')!;
     const body = (await res.json()) as Array<{
       target: { sha256_cert_fingerprints: string[] };
     }>;
-    expect(body[0].target.sha256_cert_fingerprints).toHaveLength(1);
+    const fingerprints = body[0].target.sha256_cert_fingerprints;
+
+    for (const expected of [
+      // deployment_cert.der
+      'C5:DF:79:FC:05:91:75:F2:2D:21:CB:10:0D:62:F9:54:' +
+        'A0:F7:BC:BC:5E:10:12:BB:CA:F1:05:F0:4D:14:45:46',
+      // hybrid_classical_cert.der
+      'C0:34:40:26:05:77:70:06:00:17:1E:80:E8:BA:73:E6:' +
+        '46:84:A3:15:4C:47:35:E8:3E:9F:1B:28:94:A7:AF:20',
+      // hybrid_pqc_cert.der
+      '79:98:E8:15:DA:D6:93:B3:D7:A8:A9:BE:4B:EA:15:82:' +
+        '4F:CA:70:1F:30:83:75:05:D8:E8:E5:87:1D:D2:B1:0D',
+    ]) {
+      expect(fingerprints).toContain(expected);
+    }
+  });
+
+  it('lists exactly the four certificates that can sign a build', async () => {
+    // Pinned on purpose: Play Store delivery (three Google certs) plus
+    // Firebase App Distribution and local release builds (our upload
+    // key). Adding or dropping one goes red here so it cannot change
+    // quietly -- the sentinel value this file used to serve failed
+    // silently for months precisely because nothing watched it.
+    const res = handleWellKnownRequest('/.well-known/assetlinks.json')!;
+    const body = (await res.json()) as Array<{
+      target: { sha256_cert_fingerprints: string[] };
+    }>;
+    expect(body[0].target.sha256_cert_fingerprints).toHaveLength(4);
   });
 });
