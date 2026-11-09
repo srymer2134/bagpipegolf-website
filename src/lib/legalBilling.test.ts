@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { dollars, PLANS, PROMO_CODE, PROMO_PERCENT } from './offer';
+import { dollars, PLANS, PROMO_CODE } from './offer';
 
 // Billing went live on 2026-11-05 (Stripe LIVE, lib/offer.ts). Until
 // 2026-11-09 both legal pages still said we never touch money — Terms §6
@@ -60,12 +60,25 @@ describe('Terms — the money claims match what we actually do', () => {
     expect(t).toMatch(/Single-event\s+passes do not renew/);
   });
 
-  it('states the promo terms that match offer.ts', () => {
+  // Sam, 2026-11-09: keep the promo clause high level — the Terms say that
+  // codes work when applicable, and the code's own terms live wherever we
+  // publish it. A dated code in a contract goes stale and then has to be
+  // amended, which is the opposite of what a Terms page is for.
+  it('covers promo codes without naming one', () => {
     const t = read(TERMS);
-    expect(t).toContain(PROMO_CODE);
-    expect(t).toContain(`${PROMO_PERCENT}% off the first payment`);
     expect(t).toMatch(/first payment only/);
-    expect(t).toMatch(/December 31, 2026/);
+    expect(t).toMatch(/One code per checkout/);
+    expect(t).toMatch(/valid only on the terms stated/);
+  });
+
+  it('never hard-codes a live code, percentage or redeem-by date', () => {
+    const t = read(TERMS);
+    expect(t).not.toContain(PROMO_CODE);
+    expect(t).not.toMatch(/\d+% off/);
+    expect(t).not.toMatch(/Mountain Time/);
+    // No calendar date in the Terms except the "Last updated" line itself.
+    const dates = [...t.matchAll(/(?:January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4}/g)];
+    expect(dates.map((m) => m[0])).toEqual(['November 9, 2026']);
   });
 
   it('states the refund stance and the trial', () => {
