@@ -32,6 +32,7 @@ export const LLMS_KEY_PAGES: ReadonlyArray<[label: string, path: string]> = [
 
 const SITE = 'https://bagpipegolf.com';
 const APP_STORE = 'https://apps.apple.com/app/id6775045734';
+const PLAY_STORE = 'https://play.google.com/store/apps/details?id=com.taybuta.bagpipe';
 
 export function buildLlmsTxt(): string {
   const featured = LLMS_FEATURED_GAME_SLUGS.map((slug) => {
@@ -43,10 +44,9 @@ export function buildLlmsTxt(): string {
 
   return `# Bagpipe Golf
 
-> Bagpipe Golf is an iPhone and iPad app for golf side games, scorecards,
+> Bagpipe Golf is an iPhone, iPad and Android app for golf side games, scorecards,
 > buddies trips, tournaments and leagues. It is made by Taybuta, Inc.
 > Free for players; tournaments are free up to 36 players and $240 at 37 or more; leagues are $2,140 a year per league (one login, unlimited events and formats, plus a season-long match-play series as a free companion league), or $2,970 a year for a club with unlimited leagues and up to 4 admin accounts.
-> Android is in development.
 
 ## What it does
 - Smart scorecard with handicap strokes applied automatically
@@ -81,5 +81,6 @@ support@bagpipegolf.com (bugs and outages)
 ## Key pages
 ${LLMS_KEY_PAGES.map(([label, path]) => `- ${label}: ${SITE}${path}`).join('\n')}
 - App Store: ${APP_STORE}
+- Google Play: ${PLAY_STORE}
 `;
 }

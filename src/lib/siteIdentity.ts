@@ -5,6 +5,7 @@ import { sideGames } from './sideGames';
 
 export const SITE_URL = 'https://bagpipegolf.com/';
 export const APP_STORE_URL = 'https://apps.apple.com/app/id6775045734';
+export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.taybuta.bagpipe';
 
 export const SOCIAL_PROFILE_URLS = {
   tiktok: 'https://www.tiktok.com/@bagpipegolf',
@@ -18,7 +19,8 @@ export type SocialPlatform = keyof typeof SOCIAL_PROFILE_URLS;
 
 /** schema.org Organization + SoftwareApplication, rendered in every
  *  page's <head> by BaseLayout. Facts checked 2026-10-07: price 0, iPhone
- *  and iPad (TARGETED_DEVICE_FAMILY 1,2), seller Taybuta, Inc. The game
+ *  and iPad (TARGETED_DEVICE_FAMILY 1,2), seller Taybuta, Inc. Android
+ *  added 2026-11-10, when the app went live on Google Play. The game
  *  count is the website library's — it matches the app's GameType.values. */
 export function siteJsonLd() {
   return {
@@ -39,6 +41,7 @@ export function siteJsonLd() {
           SOCIAL_PROFILE_URLS.threads,
           SOCIAL_PROFILE_URLS.x,
           APP_STORE_URL,
+          PLAY_STORE_URL,
         ],
       },
       {
@@ -50,7 +53,7 @@ export function siteJsonLd() {
           'with automatic settlement, buddies-trip Cup templates, ' +
           'tournaments and leagues.',
         applicationCategory: 'SportsApplication',
-        operatingSystem: 'iOS, iPadOS',
+        operatingSystem: 'iOS, iPadOS, Android',
         url: SITE_URL,
         downloadUrl: APP_STORE_URL,
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
