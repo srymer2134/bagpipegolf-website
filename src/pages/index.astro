@@ -4,6 +4,7 @@ import SocialLinks from '../components/SocialLinks.astro';
 import { sideGames } from '../lib/sideGames';
 import PlanCards from '../components/PlanCards.astro';
 import PromoBar from '../components/PromoBar.astro';
+import StoreBadges from '../components/StoreBadges.astro';
 
 // The games named in the side-games card. "N more" is the library size
 // minus this list — it said "21 more" after nine names with 34 games.
@@ -32,34 +33,32 @@ const moreGames = sideGames.length - featuredGames.length;
           who got tired of doing skins on a napkin.
         </p>
 
-        <!-- Launch banner — replaces the sitenav "Live on App Store"
-             button per Sam 2026-08-25. Prominent visual push on the
-             homepage, doesn't clutter every-page nav chrome. -->
-        <a class="launchBanner" href="https://apps.apple.com/app/id6775045734">
-          <img
-            src="/bagpipe-golf-logo.jpg"
-            alt=""
-            class="launchBanner__logo"
-            width="72"
-            height="72"
-          />
-          <div class="launchBanner__copy">
-            <span class="launchBanner__eyebrow">App Launch</span>
-            <span class="launchBanner__title">Now Available on the App Store</span>
-            <span class="launchBanner__sub">iPhone &amp; iPad · free · Android coming soon</span>
+        <!-- Launch banner — the app on both stores, with the official
+             App Store and Google Play badges. Android went live on
+             Google Play 2026-11-10; until then this linked to the App
+             Store alone and said "Android coming soon". -->
+        <div class="launchBanner">
+          <div class="launchBanner__head">
+            <img
+              src="/bagpipe-golf-logo.jpg"
+              alt=""
+              class="launchBanner__logo"
+              width="72"
+              height="72"
+            />
+            <div class="launchBanner__copy">
+              <span class="launchBanner__eyebrow">Now on Google Play</span>
+              <span class="launchBanner__title">Get the app on iPhone and Android</span>
+              <span class="launchBanner__sub">Free · iPhone, iPad and Android phones</span>
+            </div>
           </div>
-          <span class="launchBanner__arrow" aria-hidden="true">↗</span>
-        </a>
+          <StoreBadges height={52} source="hero" />
+        </div>
 
         <div class="hero__ctas">
           <a class="btn btn--primary" href="#features">See what's inside</a>
           <a class="btn btn--ghost" href="#directors">Run a tournament</a>
         </div>
-        <p class="hero__sub">
-          Not on iPhone? Email
-          <a href="mailto:hello@bagpipegolf.com?subject=Bagpipe%20Golf">hello@bagpipegolf.com</a>
-          — we'll ping you when Android ships.
-        </p>
 
         <!-- Social row — component handles the 4 platforms + click
              tracking. Source tag lets the analytics hook distinguish
@@ -277,13 +276,13 @@ const moreGames = sideGames.length - featuredGames.length;
 
   /* ── Launch banner ─────────────────────────────────── */
   .launchBanner {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 20px;
+    gap: 18px;
     max-width: 640px;
     margin: 0 auto 24px;
-    padding: 16px 22px;
+    padding: 20px 22px 22px;
     background:
       linear-gradient(
         135deg,
@@ -292,13 +291,14 @@ const moreGames = sideGames.length - featuredGames.length;
       );
     border-radius: 16px;
     box-shadow: 0 10px 32px rgba(15, 61, 37, 0.35);
-    text-decoration: none;
     color: #fff;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
-  .launchBanner:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 38px rgba(15, 61, 37, 0.42);
+  .launchBanner__head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
   }
   .launchBanner__logo {
     width: 72px;
@@ -334,19 +334,11 @@ const moreGames = sideGames.length - featuredGames.length;
     opacity: 0.85;
     margin-top: 2px;
   }
-  .launchBanner__arrow {
-    font-size: 1.75rem;
-    font-weight: 700;
-    opacity: 0.85;
-    padding-right: 4px;
-  }
   @media (max-width: 520px) {
     .launchBanner {
-      grid-template-columns: auto 1fr;
-      gap: 14px;
-      padding: 14px 16px;
+      padding: 16px 16px 18px;
     }
-    .launchBanner__arrow { display: none; }
+    .launchBanner__head { gap: 14px; }
     .launchBanner__logo { width: 56px; height: 56px; }
     .launchBanner__title { font-size: 1.0625rem; }
   }

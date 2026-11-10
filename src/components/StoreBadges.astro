@@ -1,0 +1,90 @@
+---
+// The official "Download on the App Store" and "Get it on Google Play"
+// badges, side by side at the same visible height.
+//
+// Both files are the stores' own artwork, unmodified, as their brand
+// guidelines require: Apple's black SVG from developer.apple.com, and
+// Google's en_badge_web_generic.png from play.google.com. Google's PNG
+// carries 41px of transparent padding around a 564x168 badge inside a
+// 646x250 canvas, so the link is sized to the badge itself and the
+// image is drawn larger behind it, offset by the padding. Only the
+// transparent margin is clipped, and the two badges end up the same
+// height with an even gap between them.
+import { APP_STORE_URL, PLAY_STORE_URL } from '../lib/siteIdentity';
+
+interface Props {
+  /** Visible badge height in px. */
+  height?: number;
+  /** Analytics source tag, e.g. "hero". */
+  source?: string;
+}
+
+const { height = 52, source = 'site' } = Astro.props;
+const appleWidth = (height * 119.66407) / 40;
+const googleScale = height / 168;
+const googleHeight = 250 * googleScale;
+const googleWidth = 646 * googleScale;
+const googleInset = 41 * googleScale;
+const googleBoxWidth = 564 * googleScale;
+---
+
+<div class="storeBadges">
+  <a
+    class="storeBadges__link"
+    href={APP_STORE_URL}
+    data-store="app-store"
+    data-source={source}
+  >
+    <img
+      src="/badges/app-store.svg"
+      alt="Download on the App Store"
+      width={appleWidth.toFixed(1)}
+      height={height}
+    />
+  </a>
+  <a
+    class="storeBadges__link storeBadges__link--google"
+    href={PLAY_STORE_URL}
+    data-store="google-play"
+    data-source={source}
+    style={`width: ${googleBoxWidth.toFixed(1)}px; height: ${height}px;`}
+  >
+    <img
+      src="/badges/google-play.png"
+      alt="Get it on Google Play"
+      width={googleWidth.toFixed(1)}
+      height={googleHeight.toFixed(1)}
+      style={`margin: -${googleInset.toFixed(1)}px;`}
+    />
+  </a>
+</div>
+
+<style>
+  .storeBadges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    align-items: center;
+  }
+  .storeBadges__link {
+    display: inline-flex;
+    line-height: 0;
+    border-radius: 8px;
+    transition: transform 0.15s ease;
+  }
+  .storeBadges__link--google {
+    overflow: hidden;
+  }
+  .storeBadges__link:hover {
+    transform: translateY(-2px);
+  }
+  .storeBadges__link:focus-visible {
+    outline: 3px solid var(--brand-green, #1f6b3f);
+    outline-offset: 3px;
+  }
+  .storeBadges__link img {
+    display: block;
+    max-width: none;
+  }
+</style>

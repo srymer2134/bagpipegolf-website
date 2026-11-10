@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { sideGames } from './sideGames';
-import { APP_STORE_URL, SOCIAL_PROFILE_URLS, siteJsonLd } from './siteIdentity';
+import { APP_STORE_URL, PLAY_STORE_URL, SOCIAL_PROFILE_URLS, siteJsonLd } from './siteIdentity';
 
 describe('site JSON-LD', () => {
   const ld = siteJsonLd();
@@ -20,9 +20,9 @@ describe('site JSON-LD', () => {
     expect(sideGames.length).toBe(34); // bump with the library; the description follows on its own
   });
 
-  it('lists every social profile the footer shows, plus the App Store', () => {
+  it('lists every social profile the footer shows, plus both app stores', () => {
     expect(new Set(org.sameAs)).toEqual(
-      new Set([...Object.values(SOCIAL_PROFILE_URLS), APP_STORE_URL]),
+      new Set([...Object.values(SOCIAL_PROFILE_URLS), APP_STORE_URL, PLAY_STORE_URL]),
     );
   });
 
