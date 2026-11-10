@@ -71,11 +71,10 @@ describe('the profile page does not select dropped columns', () => {
   it('still selects the columns the page renders — not vacuously passing', () => {
     // Without this, a `.select('id')` would satisfy every assertion above.
     const cols = selectedColumns();
-    for (const col of ['display_name', 'handicap', 'home_course_id', 'playing_style',
-                       'typical_miss', 'typical_miss_irons', 'phone']) {
+    for (const col of ['display_name', 'handicap', 'home_course_id', 'phone']) {
       expect(cols).toContain(col);
     }
-    expect(cols.length).toBeGreaterThanOrEqual(8);
+    expect(cols.length).toBeGreaterThanOrEqual(5);
   });
 
   it('handicap_source survives — only its allowed VALUES narrow', () => {
