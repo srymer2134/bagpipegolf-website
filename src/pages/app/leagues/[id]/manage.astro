@@ -271,13 +271,9 @@ const visibleGroups = groups
         )}
 
         <div class="notice">
-          <strong>Season settings are editable here.</strong> Every field
-          below is generated from the database's own column definitions and
-          rules, so this form and the app are the same definition rendered
-          twice — not two opinions. Saving writes only what you changed, and
-          the league's rules are re-checked on the server before anything
-          lands. Pairings, substitutes and anything mid-round stay in the
-          app, where an offline outbox protects them.
+          <strong>Edit your season settings here.</strong> Changes show up
+          in the app too. Pairings, substitutes and scoring are done in the
+          app.
         </div>
 
         <form id="cfgForm" class="cfg">
@@ -408,9 +404,8 @@ const visibleGroups = groups
           <section class="lsec">
             <h2 class="lsec__h">Add players</h2>
             <p class="small muted">
-              Only you can do this — the login that owns this league, not
-              every commissioner. Removing a player, and withdrawing an
-              invite, are still done from the league roster in the app.
+              Only the league owner can add players. To remove a player or
+              cancel an invite, use the league roster in the app.
             </p>
             <RosterInvite leagueId={d.league.id} invites={invites} />
             <RosterCsvImport leagueId={d.league.id} />
@@ -420,12 +415,9 @@ const visibleGroups = groups
         <section class="lsec">
           <h2 class="lsec__h">Still edited in the app</h2>
           <p class="small muted">
-            Pairings and substitutes · weekly matchups · recording scores ·
-            messaging the league · removing a player or withdrawing an
-            invite. These are mid-round, on-course or roster-removal
-            surfaces, and the app has an offline outbox that a browser tab
-            does not — the dividing line the parity plan calls "the desk,
-            not the tee box".
+            Pairings and substitutes, weekly matchups, entering scores,
+            messaging the league, and removing players or cancelling invites.
+            These are done in the Bagpipe Golf app.
           </p>
         </section>
       </>

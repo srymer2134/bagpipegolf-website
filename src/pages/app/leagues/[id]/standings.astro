@@ -136,8 +136,7 @@ const caveat = d ? mixedFormatCaveat(d.league.points_model, d.schedule?.formats)
             )}
 
             <p class="small muted">
-              As of {computedAgo(d.snapshot!.computed_at)}. Published from a
-              member's phone — the engine that computes it is in the app.
+              Updated {computedAgo(d.snapshot!.computed_at)}.
             </p>
           </>
         )}
@@ -145,10 +144,7 @@ const caveat = d ? mixedFormatCaveat(d.league.points_model, d.schedule?.formats)
         <section class="lsec">
           <h2 class="lsec__h">Flights &amp; playoffs</h2>
           <p class="small muted">
-            Flighting and playoff brackets are configured and computed in the
-            app. They aren't in the published projection yet, so the portal
-            can't show them without inventing numbers — part of §45's
-            server-side standings work.
+            Flights and playoff brackets are in the Bagpipe Golf app.
           </p>
         </section>
       </>

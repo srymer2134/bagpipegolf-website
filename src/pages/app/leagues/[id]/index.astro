@@ -212,7 +212,7 @@ if (payMode !== 'off' && d && id && own && payable) {
                   {next.first_tee_at && <div><dt>First tee</dt><dd>{next.first_tee_at.slice(0, 5)}</dd></div>}
                   <div><dt>Your RSVP</dt><dd>{rsvpLabel(d.signups[next.slot_index])}</dd></div>
                 </dl>
-                <p class="small muted">RSVP in the app — the portal reads it.</p>
+                <p class="small muted">RSVP in the Bagpipe Golf app.</p>
               </>
             ) : (
               <h3 class="muted">{d.weeks.length ? 'Season complete' : 'No events scheduled'}</h3>

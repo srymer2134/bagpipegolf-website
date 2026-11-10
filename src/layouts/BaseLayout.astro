@@ -1,7 +1,7 @@
 ---
 import SiteNav from '../components/SiteNav.astro';
 import Footer from '../components/Footer.astro';
-import { siteJsonLd } from '../lib/siteIdentity';
+import { APP_STORE_ID, siteJsonLd } from '../lib/siteIdentity';
 import { canonicalUrl } from '../lib/canonical';
 import { GTM_CONTAINER_ID, gtmAllowedPath, gtmLoaderScript } from '../lib/analytics';
 
@@ -65,6 +65,14 @@ const withGtm = gtmAllowedPath(Astro.url.pathname);
          references inside SVG favicons. Direct JPG works everywhere. -->
     <link rel="icon" type="image/jpeg" href="/bagpipe-golf-logo.jpg" />
     <link rel="apple-touch-icon" href="/bagpipe-golf-logo.jpg" />
+    <!-- Safari on iPhone shows an "Open" / "Get" banner for the app at the
+         top of every page. `app-argument` hands the app the page's path
+         (never its query, which can carry one-time tokens), so a /join
+         link lands on that invite. -->
+    <meta
+      name="apple-itunes-app"
+      content={`app-id=${APP_STORE_ID}, app-argument=${new URL(Astro.url.pathname, SITE.origin).toString()}`}
+    />
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta property="og:site_name" content="Bagpipe Golf" />
