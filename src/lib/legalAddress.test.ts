@@ -12,12 +12,45 @@ import { readFileSync } from 'node:fs';
 // cannot happen quietly again.
 const read = (p: string) => readFileSync(p, 'utf8');
 const PAGES = ['src/pages/terms.astro', 'src/pages/privacy.astro'];
-const MAILING_ADDRESS = '3800 Buchtel Blvd, P.O. Box 100532, Denver, CO 80250';
+// Sam gave the address in this form on 2026-11-09: an addressee line, then
+// street, then box, then city. The entity is named again inside the block
+// because a postal address needs an addressee, even though both pages name
+// Taybuta a line above. Two things normalised to house style, and flagged to
+// him: "Inc." keeps the period every other mention in these documents uses,
+// and "P.O." keeps both, as in flutter #1631.
+const ADDRESS_LINES = [
+  'Taybuta, Inc.',
+  '3800 Buchtel Blvd',
+  'P.O. Box 100532',
+  'Denver, CO 80250',
+];
 
 describe('legal contact address', () => {
-  it('is the current Denver address on both published pages', () => {
+  it('is a mailable four-line block on both published pages', () => {
     for (const f of PAGES) {
-      expect(read(f), f).toContain(`<strong>Mailing address:</strong> ${MAILING_ADDRESS}`);
+      const t = read(f);
+      expect(t, f).toContain('<strong>Mailing address:</strong><br />');
+      // In order, each on its own line.
+      let at = t.indexOf('<strong>Mailing address:</strong>');
+      for (const line of ADDRESS_LINES) {
+        const next = t.indexOf(line, at);
+        expect(next, `${f}: "${line}" after the previous line`).toBeGreaterThan(at);
+        at = next;
+      }
+    }
+  });
+
+  it('names the addressee inside the block, not just above it', () => {
+    for (const f of PAGES) {
+      const t = read(f);
+      const block = t.slice(t.indexOf('<strong>Mailing address:</strong>'));
+      expect(block.slice(0, 400), f).toContain('Taybuta, Inc.');
+    }
+  });
+
+  it('does not run the address together on one line', () => {
+    for (const f of PAGES) {
+      expect(read(f), f).not.toMatch(/Buchtel Blvd, P\.O\. Box/);
     }
   });
 
