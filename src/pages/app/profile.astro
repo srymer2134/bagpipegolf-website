@@ -35,9 +35,13 @@ let loadError: string | null = null;
 try {
   const { data, error } = await supabase
     .from('profiles')
+    // No `handicap_updated_at`: nothing on this page reads it, and the
+    // column is dropped by flutter `20261214_bagpipe_handicap_backout.sql`.
+    // PostgREST 400s the WHOLE select on an unknown column, so leaving it
+    // here would turn this page into "Could not load your profile." the
+    // moment that migration lands. This must deploy BEFORE it.
     .select('display_name, handicap, home_course_id, playing_style, '
-      + 'typical_miss, typical_miss_irons, phone, handicap_source, '
-      + 'handicap_updated_at')
+      + 'typical_miss, typical_miss_irons, phone, handicap_source')
     .eq('id', user.id)
     .maybeSingle();
   if (error) throw new Error(error.message);
