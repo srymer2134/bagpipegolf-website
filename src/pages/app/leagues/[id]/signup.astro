@@ -1,58 +1,14 @@
 ---
-// Sign up for one league EVENT — PLACEHOLDER, no payment is taken.
+// Sign up for one league event: the player's answer ("I'm in" /
+// "Can't make it") for one slot of the season, plus optional season dues.
 //
-// Sam 2026-10-02: modelled on how City Park Players Club collects
-// sign-ups through Unknown Golf
-// (`league.unknowngolf.com/signUpQuestionnaire.jsp`).
+// The answer is the same `league_signups` row the app writes; it is saved
+// by `POST /api/leagues/[id]/rsvp`, which also adds a playing member to
+// the event's tournament field when the slot is bound to one.
 //
-// 🚨 SCOPE, CORRECTED. Their page is "CPPC Tournament #12: October 11 -
-// 10am" — ONE EVENT INSIDE A SEASON, not the season itself. Sam pointed
-// this out and it decides the data model, so it is worth stating:
-//
-//   * a season has slots (`league_weeks` / `leagues.schedule`)
-//   * a slot may be BOUND to a tournament —
-//     `schedule.bindings[slot]` → `tournaments.id`
-//   * a player's per-event answer already exists: a `league_signups`
-//     row keyed (league_id, user_id, slot_index) with a status
-//
-// So the fee is PER EVENT, and the existing `EntryFee` model
-// (`tournament_id`, `amount_cents`, `due_date`) is already the right
-// shape — a league event IS a tournament. **No new league dues column
-// is needed for this flow**, which is the opposite of what reading
-// their page as a season sign-up suggested.
-//
-// 🚨 STEPS 1–5 CHARGE NOBODY. The fee block is illustrative and step
-// 5's pay button is inert, flag or no flag.
-//
-// The one REAL money control is step 6, "Season dues", and it exists
-// only with PAYMENTS_ENABLED (see `signupDuesStep` in
-// `src/lib/paymentsSignup.ts`). With the flag off — production today —
-// this page renders exactly as it did before step 6 was added.
-//
-// WHAT THEIR FORM ASKS, AND WHY OURS IS SHORTER
-//
-// Unknown Golf's questionnaire collects 17 fields: gender, first/last
-// name, suffix, email, handle, mobile, USGA handicap id, a PHOTO of the
-// handicap card, date of birth, age, tee box, division, team partners
-// (each repeating most of the above), team name, tee time, promo code,
-// entry fee, comments.
-//
-// It has to. There is no account behind it — every sign-up starts from
-// nothing, every season, for every event.
-//
-// We already know the player. So the honest replication is not
-// "reproduce 17 fields"; it is "ask only what the event adds". That is
-// the section split below: what we know (read-only, from the profile)
-// versus what the event needs (the only things anyone types).
-//
-// Deliberately NOT copied:
-//   * handicap-card photo upload — we hold a handicap and a GHIN id on
-//     the profile; a photo is a manual-verification workflow we have no
-//     reviewer for, so it would collect a liability and change nothing.
-//   * age, computed from DOB — we only need DOB where an age division
-//     exists, and then the division is what matters, not the number.
-//   * separate gender field — the field_gender / tee resolution already
-//     carries this where it affects play.
+// Season dues are real only with PAYMENTS_ENABLED (`signupDuesStep` in
+// `src/lib/paymentsSignup.ts`); with the flag off the block is absent.
+// Payment returns land back here with `?slot=`.
 
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import LeagueSubnav from '../../../../components/LeagueSubnav.astro';
@@ -113,12 +69,6 @@ const event = (slotParam !== null && Number.isInteger(slotParam)
   ?? events[0]
   ?? null;
 
-// The tournament this slot is bound to, if the director bound one.
-// That id is what an `EntryFee` row keys on.
-const boundTournamentId = event
-  ? (detail?.schedule?.bindings?.[String(event.slot_index)] ?? null)
-  : null;
-
 // The player's existing answer for this slot, if any.
 const myRsvp = event ? detail?.signups?.[event.slot_index] : undefined;
 
@@ -127,34 +77,7 @@ const eventDate = event?.week_of
       { weekday: 'long', month: 'long', day: 'numeric' })
   : null;
 
-// ── Illustrative figures ────────────────────────────────────────
-// Hard-coded ON PURPOSE and labelled as such in the UI. There is no
-// season-dues column on `leagues` yet — only the weekly pot columns
-// (`pot_skins_entry`, `pot_ctp_entry`, `pot_ld_entry` from migration
-// 20261017) and the tournament-scoped `EntryFee` model
-// (`amount_cents`, `due_date`). Inventing a dues column here to make a
-// placeholder look real is how a placeholder becomes a schema.
-const EXAMPLE = {
-  entryFeeCents: 2500,
-  greensFeeCents: 3500,
-  potSkinsCents: 1000,
-  potCtpCents: 500,
-};
-const money = (cents: number) =>
-  `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
-
-// Only the entry fee would run through Bagpipe. Greens fees and pots
-// are listed so the real cost of turning up is visible, and flagged so
-// nobody expects a card charge to cover them.
-const feeRows = [
-  { label: 'Event entry', value: money(EXAMPLE.entryFeeCents), note: 'collected by the league', viaApp: true },
-  { label: 'Greens fee', value: money(EXAMPLE.greensFeeCents), note: 'paid at the course', viaApp: false },
-  { label: 'Skins pot', value: money(EXAMPLE.potSkinsCents), note: 'optional, on the day', viaApp: false },
-  { label: 'Closest to the pin', value: money(EXAMPLE.potCtpCents), note: 'optional, on the day', viaApp: false },
-];
-const dueNowCents = EXAMPLE.entryFeeCents;
-
-// ── 6 · Season dues — REAL, and only with PAYMENTS_ENABLED ─────────
+// ── Season dues — only with PAYMENTS_ENABLED ─────────────────────
 // With the flag off nothing below runs, `dues` stays null and the page
 // renders exactly as it did before (steps 1–5 above are still the
 // placeholder; step 5's inert button is untouched either way).
@@ -191,7 +114,7 @@ if (payMode !== 'off' && detail && id) {
 }
 ---
 
-<BaseLayout title="League sign-up · Bagpipe Golf">
+<BaseLayout title="Event sign-up · Bagpipe Golf">
   <main class="pagewrap pagewrap--narrow">
     {loadError && <div class="notice notice--warn">{loadError}</div>}
     {!detail && !loadError && (
@@ -206,18 +129,10 @@ if (payMode !== 'off' && detail && id) {
         <h1 class="pagewrap__title">Sign up for this event.</h1>
         <LeagueSubnav id={id!} active="signup" coachAccess={detail?.league.coach_access ?? false} />
 
-        <div class="notice notice--warn ph">
-          <strong>Placeholder.</strong> Shows the shape of signing up for one
-          league event and <strong>takes no payment</strong>. Figures are
-          examples, not this league's real fees. Card payment arrives with
-          Stripe; what that needs is listed at the bottom.
-        </div>
-
         {!event && (
           <div class="notice notice--warn">
-            This season has no events scheduled yet, so there is nothing to
-            sign up for. Add a season on
-            <a href={`/app/leagues/${id}/schedule`}> Schedule</a> first.
+            No events are scheduled for this season yet. Check back once your
+            commissioner has set the schedule.
           </div>
         )}
 
@@ -225,21 +140,20 @@ if (payMode !== 'off' && detail && id) {
         <section class="evt">
           <div class="evt__main">
             <p class="evt__eyebrow">Event {event.slot_index + 1}</p>
-            <h2 class="evt__name">{eventDate ?? `Slot ${event.slot_index + 1}`}</h2>
+            <h2 class="evt__name">{eventDate ?? `Event ${event.slot_index + 1}`}</h2>
             <p class="evt__meta">
               {[
-                event.first_tee_at ? `first tee ${event.first_tee_at}` : null,
+                event.first_tee_at ? `First tee ${event.first_tee_at.slice(0, 5)}` : null,
                 event.holes ? `${event.holes} holes` : null,
                 event.tee ? `${event.tee} tees` : null,
-                event.course_id ?? null,
-              ].filter(Boolean).join(' · ') || 'Details not set yet'}
+              ].filter(Boolean).join(' · ') || 'Tee time and details to come'}
             </p>
           </div>
           <div class="evt__side">
-            <span class:list={['pill', myRsvp === 'in' && 'pill--in',
+            <span id="rsvpPill" class:list={['pill', myRsvp === 'in' && 'pill--in',
                                myRsvp === 'out' && 'pill--out']}>
-              {myRsvp === 'in' ? 'You are in'
-                : myRsvp === 'out' ? 'You are out'
+              {myRsvp === 'in' ? "You're in"
+                : myRsvp === 'out' ? "You're out"
                 : 'No answer yet'}
             </span>
           </div>
@@ -247,24 +161,8 @@ if (payMode !== 'off' && detail && id) {
         )}
 
         {event && (
-        <p class="hint">
-          Their page is one event &mdash; <em>"CPPC Tournament #12: October 11
-          - 10am"</em> &mdash; not a season. Ours is the same: you answer per
-          event, and a season's answers live in <code>league_signups</code>
-          keyed by slot. {boundTournamentId
-            ? 'This slot is bound to a tournament, which is what an entry fee would attach to.'
-            : 'This slot has no tournament bound yet, so there is nothing for an entry fee to attach to.'}
-        </p>
-        )}
-
-        {/* ── 1. What we already know ─────────────────────────── */}
         <section class="blk">
-          <h2 class="blk__h">1 &middot; Your details</h2>
-          <p class="hint">
-            Already on your profile &mdash; nothing to re-type. Change any of
-            it in <a href="/app/profile">Profile</a> and it follows you into
-            every league and event.
-          </p>
+          <h2 class="blk__h">Your details</h2>
           <dl class="known">
             <div><dt>Name</dt><dd>{profile?.display_name ?? '—'}</dd></div>
             <div><dt>Email</dt><dd>{user.email}</dd></div>
@@ -272,158 +170,34 @@ if (payMode !== 'off' && detail && id) {
               <dt>Handicap</dt>
               <dd>{profile?.handicap != null ? profile.handicap : 'not set'}</dd>
             </div>
-            <div>
-              <dt>Mobile</dt>
-              <dd>{profile?.phone ?? <span class="muted">not set — optional</span>}</dd>
-            </div>
           </dl>
           <p class="hint">
-            Unknown Golf asks City Park players for name, email, phone,
-            handicap, date of birth and a photo of their handicap card
-            <em>every single sign-up</em>, because there is no account behind
-            the form. This is the part we do not have to ask.
+            Something wrong? Update it in <a href="/app/profile">Profile</a>.
           </p>
         </section>
+        )}
 
-        {/* ── 2. What the event actually adds ─────────────────── */}
-        <section class="blk">
-          <h2 class="blk__h">2 &middot; What this event needs</h2>
-          <p class="hint">The only things anyone types.</p>
-
-          <label class="field">
-            <span>Tee box you'll play</span>
-            <select disabled>
-              <option>Select a tee —</option>
-            </select>
-            <em class="fieldnote">
-              Populated from the event's course once the director sets
-              one{event?.course_id ? '' : ' — this event has no course yet'}.
-            </em>
-          </label>
-
-          <label class="field">
-            <span>Division / flight <em>optional</em></span>
-            <select disabled>
-              <option>Director decides from handicaps —</option>
-            </select>
-            <em class="fieldnote">
-              Leagues already compute flights from handicap
-              (<code>flight_count</code>), so this is a request, not an
-              assignment.
-            </em>
-          </label>
-
-          <label class="field">
-            <span>GHIN / USGA handicap ID <em>optional</em></span>
-            <input type="text" placeholder="e.g. 1234567" disabled />
-            <em class="fieldnote">
-              Only useful once GHIN sync is live. No card photo &mdash; we
-              would have nobody to review it.
-            </em>
-          </label>
-
-          <label class="field">
-            <span>Anything the director should know <em>optional</em></span>
-            <textarea rows="3" placeholder="Can't make the first two weeks…" disabled></textarea>
-          </label>
-        </section>
-
-        {/* ── 3. Partner, only when the format needs one ──────── */}
-        <section class="blk">
-          <h2 class="blk__h">3 &middot; Your partner</h2>
-          <p class="hint">
-            Shown only for a team format. This league is
-            <strong> {league.points_model ?? 'not yet configured'}</strong>
-            {league.points_model === 'match_play'
-              ? ' — a two-player team league, so a partner is required.'
-              : ' — no partner needed.'}
-          </p>
-          <label class="field">
-            <span>Partner</span>
-            <input type="text" placeholder="Search the roster, or invite by email" disabled />
-            <em class="fieldnote">
-              Roster search first, then an email invite &mdash; the same
-              invite path the app already uses, so an unregistered partner
-              gets a real account rather than a typed-in name.
-            </em>
-          </label>
-        </section>
-
-        {/* ── 4. Money ───────────────────────────────────────── */}
-        <section class="blk">
-          <h2 class="blk__h">4 &middot; What it costs</h2>
-          <p class="hint">
-            <strong>Example figures.</strong> Only the entry fee would run
-            through Bagpipe &mdash; the rest is listed so the real cost of
-            turning up is visible.
-          </p>
-          <dl class="fees">
-            {feeRows.map((r) => (
-              <div class="fees__row">
-                <dt>
-                  {r.label} <em>{r.note}</em>
-                  {!r.viaApp && <span class="offapp">not via Bagpipe</span>}
-                </dt>
-                <dd>{r.value}</dd>
-              </div>
-            ))}
-            <div class="fees__row fees__row--total">
-              <dt>Due now</dt>
-              <dd>{money(dueNowCents)}</dd>
+        {event && (event.status === 'complete' ? (
+          <p class="notice">This event has already been played.</p>
+        ) : (
+          <section class="blk" id="rsvp" data-league={id} data-slot={event.slot_index}>
+            <h2 class="blk__h">Are you playing?</h2>
+            <div id="rsvpMsg" class="notice" hidden></div>
+            <div class="rsvp">
+              <button type="button" class="btn btn--primary" data-status="in">I'm in</button>
+              <button type="button" class="btn btn--ghost" data-status="out">Can't make it</button>
             </div>
-          </dl>
-          <label class="field">
-            <span>Promo code <em>optional</em></span>
-            <input type="text" placeholder="CPPC2026" disabled />
-          </label>
-          <p class="hint">
-            An entry fee is per event, which is exactly the shape the existing
-            <code>EntryFee</code> model already has &mdash;
-            <code>tournament_id</code>, <code>amount_cents</code>,
-            <code>due_date</code>. A league event <em>is</em> a tournament, so
-            nothing new is needed to store this.
-          </p>
-        </section>
+            <p class="hint">You can change your answer until the event is played.</p>
+          </section>
+        ))}
 
-        {/* ── 5. The payment step, inert ──────────────────────── */}
-        <section class="blk">
-          <h2 class="blk__h">5 &middot; Payment</h2>
-          <div class="pay">
-            <div class="pay__amt">{money(dueNowCents)}</div>
-            <button type="button" class="btn btn--primary" disabled>
-              Pay by card
-            </button>
-            <p class="pay__note">
-              Inert. No charge is possible from this page &mdash; there is no
-              payment provider connected.
-            </p>
-          </div>
-          <p class="hint">
-            The alternative we should keep either way: a director marks a
-            player paid by cash or transfer. Unknown Golf's flow ends in
-            "pending approval" for exactly this reason, and most club money
-            still moves offline.
-          </p>
-        </section>
-
-        <button type="button" class="btn btn--primary btn--wide" disabled>
-          I'm in for this event
-        </button>
-        <p class="hint">
-          Would write the <code>league_signups</code> row for this slot and
-          notify the director &mdash; the same two-step Unknown Golf uses
-          ("pending approval", then a confirmation email). Inert here.
-        </p>
-
-        {/* ── 6. Season dues — real, flag-gated, optional ─────── */}
         {dues && (
           <section class="blk" id="dues-step">
-            <h2 class="blk__h">6 &middot; Season dues</h2>
+            <h2 class="blk__h">Season dues</h2>
             <p class="hint">
               <strong>Optional.</strong> You&rsquo;re on the roster whether or
               not you pay here &mdash; your commissioner may collect dues in
-              cash instead. Skip this step if you&rsquo;d rather pay them
-              directly.
+              cash instead.
             </p>
             <PayButton
               nothing={dues.nothing}
@@ -437,50 +211,53 @@ if (payMode !== 'off' && detail && id) {
             />
           </section>
         )}
-
-        {/* ── What Stripe actually needs ──────────────────────── */}
-        <section class="blk blk--gates">
-          <h2 class="blk__h">What connecting Stripe actually needs</h2>
-          <p class="hint">
-            The client seam is already built and flag-gated in the app &mdash;
-            <code>PaymentsService</code> with a working mock,
-            <code>EntryFee</code> and <code>TournamentPayment</code> models, a
-            payments screen, and <code>FeatureFlags.stripeEnabled</code>. It is
-            off behind three named gates, none of which are code:
-          </p>
-          <ol class="gates">
-            <li><strong>The <code>/api/payments/*</code> endpoints</strong> on Railway (Patrick) &mdash; Track B plan, phases 1&ndash;2.</li>
-            <li><strong>Phase 0.3 legal review.</strong> Taking money for someone else's league has terms, refund and liability consequences.</li>
-            <li><strong><code>STRIPE_PUBLISHABLE_KEY</code></strong> set in the environment.</li>
-          </ol>
-          <p class="hint">
-            <strong>Per-event fees need no new schema.</strong>
-            <code>EntryFee</code> is already keyed on
-            <code>tournament_id</code>, and a bound league event is a
-            tournament. A <em>season</em>-wide dues charge would be the thing
-            needing a new column &mdash; worth knowing which of the two
-            City Park actually runs before building either.
-          </p>
-          <p class="hint">
-            The existing scope note still holds: entry fees only &mdash;
-            <strong>side-game settlement stays off-app</strong>. The pots
-            above are marked accordingly.
-          </p>
-        </section>
       </>
     )}
   </main>
 
+  <script>
+    const box = document.getElementById('rsvp');
+    const msg = document.getElementById('rsvpMsg');
+    const pill = document.getElementById('rsvpPill');
+    box?.querySelectorAll('button[data-status]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const status = (btn as HTMLButtonElement).dataset.status;
+        const buttons = box.querySelectorAll('button');
+        buttons.forEach((b) => ((b as HTMLButtonElement).disabled = true));
+        msg!.hidden = true;
+        try {
+          const res = await fetch(`/api/leagues/${encodeURIComponent(box.dataset.league!)}/rsvp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slot: Number(box.dataset.slot), status }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || 'Could not save your answer.');
+          pill!.textContent = status === 'in' ? "You're in" : "You're out";
+          pill!.className = 'pill ' + (status === 'in' ? 'pill--in' : 'pill--out');
+          msg!.className = 'notice';
+          msg!.textContent = status === 'in'
+            ? (body.field_error
+                ? `You're in. We couldn't add you to the event's field yet (${body.field_error}). Your commissioner can add you.`
+                : "You're in. See you on the tee.")
+            : "Got it — you're out for this one.";
+          msg!.hidden = false;
+        } catch (err) {
+          msg!.className = 'notice notice--warn';
+          msg!.textContent = (err as Error).message;
+          msg!.hidden = false;
+        } finally {
+          buttons.forEach((b) => ((b as HTMLButtonElement).disabled = false));
+        }
+      });
+    });
+  </script>
+
   <style>
-    .ph { margin: 0 0 26px; }
     .blk { margin: 0 0 30px; }
     .blk__h {
       font-size: 0.9375rem; margin: 0 0 4px;
       padding-bottom: 6px; border-bottom: 1px solid var(--line, #dfe6e2);
-    }
-    .blk--gates {
-      background: var(--wash, #f3f6f4); border-radius: 8px;
-      padding: 14px 16px; margin-top: 36px;
     }
     .hint {
       font-size: 0.78125rem; color: var(--ink-muted, #4b5b54);
@@ -523,19 +300,7 @@ if (payMode !== 'off' && detail && id) {
       color: var(--ink-muted, #4b5b54); margin-top: 4px; line-height: 1.5;
     }
 
-    .pay {
-      border: 1px dashed var(--line, #dfe6e2); border-radius: 8px;
-      padding: 16px; text-align: center;
-    }
-    .pay__amt {
-      font-size: 1.75rem; font-weight: 700;
-      font-variant-numeric: tabular-nums; margin-bottom: 10px;
-    }
-    .pay__note {
-      font-size: 0.75rem; color: var(--ink-muted, #4b5b54);
-      margin: 10px 0 0;
-    }
-    .btn--wide { width: 100%; }
+    .rsvp { display: flex; gap: 10px; flex-wrap: wrap; }
 
     .evt {
       display: flex; flex-wrap: wrap; gap: 12px;
@@ -563,13 +328,5 @@ if (payMode !== 'off' && detail && id) {
     .pill--in { background: #1f6f43; border-color: #1f6f43; color: #fff; }
     .pill--out { background: var(--wash, #f3f6f4); }
 
-    .offapp {
-      display: inline-block; font-size: 0.6875rem; font-style: normal;
-      margin-left: 6px; padding: 1px 6px; border-radius: 4px;
-      background: var(--wash, #f3f6f4); color: var(--ink-muted, #4b5b54);
-      border: 1px solid var(--line, #dfe6e2);
-    }
-    .gates { margin: 0 0 10px; padding-left: 20px; }
-    .gates li { font-size: 0.8125rem; margin-bottom: 6px; line-height: 1.55; }
   </style>
 </BaseLayout>
