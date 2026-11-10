@@ -40,46 +40,76 @@ const code = page
 const DROPPED = ['handicap_updated_at', 'bagpipe_suggested_handicap'];
 
 /**
- * The column list actually passed to `.select(...)`, not the whole file.
+ * Columns `20261216` removes from the `authenticated` role's column grant.
  *
- * Reading the whole file is what a first version of this guard did, and it was
- * wrong in both directions: `display_name` and `handicap_source` also appear
- * in the page's `loaded` object and its form, so a `.select('id')` that
- * dropped every real column still "contained" them and the guard passed. Two
- * deliberate mutations slipped straight through. Parse the call.
+ * These are NOT dropped — the owner still has them, through
+ * `my_profile_contact()`. They are removed from the role because
+ * `public.profiles` is readable by EVERY signed-in account
+ * ("Authenticated users can search profiles" is `auth.role() =
+ * 'authenticated'`), so a plain select of `phone` here is the same read any
+ * stranger could run against any user. Selecting one in the page's main
+ * query would 400 once that migration lands.
  */
-function selectedColumns(): string[] {
-  const call = code.match(/\.select\(([\s\S]*?)\)\s*\n/);
-  if (!call) throw new Error('could not find the .select(...) call on profile.astro');
-  // The argument is single-quoted fragments joined by `+` across lines.
-  const fragments = [...call[1].matchAll(/'([^']*)'/g)].map((m) => m[1]);
-  if (fragments.length === 0) throw new Error('.select(...) had no string argument');
-  return fragments
-    .join('')
-    .split(',')
-    .map((c) => c.trim())
-    .filter(Boolean);
+const NOT_GRANTED = ['phone', 'phone_verified_at', 'sms_opt_in_at'];
+
+/**
+ * The column list of the page's PRIMARY profile query.
+ *
+ * "Primary" means the first `.select(...)` with more than one column. That
+ * qualifier matters: the page also has a single-column `.select('phone')`
+ * fallback for the window where the RPC does not exist yet, and a guard that
+ * grabbed whichever select came first would eventually read that one and
+ * either pass vacuously or fail for the wrong reason.
+ *
+ * Reading the whole FILE instead of parsing the call was the first version of
+ * this guard, and it was wrong in both directions: `display_name` and
+ * `handicap_source` also appear in the page's `loaded` object and form, so a
+ * `.select('id')` that dropped every real column still "contained" them. Two
+ * deliberate mutations went straight through. Parse the calls.
+ */
+function primarySelectColumns(): string[] {
+  const calls = [...code.matchAll(/\.select\(([\s\S]*?)\)/g)];
+  if (calls.length === 0) throw new Error('no .select(...) call on profile.astro');
+  for (const call of calls) {
+    const fragments = [...call[1].matchAll(/'([^']*)'/g)].map((m) => m[1]);
+    if (fragments.length === 0) continue;
+    const cols = fragments.join('').split(',').map((c) => c.trim()).filter(Boolean);
+    if (cols.length > 1) return cols;
+  }
+  throw new Error('found no multi-column .select(...) — the page query was gutted');
 }
 
-describe('the profile page does not select dropped columns', () => {
+describe('the profile page does not select columns it cannot read', () => {
   for (const col of DROPPED) {
-    it(`never selects ${col}`, () => {
-      expect(selectedColumns()).not.toContain(col);
+    it(`never selects ${col} — the column no longer exists`, () => {
+      expect(primarySelectColumns()).not.toContain(col);
+    });
+  }
+
+  for (const col of NOT_GRANTED) {
+    it(`never selects ${col} in the main query — authenticated loses it in 20261216`, () => {
+      expect(primarySelectColumns()).not.toContain(col);
     });
   }
 
   it('still selects the columns the page renders — not vacuously passing', () => {
-    // Without this, a `.select('id')` would satisfy every assertion above.
-    const cols = selectedColumns();
-    for (const col of ['display_name', 'handicap', 'home_course_id', 'phone']) {
+    const cols = primarySelectColumns();
+    for (const col of ['display_name', 'handicap', 'home_course_id']) {
       expect(cols).toContain(col);
     }
-    expect(cols.length).toBeGreaterThanOrEqual(5);
+    expect(cols.length).toBeGreaterThanOrEqual(4);
   });
 
   it('handicap_source survives — only its allowed VALUES narrow', () => {
     // 20261214 narrows the CHECK to ('manual','ghin'); it does not drop the
-    // column. A guard that removed this one too would be wrong.
-    expect(selectedColumns()).toContain('handicap_source');
+    // column, and `authenticated` keeps it.
+    expect(primarySelectColumns()).toContain('handicap_source');
+  });
+
+  it('the owner still gets their phone, through the definer RPC', () => {
+    // Without this the guard above is satisfied by simply deleting the
+    // phone field from the page — which would silently stop showing users
+    // a number they have stored.
+    expect(code).toContain("rpc('my_profile_contact')");
   });
 });

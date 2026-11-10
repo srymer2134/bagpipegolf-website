@@ -39,13 +39,48 @@ try {
     // PostgREST 400s the WHOLE select on an unknown column, so leaving it
     // here would turn this page into "Could not load your profile." the
     // moment that migration lands. This must deploy BEFORE it.
-    .select('display_name, handicap, home_course_id, phone, handicap_source')
+    // No `phone` either, and that one is NOT about a dropped column.
+    // `public.profiles` is readable by every signed-in account —
+    // "Authenticated users can search profiles" is `auth.role() =
+    // 'authenticated'` — so selecting phone here is the same read any
+    // stranger could do. flutter `20261216` removes phone from the
+    // authenticated role's column grant; after that this select would 400.
+    // The owner reads their own number through the definer RPC below.
+    .select('display_name, handicap, home_course_id, handicap_source')
     .eq('id', user.id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   profile = (data as Record<string, unknown>) ?? null;
 } catch (err: any) {
   loadError = err?.message ?? 'Could not load your profile.';
+}
+
+// The owner's own phone, via `my_profile_contact()` (flutter `20261215`).
+// It takes no argument and filters on auth.uid(), so it can only ever
+// return the caller's own row.
+//
+// FALLS BACK TO THE TABLE on purpose, so this deploy is safe in either
+// order relative to the migration: before `20261215` applies the RPC does
+// not exist, and after `20261216` the table read is the one that fails.
+// Exactly one of the two works at any moment, and both work in between.
+let phone = '';
+try {
+  const { data: contact, error: rpcErr } = await supabase.rpc('my_profile_contact');
+  if (rpcErr) throw new Error(rpcErr.message);
+  const row = Array.isArray(contact) ? contact[0] : contact;
+  phone = typeof row?.phone === 'string' ? row.phone : '';
+} catch {
+  try {
+    const { data: fb } = await supabase
+      .from('profiles').select('phone').eq('id', user.id).maybeSingle();
+    phone = typeof (fb as any)?.phone === 'string' ? (fb as any).phone : '';
+  } catch {
+    // Both doors shut. The field renders empty, which does NOT wipe the
+    // stored number: /api/profile/update diffs loaded-vs-submitted and
+    // sends only changed fields, so an untouched empty box is absent from
+    // the patch.
+    phone = '';
+  }
 }
 
 const str = (k: string) =>
@@ -58,7 +93,7 @@ const loaded = {
   display_name: str('display_name'),
   handicap: profile?.handicap ?? null,
   home_course_id: str('home_course_id'),
-  phone: str('phone'),
+  phone,
 };
 
 const hcSource = str('handicap_source');
@@ -113,7 +148,7 @@ const hcSource = str('handicap_source');
 
         <label class="field">
           <span>Phone <em>optional</em></span>
-          <input type="tel" name="phone" maxlength="32" value={str('phone')}
+          <input type="tel" name="phone" maxlength="32" value={phone}
                  placeholder="+1 303 555 1234" />
           <em class="fieldnote">
             Clear the box to remove it. The only field here you can empty.
