@@ -219,12 +219,24 @@ describe('Privacy — payments are disclosed', () => {
 // copies, so for a few hours the PUBLISHED pages — the ones that count —
 // still named Casper, WY. Pinned here so a one-sided edit shows up as a
 // failure rather than as a wrong address on a live legal page.
-const MAILING_ADDRESS = '3800 Buchtel Blvd, P.O. Box 100532, Denver, CO 80250';
+const MAILING_ADDRESS = [
+  'Taybuta, Inc.',
+  '3800 Buchtel Blvd',
+  'P.O. Box 100532',
+  'Denver, CO 80250',
+];
 
 describe('contact address', () => {
-  it('is the current Denver address on both pages', () => {
+  it('is a mailable four-line block on both pages', () => {
     for (const f of [TERMS, PRIVACY]) {
-      expect(read(f), f).toContain(`<strong>Mailing address:</strong> ${MAILING_ADDRESS}`);
+      const t = read(f);
+      expect(t, f).toContain('<strong>Mailing address:</strong><br />');
+      let at = t.indexOf('<strong>Mailing address:</strong>');
+      for (const line of MAILING_ADDRESS) {
+        const next = t.indexOf(line, at);
+        expect(next, `${f}: "${line}"`).toBeGreaterThan(at);
+        at = next;
+      }
     }
   });
 
