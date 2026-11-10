@@ -5,6 +5,7 @@ import AppLinkBanner from '../components/AppLinkBanner.astro';
 import PlanCards from '../components/PlanCards.astro';
 import PromoBar from '../components/PromoBar.astro';
 import { buyHref } from '../lib/offer';
+import { visitorPromo } from '../lib/promoCode';
 import { CUP_TEMPLATE_LIST } from '../lib/cupTemplates';
 
 // Content sourced from the Flutter repo's canonical `docs/HOWTO_TOURNAMENTS.md`
@@ -41,6 +42,8 @@ const buddiesTemplates = CUP_TEMPLATE_LIST.map((t) => ({
   meta: t.copy.meta,
   detail: t.copy.detail,
 }));
+// Keep a Founding70 visitor's code on the Buy link (lib/offer.ts → buyHref).
+const visitorCode = visitorPromo(Astro.url, Astro.cookies);
 ---
 
 <BaseLayout title="Tournaments · Bagpipe Golf" description={`${formats.length} tournament formats, four Buddies Trip Cup templates (Ryder Cup, Scarecrow Cup, Ballyneal Brigade, Bandon Dunes Cup), and a wizard to build your own — every pairing, point, and payout handled on your phone.`}>
@@ -227,7 +230,7 @@ const buddiesTemplates = CUP_TEMPLATE_LIST.map((t) => ({
       <p>Sign up, pick a format, invite your crew. The whole thing lives on your phone.</p>
       <div class="cta__row">
         <a class="btn btn--primary" href="/signup?next=%2Fapp%2Ftournaments%2Fnew">Set up your event free</a>
-        <a class="btn btn--ghost" href={buyHref('event')}>Field over 36? Buy a pass</a>
+        <a class="btn btn--ghost" href={buyHref('event', undefined, visitorCode)}>Field over 36? Buy a pass</a>
       </div>
     </section>
   </main>

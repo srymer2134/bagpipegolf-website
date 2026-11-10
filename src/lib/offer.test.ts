@@ -54,7 +54,7 @@ describe('launch offer', () => {
   it('gives every plan card a button that starts buying it', () => {
     const cards = readFileSync('src/components/PlanCards.astro', 'utf8');
     for (const k of ['event', 'league', 'club']) {
-      expect(cards).toContain(`href={buyHref('${k}')} data-plan="${k}"`);
+      expect(cards).toContain(`href={buy('${k}')} data-plan="${k}"`);
     }
   });
 
@@ -88,9 +88,62 @@ describe('Club checkout proxy', () => {
 
   it('the Club card buys, and still offers the trial and an email', () => {
     const cards = readFileSync('src/components/PlanCards.astro', 'utf8');
-    expect(cards).toMatch(/Buy Club — \$\{dollars\(offerPrice\(PLANS\.club\)\)\} first year/);
-    expect(cards).toContain("href={`${buyHref('club')}#trial`}");
+    expect(cards).toMatch(/Buy Club — \$\{dollars\(first\('club'\)\)\} first year/);
+    expect(cards).toContain("href={`${buy('club')}#trial`}");
     // No shared editing until the self-serve Club ships (plan phase D).
     expect(cards).toContain('Up to 4 admins, each running their own leagues');
+  });
+});
+
+// Founding Clubs (Sam, 2026-11-09): Founding70, 70% off League/Club for the
+// first 25 clubs. The Colorado outreach links carry ?promo=Founding70.
+import { FOUNDING_CODE, foundingFor, foundingPrice, isFoundingCode } from './offer';
+import { visitorPromo } from './promoCode';
+
+describe('Founding70', () => {
+  const during = new Date('2026-11-10T12:00:00Z');
+  const after = new Date('2027-01-02T12:00:00Z');
+
+  it('prices the first year at 30% of list: Club $891, League $642', () => {
+    expect(foundingPrice(PLANS.club)).toBe(891);
+    expect(foundingPrice(PLANS.league)).toBe(642);
+  });
+
+  it('applies to League and Club only, and only while the offer runs', () => {
+    expect(foundingFor('club', 'founding70', during)).toBe(true);
+    expect(foundingFor('league', 'Founding70', during)).toBe(true);
+    expect(foundingFor('event', 'Founding70', during)).toBe(false);
+    expect(foundingFor('club', 'Bagpipe50', during)).toBe(false);
+    expect(foundingFor('club', 'Founding70', after)).toBe(false);
+    expect(isFoundingCode(null)).toBe(false);
+  });
+
+  it('a founding visitor\'s Buy links never overwrite Founding70 with Bagpipe50', () => {
+    // The regression this guards: a Bagpipe50 link replacing the saved code
+    // turns 70% off into 50% off for someone the outreach promised 70%.
+    expect(buyHref('league', during, 'Founding70')).toBe(`/buy/league?promo=${FOUNDING_CODE}`);
+    expect(buyHref('club', during, 'founding70')).toBe(`/buy/club?promo=${FOUNDING_CODE}`);
+    expect(buyHref('event', during, 'Founding70')).toBe('/buy/event');
+    // everyone else is unchanged
+    expect(buyHref('league', during, null)).toBe(`/buy/league?promo=${PROMO_CODE}`);
+    expect(buyHref('league', during, 'Bagpipe50')).toBe(`/buy/league?promo=${PROMO_CODE}`);
+  });
+
+  it('reads the code from this request\'s link before the saved cookie', () => {
+    const jar = (v?: string) => ({ get: () => (v ? { value: v } : undefined), set: () => {}, delete: () => {} });
+    expect(visitorPromo(new URL('https://x/pricing?promo=Founding70'), jar('Bagpipe50'))).toBe('Founding70');
+    expect(visitorPromo(new URL('https://x/pricing'), jar('Founding70'))).toBe('Founding70');
+    expect(visitorPromo(new URL('https://x/pricing?promo=none'), jar('Founding70'))).toBeNull();
+    expect(visitorPromo(new URL('https://x/pricing?promo=<x>'), jar())).toBeNull();
+  });
+
+  it('every card and Buy link on the marketing pages is code-aware', () => {
+    const cards = readFileSync('src/components/PlanCards.astro', 'utf8');
+    expect(cards).toContain('buyHref(k, undefined, code)');
+    expect(cards).not.toMatch(/href=\{buyHref\('/);
+    for (const page of ['src/pages/leagues.astro', 'src/pages/tournaments.astro']) {
+      const src = readFileSync(page, 'utf8');
+      expect(src).not.toMatch(/buyHref\('(league|event|club)'\)/);
+    }
   });
 });

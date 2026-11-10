@@ -23,12 +23,16 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import BuySteps from '../../components/BuySteps.astro';
 import PromoCodeBox from '../../components/PromoCodeBox.astro';
-import { rememberedPromo } from '../../lib/promoCode';
+import { visitorPromo } from '../../lib/promoCode';
 import { buttonPrice, loadPromoView } from '../../lib/promoPreview';
 import { createSupabaseClient } from '../../lib/supabase';
 import {
   PLANS,
   PROMO_CODE,
+  FOUNDING_CAP,
+  FOUNDING_CODE,
+  foundingPrice,
+  isFoundingCode,
   PROMO_PERCENT,
   PROMO_ENDS_COPY,
   dollars,
@@ -81,10 +85,12 @@ const offer = offerActive();
 const club = PLANS.club;
 // The code's effect on the Club price, so applying one changes this page.
 const clubView = plan === 'club'
-  ? await loadPromoView(Astro, 'club', rememberedPromo(Astro.cookies))
+  ? await loadPromoView(Astro, 'club', visitorPromo(Astro.url, Astro.cookies))
   : ({ kind: 'none' } as const);
 const clubApplied = clubView.kind === 'applied';
 const clubLaunch = offer && clubApplied && clubView.code.toLowerCase() === PROMO_CODE.toLowerCase();
+// Founding70 (Colorado outreach): the first 25 clubs, 70% off, locked through 2028.
+const clubFounding = offer && clubApplied && isFoundingCode(clubView.code);
 const clubBuyCopy = `Buy Club — ${buttonPrice(clubView, 'club', `${dollars(club.price)} / year`)}`;
 // Where Club checkout sends people back (api/billing/club-checkout.ts).
 const clubResult = plan === 'club' ? Astro.url.searchParams.get('billing') : null;
@@ -102,7 +108,7 @@ const clubMail =
   '&body=' +
   encodeURIComponent(
     'Club or facility name:\nHow many leagues you run:\nAdmins (up to 4) — names and emails:\nBest phone number:\n' +
-      (offer ? `\nPromo code: ${PROMO_CODE}\n` : ''),
+      (offer ? `\nPromo code: ${clubFounding ? FOUNDING_CODE : PROMO_CODE}\n` : ''),
   );
 ---
 
@@ -163,6 +169,15 @@ const clubMail =
             {' '}<s>{dollars(club.price)}</s> <strong>{dollars(offerPrice(club))}</strong>, plus
             applicable sales tax, through {PROMO_ENDS_COPY}.
             {clubLaunch ? <> Applied for you at checkout.</> : <> Apply it below.</>}
+          </p>
+        )}
+        {clubFounding && (
+          <p class="clubdeal">
+            <strong>Founding Club:</strong> 70% off your first year —
+            {' '}<s>{dollars(club.price)}</s> <strong>{dollars(foundingPrice(club))}</strong>, plus
+            applicable sales tax — then the price locked through 2028, and your club listed as a
+            Founding Club on bagpipegolf.com. First {FOUNDING_CAP} clubs only, through {PROMO_ENDS_COPY}.
+            Code {FOUNDING_CODE} is applied for you at checkout.
           </p>
         )}
         <PromoCodeBox plan="club" view={clubView} />

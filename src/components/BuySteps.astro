@@ -6,7 +6,7 @@
 // Shown only when the page was reached from a buy link: callers pass the plan
 // they read from `?next=/buy/<plan>` or `?then=billing`. Without one, render
 // nothing — an ordinary sign-up is not a purchase.
-import { PLANS, PROMO_CODE, PROMO_PERCENT, offerActive, type PlanKey } from '../lib/offer';
+import { FOUNDING_CODE, FOUNDING_PERCENT, PLANS, PROMO_CODE, PROMO_PERCENT, foundingFor, offerActive, type PlanKey } from '../lib/offer';
 import { differentCodeHref, rememberedPromo } from '../lib/promoCode';
 
 interface Props {
@@ -16,6 +16,8 @@ interface Props {
 const { plan, step } = Astro.props;
 const promo = rememberedPromo(Astro.cookies);
 const showPromo = offerActive() && promo?.toLowerCase() === PROMO_CODE.toLowerCase();
+// Founding70 on a League or Club purchase shows as the founding discount.
+const showFounding = !!plan && foundingFor(plan, promo);
 const setup = plan === 'event' ? 'Pick your event' : 'Set up your league';
 const labels = ['Create your account', setup, 'Check out'];
 ---
@@ -25,6 +27,7 @@ const labels = ['Create your account', setup, 'Check out'];
     <p class="buysteps__plan">
       Buying: <strong>{PLANS[plan].name}</strong>
       {showPromo && <span class="buysteps__promo">{PROMO_CODE} saved · {PROMO_PERCENT}% off at checkout · <a href={differentCodeHref(Astro.url)}>use a different code</a></span>}
+      {showFounding && <span class="buysteps__promo">{FOUNDING_CODE} saved · Founding Club, {FOUNDING_PERCENT}% off at checkout · <a href={differentCodeHref(Astro.url)}>use a different code</a></span>}
     </p>
     <ol class="buysteps__list">
       {labels.map((l, i) => (

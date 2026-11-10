@@ -2,7 +2,8 @@
 // The launch-offer strip at the top of the host-facing marketing pages.
 // Disappears on its own after the code's deadline (lib/offer.ts). The link
 // carries `?promo=`, so clicking it alone saves the code for checkout.
-import { PROMO_CODE, PROMO_ENDS_COPY, PROMO_PERCENT, offerActive } from '../lib/offer';
+import { FOUNDING_CAP, FOUNDING_CODE, PROMO_CODE, PROMO_ENDS_COPY, PROMO_PERCENT, isFoundingCode, offerActive } from '../lib/offer';
+import { visitorPromo } from '../lib/promoCode';
 
 interface Props {
   /** Where "See plans" goes. On /pricing itself it is the plan grid. */
@@ -10,10 +11,24 @@ interface Props {
 }
 const { href = '/pricing#plans' } = Astro.props;
 const [path, hash] = href.split('#');
-const link = `${path}?promo=${PROMO_CODE}${hash ? `#${hash}` : ''}`;
+// A Founding70 visitor (the Colorado outreach) sees the founding offer, and
+// the link keeps their code: linking Bagpipe50 here would replace it.
+const founding = isFoundingCode(visitorPromo(Astro.url, Astro.cookies));
+const code = founding ? FOUNDING_CODE : PROMO_CODE;
+const link = `${path}?promo=${code}${hash ? `#${hash}` : ''}`;
 ---
 
-{offerActive() && (
+{offerActive() && founding && (
+  <aside class="promobar" aria-label="Founding Club offer">
+    <p>
+      <strong>Founding Club offer:</strong>{' '}70% off your first year of League or Club, then the
+      price locked through 2028. First {FOUNDING_CAP} clubs only, through {PROMO_ENDS_COPY}. Code
+      {' '}<span class="promobar__code">{FOUNDING_CODE}</span> is applied for you.
+      {' '}<a href={link}>See plans →</a>
+    </p>
+  </aside>
+)}
+{offerActive() && !founding && (
   <aside class="promobar" aria-label="Launch offer">
     <p>
       <strong>Launch offer:</strong>{' '}{PROMO_PERCENT}% off your first payment on any plan with code
