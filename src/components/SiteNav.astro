@@ -169,6 +169,17 @@ const isActive = (href: string) =>
               </section>
             ))
           }
+          {
+            isSignedIn && (
+              <section class="menu__group menu__account">
+                <span class="menu__grouptitle">Account</span>
+                <span class="menu__email">{user!.email}</span>
+                <form method="post" action="/api/auth/signout">
+                  <button type="submit" class="menu__link menu__signout">Sign out</button>
+                </form>
+              </section>
+            )
+          }
         </div>
       </details>
 
@@ -385,6 +396,24 @@ const isActive = (href: string) =>
     background: var(--brand-green-pale);
   }
 
+  /* Account group: only rendered for signed-in users. Hidden on
+     desktop, where the header shows the email and Sign out itself. */
+  .menu__account { display: none; }
+  .menu__email {
+    color: var(--ink-muted);
+    font-size: 0.875rem;
+    overflow-wrap: anywhere;
+  }
+  .menu__signout {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+  }
+
   /* ── Mobile ──────────────────────────────────────────── */
   /* 1100px, not 880: with Pricing back on the bar (2026-11-05) five links
      plus Menu / Sign in / Create account no longer fit below ~1100px —
@@ -397,6 +426,12 @@ const isActive = (href: string) =>
        live inside the Menu's Account group. Sign out form for signed-in
        users stays visible because it's primary. */
     .sitenav__right > .sitenav__cta > a { display: none; }
+    /* Phone header is just the brand and the menu button (Sam
+       2026-11-10). Dashboard, the email and Sign out move into the
+       menu's Play and Account groups. */
+    .sitenav__right { margin-left: auto; }
+    .sitenav__cta { display: none; }
+    .menu__account { display: flex; }
 
     .menu__triggerlabel,
     .menu__triggericon { display: none; }
