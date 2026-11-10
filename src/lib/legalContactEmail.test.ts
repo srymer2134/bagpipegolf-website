@@ -19,20 +19,19 @@ import { readFileSync } from 'node:fs';
 const read = (p: string) => readFileSync(p, 'utf8');
 const PAGES = ['src/pages/terms.astro', 'src/pages/privacy.astro'];
 
-/** Mailboxes Sam has confirmed exist (2026-11-09). */
-const CONFIRMED = ['support@bagpipegolf.com'];
-
 /**
- * Not confirmed by Sam, but almost certainly real: `hello@` is used ~27
- * times across the site, including the footer and every Club plan CTA, so
- * it is not something anyone invented for a legal page. Allowed, and kept
- * in its own list rather than merged into CONFIRMED so the distinction
- * stays visible. ⚠️ If Sam confirms it, move it up; if it turns out to be
- * dead too, that is a site-wide problem, not a legal-pages one.
+ * Mailboxes Sam has confirmed exist (2026-11-09). Both were confirmed by
+ * him directly: `support@` when he caught `privacy@` being fictional, and
+ * `hello@` immediately after, when this file's first run flagged it in the
+ * Terms page's closing line.
+ *
+ * TO ADD ONE: get it confirmed first, then add it here in the same PR.
+ * Never add an address because it reads well — that is the whole reason
+ * this file exists.
  */
-const ASSUMED_LIVE = ['hello@bagpipegolf.com'];
+const CONFIRMED = ['support@bagpipegolf.com', 'hello@bagpipegolf.com'];
 
-const ALLOWED = [...CONFIRMED, ...ASSUMED_LIVE];
+const ALLOWED = [...CONFIRMED];
 
 /** Published at some point, confirmed NOT to exist. */
 const KNOWN_DEAD = ['privacy@bagpipegolf.com'];
