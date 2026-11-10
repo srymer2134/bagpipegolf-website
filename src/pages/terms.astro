@@ -7,7 +7,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <p class="pagewrap__eyebrow">Legal</p>
     <h1 class="pagewrap__title">Terms of service.</h1>
     <p class="pagewrap__sub">
-      Last updated: <strong>July 14, 2026</strong>.
+      Last updated: <strong>November 9, 2026</strong>.
     </p>
 
     <article class="card prose">
@@ -41,7 +41,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
       <h2>2. Your account</h2>
       <ul>
-        <li>You're responsible for keeping your sign-in credentials secure. If you suspect someone else has gained access to your account, contact us at the address in §15 immediately.</li>
+        <li>You're responsible for keeping your sign-in credentials secure. If you suspect someone else has gained access to your account, contact us at the address in §16 immediately.</li>
         <li>You're responsible for the activity that happens under your account, including any tournaments, bet games, and friends you create or join.</li>
         <li>We may suspend or terminate accounts that violate these Terms or put other users or the Service at risk. We'll give you notice where reasonably possible.</li>
         <li>You can delete your account at any time from <strong>Profile → Delete Account</strong>. Deleting your account revokes your access immediately. We may, but are not obligated to, delete your account data following deletion.</li>
@@ -96,14 +96,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         improve your scoring.
       </p>
 
-      <h2>6. Side games and tournaments — money handling</h2>
+      <h2>6. Side games and tournaments — money between players</h2>
       <p>
         Bagpipe Golf includes side-game and tournament scoring features
-        that track money flow between players. <strong>Bagpipe Golf does
-        not hold, transfer, or process money.</strong> Players settle
-        wagers between themselves outside the app. We compute
-        who-owes-whom and display the result; we do not act as a payment
-        processor.
+        that track money flow between players. <strong>Money wagered
+        between players never passes through Bagpipe Golf.</strong>
+        Players settle those wagers between themselves, outside the app.
+        We compute who-owes-whom and display the result; for
+        player-to-player wagers we do not hold, transfer, or escrow the
+        stakes and we do not act as a payment processor.
       </p>
       <p>
         You are solely responsible for ensuring that your bets and
@@ -114,18 +115,174 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         they live.
       </p>
       <p>
-        If we add real-money handling in the future (for example, via a
-        licensed payment processor), these Terms will be updated to
-        cover that capability before it goes live.
+        Money we <em>do</em> handle is a separate thing from the wagers
+        above: subscription plans, single-event passes, and — where a
+        director has it switched on — card entry fees. All of that is
+        covered in §7.
       </p>
 
-      <h2>7. Tournaments and invites</h2>
+      <h2>7. Plans, payments and subscriptions</h2>
+      <p>
+        <strong>Taybuta, Inc.</strong>, doing business as Bagpipe Golf,
+        is the seller for everything described in this section. Payments
+        are taken by <strong>Stripe</strong>, our payment processor, on a
+        Stripe-hosted checkout page. <strong>We never receive or store
+        your full card number, expiry, or security code.</strong> Prices
+        are in U.S. dollars and are the prices in force on the "Last
+        updated" date above.
+      </p>
+
+      <h3>What we sell</h3>
+      <ul>
+        <li><strong>An event pass</strong> — a one-time charge covering a single tournament. Smaller fields are free; the player count at which a pass is required is published with the price.</li>
+        <li><strong>A League plan</strong> — an annual subscription covering one league, one organizer login, and unlimited events in that league.</li>
+        <li><strong>A Club plan</strong> — an annual subscription covering unlimited leagues and multiple admin accounts. Club plans are currently set up with us directly rather than fully self-serve.</li>
+      </ul>
+      <p>
+        <strong>Current prices, and what each plan includes, are published
+        on our <a href="/pricing">pricing page</a> and shown again at
+        checkout before you pay.</strong> Prices are subject to change, and
+        the price that applies to you is the one shown when you buy — see
+        "Price changes and taxes" below.
+      </p>
+      <p>
+        Players are never charged by us to take part in a league or
+        tournament someone else has paid for. A league or tournament host
+        may separately collect dues or an entry fee from their players;
+        that is their charge, not ours, and it is covered below.
+      </p>
+
+      <h3>Free trial</h3>
+      <p>
+        A league organizer may start <strong>one</strong> free trial of
+        <strong>30 days</strong>, with no card required. The trial is one
+        per organizer, not one per league. Club trials are arranged with
+        us directly. If a trial ends without a paid plan, the league
+        locks as described below — nothing is charged and nothing is
+        deleted.
+      </p>
+
+      <h3>Automatic renewal and cancellation</h3>
+      <p>
+        <strong>League and Club plans renew automatically each year</strong>
+        until you cancel. At each renewal we charge your saved payment
+        method the then-current price for another year. Single-event
+        passes do not renew.
+      </p>
+      <p>
+        You can cancel at any time from the billing page in your account.
+        <strong>Cancelling takes effect at the end of the period you have
+        already paid for</strong>, and you keep full access until then; we
+        do not cut access off mid-term.
+      </p>
+
+      <h3>Promotional codes</h3>
+      <p>
+        We sometimes offer promotional or launch codes. Where we do, the
+        terms of that particular code — what it discounts, which plans
+        it covers, and how long it can be redeemed — are stated
+        wherever we publish it, and it is valid only on the terms stated
+        there. Unless we say otherwise in writing, a code applies to the
+        <strong>first payment only</strong>: renewals are charged at the
+        full then-current price. One code per checkout.
+      </p>
+
+      <h3>Refunds of what you buy from us</h3>
+      <p>
+        <strong>What this covers:</strong> the Single Event pass, the
+        League plan, and the Club plan — the things you buy from Bagpipe
+        Golf.
+      </p>
+      <p>
+        <strong>You have 7 days.</strong> Ask us within <strong>7 days of
+        the purchase</strong>, at the address in §16, and we will refund
+        it. After 7 days those payments are non-refundable except where
+        the law requires otherwise.
+      </p>
+      <p>
+        If you think you have been charged in error, or something went
+        wrong with a charge, contact us whether or not the 7 days have
+        passed.
+      </p>
+
+      <h3>Refunds of player dues — the director's call, not ours</h3>
+      <p>
+        Dues and entry fees a player pays a league or tournament are
+        <strong>not our money and not our decision</strong>.
+        <strong>Whether a player is refunded, when, and on what terms is
+        entirely at the discretion of the league director or tournament
+        host.</strong> They set their own policy and issue any refund from
+        their own tools.
+      </p>
+      <p>
+        <strong>The 7-day window above does not apply to player dues.</strong>
+        We do not impose a deadline, a condition, or a right to a refund on
+        that relationship, and we do not arbitrate it — a question or
+        dispute about dues or an entry fee is between the player and their
+        director.
+      </p>
+      <p>
+        One mechanical point, so a director can price their own policy:
+        when a dues refund is issued the player gets their <strong>full
+        payment back</strong> on their card, while <strong>our 2% platform
+        fee is not returned</strong>, and neither is the card processor's
+        own fee. Both are borne by the league or tournament, not deducted
+        from the player.
+      </p>
+
+      <h3>Failed payments, and what happens if a plan lapses</h3>
+      <p>
+        If a renewal payment fails, Stripe retries it for a short period
+        and your plan stays active while it does. If the payment
+        ultimately cannot be collected, the plan lapses.
+      </p>
+      <p>
+        While a league has no active plan, the organizer can no longer
+        start a new season, add events, or attach tournaments to it.
+        <strong>Your existing leagues, events, rounds, and scores remain,
+        and nothing is deleted because of non-payment.</strong> Players
+        keep access to what has already been played. Subscribing again
+        restores the controls.
+      </p>
+
+      <h3>Price changes and taxes</h3>
+      <p>
+        We may change our prices. A change never affects a period you
+        have already paid for — it takes effect at your next renewal,
+        and we will tell you before that renewal is charged. Prices
+        exclude any sales tax, VAT, or similar charge; where we are
+        required to collect one, it is added at checkout.
+      </p>
+
+      <h3>Player dues and card entry fees</h3>
+      <p>
+        Where it is switched on for an organizer, a league director or
+        tournament host can collect dues or an entry fee from their
+        players by card. Those payments are processed by Stripe
+        <strong>into the host's own Stripe account</strong>, not ours:
+        Bagpipe Golf provides the software and takes no custody of that
+        money. Setting the amount, collecting it, and refunding it —
+        <strong>including the terms on which they refund, which are
+        theirs to set</strong> — are the host's responsibility, and any
+        dispute about it is between the host and their players. See
+        "Refunds of player dues" above.
+      </p>
+      <p>
+        <strong>We take a 2% platform fee</strong> on each such card
+        payment, before the money reaches the host. Players see one total
+        at checkout, not a separate line for us. That fee, and the card
+        processor's own fee, are not returned if the payment is later
+        refunded — see "Refunds" above. This capability is enabled per
+        organizer and is not available to every account.
+      </p>
+
+      <h2>8. Tournaments and invites</h2>
       <p>If you are a tournament organizer ("Tournament Director"):</p>
       <ul>
         <li>You are responsible for the rules, roster, and conduct of your tournament.</li>
         <li>You may invite other players by email. You must only invite people who consent to being invited; do not enter addresses you don't have permission to invite.</li>
         <li>Pending invites you send remain valid for a reasonable period and may be revoked by you at any time.</li>
-        <li>You may collect entry fees from your players. Bagpipe Golf does not process those fees (see §6); collection and refunds are between you and your players.</li>
+        <li>You may collect entry fees or dues from your players. If you collect them yourself, outside the app, that is entirely between you and your players. If you use the card feature where it is available to you, the money goes to your own Stripe account, and <strong>whether and how you refund a player is your decision, on your terms</strong> — see §7.</li>
       </ul>
       <p>If you accept a tournament invite:</p>
       <ul>
@@ -133,7 +290,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <li>You may withdraw from a tournament at any time before scoring starts; once scoring begins, withdrawals are subject to the organizer's rules.</li>
       </ul>
 
-      <h2>8. Notifications</h2>
+      <h2>9. Notifications</h2>
       <p>
         By creating an account, you agree to receive transactional emails
         from us (account confirmations, password resets, security
@@ -144,7 +301,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         while your account is active.
       </p>
 
-      <h2>9. Our intellectual property</h2>
+      <h2>10. Our intellectual property</h2>
       <p>
         The Service — including the app's source code, design, branding,
         underlying scoring/betting engine, and humor mechanisms (such as
@@ -159,7 +316,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         product without our written permission.
       </p>
 
-      <h2>10. Third-party services and content</h2>
+      <h2>11. Third-party services and content</h2>
       <p>
         The Service integrates with multiple third-party providers
         (course data from GolfCourseAPI.com, AI from Anthropic when the
@@ -193,7 +350,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         with us.
       </p>
 
-      <h2>11. Disclaimers</h2>
+      <h2>12. Disclaimers</h2>
       <p class="prose__legal">
         THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT
         WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED. WE DISCLAIM ALL
@@ -213,7 +370,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         allowed by law.
       </p>
 
-      <h2>12. Limitation of liability</h2>
+      <h2>13. Limitation of liability</h2>
       <p class="prose__legal">
         TO THE MAXIMUM EXTENT PERMITTED BY LAW, TAYBUTA, INC. AND ITS
         OFFICERS, EMPLOYEES, AND AGENTS WILL NOT BE LIABLE TO YOU FOR
@@ -233,7 +390,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         by law.
       </p>
 
-      <h2>13. Indemnification</h2>
+      <h2>14. Indemnification</h2>
       <p>
         You agree to defend, indemnify, and hold harmless Taybuta, Inc.
         and its officers, employees, and agents from any claim arising
@@ -246,7 +403,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <li>Your violation of someone else's rights, including bets and tournaments you organize.</li>
       </ul>
 
-      <h2>14. Disputes and arbitration</h2>
+      <h2>15. Disputes and arbitration</h2>
       <div class="callout callout--warn">
         <strong>Please read this section carefully.</strong> It requires
         binding arbitration of most disputes on an individual basis, and
@@ -256,7 +413,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <p>
         <strong>Informal resolution first.</strong> Before starting a
         formal proceeding, you agree to contact us at the address in
-        §15 and try to resolve the dispute informally for at least 60
+        §16 and try to resolve the dispute informally for at least 60
         days.
       </p>
       <p>
@@ -291,7 +448,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </p>
       <p>
         <strong>Opt-out.</strong> You may opt out of this arbitration
-        agreement by sending a written notice to the address in §15
+        agreement by sending a written notice to the address in §16
         within 30 days of first accepting these Terms. Your notice must
         include your name, the email address associated with your
         account, and a clear statement that you want to opt out.
@@ -312,7 +469,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         year after the claim arose, or it's permanently barred.
       </p>
 
-      <h2>15. Contact</h2>
+      <h2>16. Contact</h2>
       <p>
         <strong>Taybuta, Inc.</strong> (d/b/a Bagpipe Golf)<br />
         <strong>Support:</strong>
@@ -324,13 +481,13 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         Denver, CO 80250
       </p>
 
-      <h2>16. Miscellaneous</h2>
+      <h2>17. Miscellaneous</h2>
       <ul>
         <li><strong>Entire agreement.</strong> These Terms (together with the Privacy Policy and any features-specific terms we publish) are the entire agreement between you and Taybuta, Inc. regarding the Service.</li>
         <li><strong>No waiver.</strong> If we don't enforce a provision, that doesn't waive our right to enforce it later.</li>
         <li><strong>Severability.</strong> If a court or arbitrator finds any part of these Terms unenforceable, the rest remains in effect.</li>
         <li><strong>Assignment.</strong> You may not assign these Terms. We may assign them to a successor (for example, in connection with a sale of the business) with notice to you.</li>
-        <li><strong>Governing law.</strong> These Terms are governed by the laws of the State of Colorado, without regard to conflict of laws principles. See §14 for arbitration and dispute-resolution details.</li>
+        <li><strong>Governing law.</strong> These Terms are governed by the laws of the State of Colorado, without regard to conflict of laws principles. See §15 for arbitration and dispute-resolution details.</li>
         <li><strong>Changes.</strong> We may update these Terms as the Service evolves. When we do, we'll update the "Last updated" date and notify active users in-app or by email when the changes are material. Continued use after a material update constitutes acceptance.</li>
       </ul>
 

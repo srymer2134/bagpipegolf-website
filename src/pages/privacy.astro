@@ -7,7 +7,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <p class="pagewrap__eyebrow">Legal</p>
     <h1 class="pagewrap__title">Privacy policy.</h1>
     <p class="pagewrap__sub">
-      Last updated: <strong>November 5, 2026</strong>.
+      Last updated: <strong>November 9, 2026</strong>.
     </p>
 
     <article class="card prose">
@@ -28,7 +28,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <li><strong>Profile information</strong> — your handicap index, home course, playing style, typical miss, and any other fields you choose to fill in on the Profile screen. You can edit or remove this information at any time.</li>
         <li><strong>Bag / clubs</strong> — the clubs you've configured in your bag, with optional distances. This information stays in your account.</li>
         <li><strong>Round data</strong> — scorecards you create, including course played, date, per-hole scores, putts, fairways hit, greens in regulation, and any other stats you choose to enter.</li>
-        <li><strong>Bet and tournament data</strong> — bet games you create or join, player rosters, hole-by-hole scoring entries, and the resulting settlement amounts. We process bet outcomes as informational scoring; we do not collect, hold, or transfer money.</li>
+        <li><strong>Bet and tournament data</strong> — bet games you create or join, player rosters, hole-by-hole scoring entries, and the resulting settlement amounts. We process side-game and bet outcomes as informational scoring only: players settle those wagers between themselves, and we never collect, hold, or transfer money between players. Money we <em>do</em> handle — plan subscriptions, event passes, and card entry fees where a director has enabled them — is described in the next bullet.</li>
+        <li><strong>Billing information</strong> — when you buy a plan, an event pass, or pay a card entry fee, the payment is taken by <strong>Stripe</strong> on a Stripe-hosted checkout page. <strong>We never receive or store your full card number, expiry, or security code.</strong> What reaches our systems is the Stripe customer and subscription identifiers, the plan you bought, its status and renewal date, the amount, and the billing email — enough to show you what you are on and to unlock the right features. If you are a director collecting entry fees by card, Stripe also holds the payout details you give it directly.</li>
         <li><strong>Friends</strong> — when you add another Bagpipe Golf user as a friend, their account becomes a mutual link in your account. You can remove a friend at any time.</li>
         <li><strong>Tournament invites</strong> — when a tournament director sends an email invite, we store the invitee's email address along with a status (pending, accepted, expired, revoked) so the director can manage the invite list and the recipient can accept the invite.</li>
         <li><strong>Issue reports</strong> — if you report a bug or send feedback, we collect the text of the report and any screenshots you attach.</li>
@@ -123,6 +124,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               <td><strong>Twilio</strong></td>
               <td>SMS delivery + phone verification</td>
               <td>Phone number, for one-time verification codes (Verify) and any SMS alerts you opt into</td>
+            </tr>
+            <tr>
+              <td><strong>Stripe</strong></td>
+              <td>Payment processing — plan subscriptions, event passes, and card entry fees</td>
+              <td>Card details you enter on Stripe's own checkout page (never passed through our servers), billing email and name, and the amount; for a director taking entry fees, the payout and identity details Stripe requires</td>
             </tr>
             <tr>
               <td><strong>Cloudflare</strong></td>
