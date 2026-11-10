@@ -4,6 +4,7 @@ import AppLinkBanner from '../components/AppLinkBanner.astro';
 import PlanCards from '../components/PlanCards.astro';
 import PromoBar from '../components/PromoBar.astro';
 import { buyHref } from '../lib/offer';
+import { visitorPromo } from '../lib/promoCode';
 import { ROUND_FORMAT_COUNT } from '../lib/roundFormats';
 
 // Content sourced from the Flutter repo's canonical
@@ -120,6 +121,8 @@ const advanced: Advanced[] = [
       'Owner or coach role sees a roster-first dashboard: team average, season W-L-T, per-player rank, form dots. Live from the same standings compute — no separate data path.',
   },
 ];
+// Keep a Founding70 visitor's code on the Buy link (lib/offer.ts → buyHref).
+const visitorCode = visitorPromo(Astro.url, Astro.cookies);
 ---
 
 <BaseLayout title="Leagues · Bagpipe Golf" description="Recurring-season leagues — weekly formats, substitute rules, flighting, playoffs, and standings that compute live. Built for member leagues, corporate outings, and school teams.">
@@ -294,7 +297,7 @@ const advanced: Advanced[] = [
       <h2>Ready to start a season?</h2>
       <p>Set up a league, invite the roster, schedule the weeks. Bagpipe runs the standings.</p>
       <div class="cta__row">
-        <a class="btn btn--primary" href={buyHref('league')}>Start your league — 30 days free</a>
+        <a class="btn btn--primary" href={buyHref('league', undefined, visitorCode)}>Start your league — 30 days free</a>
         <a class="btn btn--ghost" href="/leagues/get-started">How to set one up &rarr;</a>
       </div>
       <p class="cta__alt">

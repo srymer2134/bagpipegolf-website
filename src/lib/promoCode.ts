@@ -74,3 +74,16 @@ export function differentCodeHref(url: URL): string {
   q.set('promo', PROMO_CLEAR);
   return `${url.pathname}?${q.toString()}`;
 }
+
+/**
+ * The code this visitor carries on THIS request: `?promo=` wins (the
+ * middleware saves it, but the cookie only reaches the next request), else
+ * the remembered one. `?promo=none` means none.
+ */
+export function visitorPromo(url: URL, cookies: CookieJar): string | null {
+  const raw = url.searchParams.get('promo');
+  if (raw !== null) {
+    return raw.trim().toLowerCase() === PROMO_CLEAR ? null : parsePromoCode(raw);
+  }
+  return rememberedPromo(cookies);
+}

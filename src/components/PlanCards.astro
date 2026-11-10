@@ -16,15 +16,20 @@
 // run, league or standalone, any field size (flutter 20261206, 2026-11-07). Club trial: 30 days, granted by hand. League trial: 30 days, no card, one per director.
 import { sideGames } from '../lib/sideGames';
 import {
+  FOUNDING_CAP,
   PLANS,
   PROMO_CODE,
   buyHref,
   differentCodeBuyHref,
   dollars,
+  foundingFor,
+  foundingPrice,
+  isFoundingCode,
   offerActive,
   offerPrice,
   type PlanKey,
 } from '../lib/offer';
+import { visitorPromo } from '../lib/promoCode';
 
 interface Props {
   /** Which plans to show (always in event, league, club order). Defaults to all three. */
@@ -35,6 +40,13 @@ interface Props {
 const { only = ['event', 'league', 'club'], variant = 'full' } = Astro.props;
 const full = variant === 'full';
 const offer = offerActive();
+// A visitor who arrived on a Founding70 link (the Colorado outreach) sees
+// Founding Club prices on League and Club, and their Buy links keep that
+// code (lib/offer.ts → buyHref explains why the event link carries none).
+const code = visitorPromo(Astro.url, Astro.cookies);
+const founding = offer && isFoundingCode(code);
+const buy = (k: PlanKey) => buyHref(k, undefined, code);
+const first = (k: PlanKey) => (foundingFor(k, code) ? foundingPrice(PLANS[k]) : offerPrice(PLANS[k]));
 const show = (k: PlanKey) => only.includes(k);
 const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 'grid--3';
 ---
@@ -46,7 +58,7 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
       <h3>$240 <span class="card__per">/ per event</span></h3>
       {offer && (
         <p class="plan__offer">
-          <s>{dollars(PLANS.event.price)}</s> <strong>{dollars(offerPrice(PLANS.event))}</strong> for your first event with {PROMO_CODE}
+          <s>{dollars(PLANS.event.price)}</s> <strong>{dollars(offerPrice(PLANS.event))}</strong> for your first event with {PROMO_CODE}{founding && ' (enter it at checkout)'}
         </p>
       )}
       <p class="plan__lede"><strong>Free up to 36 players.</strong> $240 per tournament for a field of 37 or more — a charity day, a member-guest, a company outing.</p>
@@ -58,7 +70,7 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
         </ul>
       )}
       <div class="plan__cta">
-        <a class="btn btn--primary btn--block" href={buyHref('event')} data-plan="event">Buy an event pass</a>
+        <a class="btn btn--primary btn--block" href={buy('event')} data-plan="event">Buy an event pass</a>
         <a class="plan__alt" href="/app/tournaments/new">36 players or fewer? Set it up free</a>
         <a class="plan__alt" href={differentCodeBuyHref('event')}>Have a different code?</a>
       </div>
@@ -68,10 +80,18 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
     <article class="card plan plan--featured" id="league-plan">
       <span class="chip">League · most popular</span>
       <h3>$2,140 <span class="card__per">/ year per league</span></h3>
-      {offer && (
+      {offer && !founding && (
         <p class="plan__offer">
           <s>{dollars(PLANS.league.price)}</s> <strong>{dollars(offerPrice(PLANS.league))}</strong> for your first year with {PROMO_CODE}
         </p>
+      )}
+      {founding && (
+        <>
+          <p class="plan__founding">Founding Club · first {FOUNDING_CAP} clubs</p>
+          <p class="plan__offer">
+            <s>{dollars(PLANS.league.price)}</s> <strong>{dollars(foundingPrice(PLANS.league))}</strong> for your first year, then locked through 2028
+          </p>
+        </>
       )}
       <p class="plan__lede"><strong>One league, one login, unlimited events.</strong> Every tournament, competition and format your league runs is included.</p>
       <p class="plan__trial">30-day free trial · no card needed</p>
@@ -84,10 +104,10 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
         </ul>
       )}
       <div class="plan__cta">
-        <a class="btn btn--primary btn--block" href={buyHref('league')} data-plan="league">
-          {offer ? `Buy League — ${dollars(offerPrice(PLANS.league))} first year` : 'Buy League'}
+        <a class="btn btn--primary btn--block" href={buy('league')} data-plan="league">
+          {offer ? `Buy League — ${dollars(first('league'))} first year` : 'Buy League'}
         </a>
-        <a class="plan__alt" href={buyHref('league')}>or start the 30-day free trial</a>
+        <a class="plan__alt" href={buy('league')}>or start the 30-day free trial</a>
         <a class="plan__alt" href={differentCodeBuyHref('league')}>Have a different code?</a>
       </div>
     </article>
@@ -96,10 +116,18 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
     <article class="card plan" id="club-plan">
       <span class="chip">Club</span>
       <h3>$2,970 <span class="card__per">/ year</span></h3>
-      {offer && (
+      {offer && !founding && (
         <p class="plan__offer">
           <s>{dollars(PLANS.club.price)}</s> <strong>{dollars(offerPrice(PLANS.club))}</strong> for your first year with {PROMO_CODE}
         </p>
+      )}
+      {founding && (
+        <>
+          <p class="plan__founding">Founding Club · first {FOUNDING_CAP} clubs</p>
+          <p class="plan__offer">
+            <s>{dollars(PLANS.club.price)}</s> <strong>{dollars(foundingPrice(PLANS.club))}</strong> for your first year, then locked through 2028
+          </p>
+        </>
       )}
       <p class="plan__lede"><strong>Unlimited leagues, up to 4 admins.</strong> One plan for a club running men's, women's, couples, senior and twilight leagues — and whatever comes next.</p>
       <p class="plan__trial">30-day free trial · no card needed</p>
@@ -111,21 +139,30 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
         </ul>
       )}
       <div class="plan__cta">
-        <a class="btn btn--primary btn--block" href={buyHref('club')} data-plan="club">
-          {offer ? `Buy Club — ${dollars(offerPrice(PLANS.club))} first year` : 'Buy Club'}
+        <a class="btn btn--primary btn--block" href={buy('club')} data-plan="club">
+          {offer ? `Buy Club — ${dollars(first('club'))} first year` : 'Buy Club'}
         </a>
-        <a class="plan__alt" href={`${buyHref('club')}#trial`}>or start the 30-day free trial</a>
+        <a class="plan__alt" href={`${buy('club')}#trial`}>or start the 30-day free trial</a>
         <a class="plan__alt" href={differentCodeBuyHref('club')}>Have a different code?</a>
         <a class="plan__alt" href="mailto:hello@bagpipegolf.com?subject=Club%20plan">Questions? Email hello@bagpipegolf.com</a>
       </div>
     </article>
   )}
 </div>
-{offer && (
+{offer && !founding && (
   <p class="plans__fine">
     Offer prices are the first payment with code {PROMO_CODE}, applied for you at
     checkout. Plus applicable sales tax. Renews at the regular price. Have a
     different code? Use the link under the plan, and enter it at checkout.
+  </p>
+)}
+{founding && (
+  <p class="plans__fine">
+    Founding Club prices are 70% off the first year of League or Club with code
+    Founding70, applied for you at checkout, for the first {FOUNDING_CAP} clubs
+    and through December 31. The price is then locked through 2028. Plus
+    applicable sales tax. Founding70 doesn't cover a single-event pass; enter
+    {' '}{PROMO_CODE} at checkout for 50% off one.
   </p>
 )}
 
@@ -145,6 +182,16 @@ const cols = only.length === 1 ? 'plans--one' : only.length === 2 ? 'grid--2' : 
   .plan--featured { border: 2px solid var(--brand-green-dark); }
   .plan .plan__offer { color: var(--ink); font-size: 0.9375rem; }
   .plan__offer s { color: var(--ink-hint); }
+  .plan .plan__founding {
+    align-self: flex-start;
+    margin: 2px 0 0;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--brand-green-dark);
+    color: #fff;
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
   .plan__offer strong { color: var(--brand-green); font-size: 1.125rem; }
   .plan .plan__trial {
     color: var(--brand-green-dark);

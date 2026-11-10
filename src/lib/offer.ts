@@ -56,13 +56,50 @@ export function offerPrice(plan: Plan): number {
   return Math.round((plan.price * (100 - PROMO_PERCENT)) / 100);
 }
 
+// ── Founding Clubs (Sam, 2026-11-09) ─────────────────────────────────
+// The first 25 clubs: 70% off the first year of League or Club, the price
+// locked through 2028, a Founding Club listing on this site. Stripe live
+// promotion code `Founding70` (coupon FOUNDING70): 25-use cap, League + Club
+// products only, same Dec 31 deadline as Bagpipe50. The outreach emails link
+// here with `?promo=Founding70`; a visitor carrying it sees founding prices.
+// Stripe enforces the cap, so "first 25" is literally true.
+export const FOUNDING_CODE = 'Founding70';
+export const FOUNDING_PERCENT = 70;
+export const FOUNDING_CAP = 25;
+export const FOUNDING_PLANS: readonly PlanKey[] = ['league', 'club'];
+
+export function isFoundingCode(code: string | null | undefined): boolean {
+  return !!code && code.toLowerCase() === FOUNDING_CODE.toLowerCase();
+}
+
+/** The Founding Club first-year price. 70% off $2,970 is $891. */
+export function foundingPrice(plan: Plan): number {
+  return Math.round((plan.price * (100 - FOUNDING_PERCENT)) / 100);
+}
+
+/** Does this visitor see Founding Club prices on this plan? */
+export function foundingFor(plan: PlanKey, code: string | null | undefined, now: Date = new Date()): boolean {
+  return offerActive(now) && isFoundingCode(code) && FOUNDING_PLANS.includes(plan);
+}
+
 /**
  * The link behind a plan's Buy button: `/buy/<plan>`, which sends the
  * visitor through sign-up and setup to checkout. Carries the code while the
  * offer runs.
+ *
+ * `code` is the code this visitor already carries. A Founding70 visitor's
+ * League and Club links carry Founding70, and the event link carries NO code:
+ * `?promo=Bagpipe50` would overwrite the saved Founding70 and turn 70% off
+ * into 50% off when they come back for a League. (Founding70 doesn't cover
+ * the event pass; checkout then opens Stripe's code box, where Bagpipe50
+ * works.)
  */
-export function buyHref(plan: PlanKey, now: Date = new Date()): string {
-  return offerActive(now) ? `/buy/${plan}?promo=${PROMO_CODE}` : `/buy/${plan}`;
+export function buyHref(plan: PlanKey, now: Date = new Date(), code?: string | null): string {
+  if (!offerActive(now)) return `/buy/${plan}`;
+  if (isFoundingCode(code)) {
+    return FOUNDING_PLANS.includes(plan) ? `/buy/${plan}?promo=${FOUNDING_CODE}` : `/buy/${plan}`;
+  }
+  return `/buy/${plan}?promo=${PROMO_CODE}`;
 }
 
 /**

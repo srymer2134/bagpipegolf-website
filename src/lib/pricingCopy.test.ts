@@ -31,7 +31,7 @@ describe('pricing copy — the league plan', () => {
     expect(pricing).not.toMatch(/share the work/i);
     expect(pricing.replace(/<!--[\s\S]*?-->|\{\/\*[\s\S]*?\*\/\}/g, '')).not.toMatch(/up to 4 leagues/i);
     expect(pricing).toContain('mailto:hello@bagpipegolf.com?subject=Club%20plan');
-    expect(pricing).toContain("href={buyHref('club')}");
+    expect(pricing).toContain("href={buy('club')}");
     expect(pricing).toMatch(/Players are always free/);
     // League trial (api 20261115): 30 days, no card, one per director.
     expect(pricing).toMatch(/30-day free trial · no card needed/);
