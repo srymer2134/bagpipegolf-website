@@ -21,7 +21,6 @@
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { createSupabaseClient } from '../../lib/supabase';
-import { MISSES, PLAYING_STYLES } from '../../lib/profileFields';
 
 const user = Astro.locals.user!;
 const supabase = createSupabaseClient({
@@ -40,8 +39,7 @@ try {
     // PostgREST 400s the WHOLE select on an unknown column, so leaving it
     // here would turn this page into "Could not load your profile." the
     // moment that migration lands. This must deploy BEFORE it.
-    .select('display_name, handicap, home_course_id, playing_style, '
-      + 'typical_miss, typical_miss_irons, phone, handicap_source')
+    .select('display_name, handicap, home_course_id, phone, handicap_source')
     .eq('id', user.id)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -60,13 +58,9 @@ const loaded = {
   display_name: str('display_name'),
   handicap: profile?.handicap ?? null,
   home_course_id: str('home_course_id'),
-  playing_style: str('playing_style'),
-  typical_miss: str('typical_miss'),
-  typical_miss_irons: str('typical_miss_irons'),
   phone: str('phone'),
 };
 
-const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const hcSource = str('handicap_source');
 ---
 
@@ -127,44 +121,6 @@ const hcSource = str('handicap_source');
         </label>
       </fieldset>
 
-      <fieldset class="fs">
-        <legend>How you play</legend>
-        <p class="hint">Used by the AI caddie when it comes back.</p>
-
-        <label class="field">
-          <span>Playing style</span>
-          <select name="playing_style">
-            <option value="">&mdash; not set &mdash;</option>
-            {PLAYING_STYLES.map((s) => (
-              <option value={s} selected={str('playing_style') === s}>{titleCase(s)}</option>
-            ))}
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Typical miss &mdash; driver</span>
-          <select name="typical_miss">
-            <option value="">&mdash; not set &mdash;</option>
-            {MISSES.map((m) => (
-              <option value={m} selected={str('typical_miss') === m}>{titleCase(m)}</option>
-            ))}
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Typical miss &mdash; irons</span>
-          <select name="typical_miss_irons">
-            <option value="">&mdash; not set &mdash;</option>
-            {MISSES.map((m) => (
-              <option value={m} selected={str('typical_miss_irons') === m}>{titleCase(m)}</option>
-            ))}
-          </select>
-        </label>
-        <p class="hint">
-          Once set, these cannot be cleared from the web &mdash; the server does
-          not accept an empty value for them. Pick a different option instead.
-        </p>
-      </fieldset>
 
       <button type="submit" class="btn btn--primary" id="save">Save changes</button>
       <p class="hint">
@@ -192,14 +148,6 @@ const hcSource = str('handicap_source');
         <button type="submit" class="btn btn--danger" id="dbtn" disabled>Delete my account</button>
       </form>
     </section>
-
-    <section class="fs">
-      <legend class="legendish">Not here yet</legend>
-      <p class="hint">
-        Bag and clubs, friends, and career stats are in the app. Notification
-        preferences too. They are next in this slice.
-      </p>
-    </section>
   </main>
 
   <script is:inline define:vars={{ loaded }}>
@@ -223,9 +171,6 @@ const hcSource = str('handicap_source');
         display_name: fd.get('display_name') ?? '',
         handicap: fd.get('handicap') === '' ? null : fd.get('handicap'),
         home_course_id: loaded.home_course_id,
-        playing_style: fd.get('playing_style') ?? '',
-        typical_miss: fd.get('typical_miss') ?? '',
-        typical_miss_irons: fd.get('typical_miss_irons') ?? '',
         phone: fd.get('phone') ?? '',
       };
 
