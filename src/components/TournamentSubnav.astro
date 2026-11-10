@@ -14,8 +14,9 @@ const links: Array<{ key: Props['active']; label: string }> = [
   { key: 'scorecard',   label: 'Scorecard' },
   { key: 'pairings',    label: 'Pairings' },
   { key: 'competitions', label: 'Competitions' },
-  { key: 'calcutta',    label: 'Calcutta' },
-  { key: 'payouts',     label: 'Payouts' },
+  // Calcutta and Payouts are not linked until they are built (Sam,
+  // 2026-11-10: don't advertise features that don't exist). Their
+  // routes redirect to the overview.
   { key: 'manage',      label: 'Manage (Director)' },
 ];
 

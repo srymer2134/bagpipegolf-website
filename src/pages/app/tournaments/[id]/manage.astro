@@ -1,10 +1,9 @@
 ---
 // Manage tournament — Slice A1 (roster editor).
 //
-// Director-only surface. Ships the "Roster" card from the earlier
-// wireframe stub as a real editor + leaves the other cards
-// (Lifecycle, Per-round setup, Communications, Sponsors, Settle &
-// post) as "Coming soon" for Slice A2/A3/A4.
+// Director-only surface. The "Coming soon" cards (Lifecycle,
+// Per-round setup, Communications, Sponsors, Settle & post) were
+// removed 2026-11-10 (Sam): don't advertise features that don't exist.
 //
 // Auth chain:
 //   1. Middleware gates the /app/* prefix behind a signed-in
@@ -599,33 +598,6 @@ if (tournament) {
           </div>
         </section>
 
-        <section class="grid grid--2 coming">
-          <article class="card">
-            <span class="chip chip--muted">Coming soon</span>
-            <h3>Lifecycle</h3>
-            <p>Setup → Field final → Tee times live → Payouts posted.</p>
-          </article>
-          <article class="card">
-            <span class="chip chip--muted">Coming soon</span>
-            <h3>Per-round setup</h3>
-            <p>Format, course, tees, pairings, shotgun, handicap snapshot.</p>
-          </article>
-          <article class="card">
-            <span class="chip chip--muted">Coming soon</span>
-            <h3>Communications</h3>
-            <p>Push / email / SMS blast to the field, AI-assisted compose.</p>
-          </article>
-          <article class="card">
-            <span class="chip chip--muted">Coming soon</span>
-            <h3>Sponsors</h3>
-            <p>Logos on leaderboard, kiosk, print pack.</p>
-          </article>
-          <article class="card">
-            <span class="chip chip--muted">Coming soon</span>
-            <h3>Settle &amp; post</h3>
-            <p>Director-controlled payout distribution with balance guard.</p>
-          </article>
-        </section>
       </>
     )}
   </main>
@@ -3201,11 +3173,6 @@ if (tournament) {
     border-top: 1px solid var(--line);
   }
   .rosterCard__actions .btn { min-width: 120px; }
-
-  .coming {
-    margin-top: 32px;
-    opacity: 0.85;
-  }
 
   /* ── Danger zone (Slice A3) ────────────────────────── */
   .dangerCard {
