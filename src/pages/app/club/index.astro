@@ -15,6 +15,8 @@ type ClubLeague = { league_id: string; name: string | null; owner: string; mine:
 type Club = {
   org_id: string; name: string; role: 'owner' | 'admin'; covered: boolean;
   seats_used: number; seats_max: number;
+  // who pays for the live Club plan (20261214); null/absent when there is none
+  plan_payer?: { display_name: string | null; me: boolean } | null;
   members: Member[]; invites: Invite[]; leagues: ClubLeague[];
 };
 
@@ -75,6 +77,13 @@ const day = (iso: string) =>
           <h2 class="club__name">{c.name}</h2>
           <span class={`chip ${c.covered ? 'chip--on' : 'chip--off'}`}>{c.covered ? 'Plan active' : 'No plan yet'}</span>
         </div>
+        {c.covered && c.plan_payer && (
+          <p class="club__payer">
+            {c.plan_payer.me
+              ? <>You pay for this club’s plan. <a href="/app/billing">Manage it in Billing →</a></>
+              : `${c.plan_payer.display_name || 'Another admin'} pays for this club’s plan.`}
+          </p>
+        )}
         {!c.covered && c.role === 'owner' && (
           <p class="club__plan">
             Leagues in the club are covered once it has a plan.
@@ -199,6 +208,7 @@ const day = (iso: string) =>
   .club { margin-top: 18px; }
   .club__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
   .club__name { margin: 0; font-size: 1.375rem; color: var(--brand-green-dark); }
+  .club__payer { margin: 0; color: var(--ink-muted); }
   .club__plan { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--brand-green-pale); }
   .club__h { margin: 10px 0 0; font-size: 1rem; }
   .club__count { font-weight: 500; color: var(--ink-muted); margin-left: 6px; }

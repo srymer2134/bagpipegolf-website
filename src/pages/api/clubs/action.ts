@@ -28,9 +28,9 @@ export const POST: APIRoute = async (ctx) => {
   const call = clubCall(form, locals.user.id);
   if ('refuse' in call) return redirect(withQuery(back, { club: call.refuse }));
 
-  let data: { emailed?: unknown } | null = null;
+  let data: { emailed?: unknown; plan_payer?: unknown } | null = null;
   try {
-    data = await callRailway<{ emailed?: unknown }>(ctx, {
+    data = await callRailway<{ emailed?: unknown; plan_payer?: unknown }>(ctx, {
       method: call.method,
       path: call.path,
       ...(call.body ? { body: call.body } : {}),
@@ -48,5 +48,6 @@ export const POST: APIRoute = async (ctx) => {
 
   const action = String(form.get('action') ?? '');
   const emailed = typeof data?.emailed === 'boolean' ? data.emailed : undefined;
-  return redirect(withQuery(back, { club: clubDone(action, emailed) }));
+  const youStillPay = data?.plan_payer === locals.user.id;
+  return redirect(withQuery(back, { club: clubDone(action, emailed, youStillPay) }));
 };

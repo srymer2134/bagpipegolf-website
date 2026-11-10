@@ -42,6 +42,14 @@ describe('clubMessage / clubDone', () => {
     expect(clubMessage('some_new_code')?.text).toMatch(/nothing was changed/);
     expect(clubMessage(null)).toBeNull();
   });
+  it('a transfer tells the outgoing owner when they are still paying', () => {
+    expect(clubDone('transfer')).toBe('transferred');
+    expect(clubDone('transfer', undefined, false)).toBe('transferred');
+    expect(clubDone('transfer', undefined, true)).toBe('transferred_paying');
+    const m = clubMessage('transferred_paying');
+    expect(m?.good).toBe(true);
+    expect(m?.text).toMatch(/still billed to you/);
+  });
   it('an invite whose email failed says so', () => {
     expect(clubDone('invite', false)).toBe('invited_not_emailed');
     expect(clubDone('invite', true)).toBe('invited');
@@ -53,6 +61,15 @@ describe('the pages', () => {
     const page = readFileSync('src/pages/app/club/accept.astro', 'utf8');
     expect(page).toContain('method="POST" action="/api/clubs/action"');
     expect(page).not.toMatch(/callRailway/);
+  });
+  it('the action route reads the payer from the transfer result, not the form', () => {
+    const route = readFileSync('src/pages/api/clubs/action.ts', 'utf8');
+    expect(route).toMatch(/data\?\.plan_payer === locals\.user\.id/);
+  });
+  it('the club page says who pays', () => {
+    const page = readFileSync('src/pages/app/club/index.astro', 'utf8');
+    expect(page).toContain('You pay for this club’s plan.');
+    expect(page).toContain('pays for this club’s plan.');
   });
   it('the action route never puts the token in the redirect', () => {
     const route = readFileSync('src/pages/api/clubs/action.ts', 'utf8');

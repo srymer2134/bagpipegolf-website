@@ -117,6 +117,8 @@ export function clubMessage(code: string | null | undefined): { text: string; go
     removed: 'Admin removed. Their leagues are no longer covered by the club.',
     left: 'You left the club. Your leagues are no longer covered by it.',
     transferred: 'The club has a new owner.',
+    transferred_paying:
+      'The club has a new owner. Its Club plan is still billed to you, and the club stays covered while it’s active. To stop paying, cancel it in Billing. To move it to the new owner, email hello@bagpipegolf.com.',
     attached: 'League attached.',
     detached: 'League detached. It’s back on its own plan.',
     dissolved: 'Club dissolved. Your leagues are back on their own plans.',
@@ -145,8 +147,12 @@ export function clubMessage(code: string | null | undefined): { text: string; go
   return { text: bad[code] ?? 'Something went wrong, and nothing was changed. Please try again.', good: false };
 }
 
-/** The `?club=` code to show after a successful action. */
-export function clubDone(action: string, emailed?: boolean): string {
+/**
+ * The `?club=` code to show after a successful action. `youStillPay`: a
+ * transfer of a paid club leaves the plan on the payer's card (20261214), so
+ * the outgoing owner is told they are still paying.
+ */
+export function clubDone(action: string, emailed?: boolean, youStillPay?: boolean): string {
   switch (action) {
     case 'create': return 'created';
     case 'invite': return emailed === false ? 'invited_not_emailed' : 'invited';
@@ -154,7 +160,7 @@ export function clubDone(action: string, emailed?: boolean): string {
     case 'accept': return 'joined';
     case 'remove': return 'removed';
     case 'leave': return 'left';
-    case 'transfer': return 'transferred';
+    case 'transfer': return youStillPay ? 'transferred_paying' : 'transferred';
     case 'attach': return 'attached';
     case 'detach': return 'detached';
     case 'dissolve': return 'dissolved';
