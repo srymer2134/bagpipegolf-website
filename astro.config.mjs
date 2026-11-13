@@ -34,6 +34,26 @@ const NOT_IN_SITEMAP =
 // Cloudflare Worker side is wrapped separately in
 // src/lib/sentryServer.ts. See `.dev.vars.example` for the env
 // var contract.
+// The Keystatic GitHub App's slug, committed on purpose — same
+// reasoning as the Sentry DSN further down, and the same trap.
+//
+// It is a PUBLIC_ value, so Astro inlines it into the browser bundle
+// at BUILD time, which means it has to exist in the Workers Builds
+// environment and not merely in the Worker's own variables. Those are
+// two different dashboard screens, and a value in the wrong one looks
+// set while the admin quietly reports "no app slug" and refuses to
+// sign anyone in. A committed default cannot be put in the wrong
+// screen or forgotten.
+//
+// Nothing is exposed by committing it: an app slug is the public half
+// of a GitHub App (github.com/apps/srymer2134-keystatic is a public
+// page) and it ships in the browser bundle regardless. The three
+// secrets that matter are Worker secrets and are not in this repo.
+//
+// Setting PUBLIC_KEYSTATIC_GITHUB_APP_SLUG in the environment still
+// wins, so a second app (a staging one, say) needs no code change.
+process.env.PUBLIC_KEYSTATIC_GITHUB_APP_SLUG ||= 'srymer2134-keystatic';
+
 export default defineConfig({
   site: 'https://bagpipegolf.com',
   // `server` = every page runs through the Worker (needed for the auth
