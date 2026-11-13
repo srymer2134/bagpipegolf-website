@@ -42,6 +42,21 @@ export default defineConfig({
   // once we want them SEO-snappy.
   output: 'server',
   adapter: cloudflare(),
+  // Vite pre-bundling for the Keystatic admin, dev only.
+  //
+  // The admin UI is a React island loaded straight out of
+  // node_modules, and its dependency chain reaches CommonJS packages
+  // (lodash/debounce is the one that bites). Un-prebundled, Vite serves
+  // those as raw CJS files and the island dies on
+  // "does not provide an export named 'default'" — a blank /keystatic
+  // and nothing but a console error to say why. `npm run build` is
+  // unaffected, because Rollup does the CJS interop itself, so this is
+  // strictly a dev-server fix.
+  vite: {
+    optimizeDeps: {
+      include: ['@keystatic/core/ui'],
+    },
+  },
   integrations: [
     // Keystatic — the browser CMS at /keystatic, in github mode
     // (schema + why in keystatic.config.ts, setup in

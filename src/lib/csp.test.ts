@@ -71,5 +71,8 @@ describe('cspForPath', () => {
     expect(d('script-src')!.split(/\s+/).slice(1).sort()).toEqual(
       ["'self'", "'unsafe-eval'", "'unsafe-inline'"].sort(),
     );
+    // The setup wizard POSTs its app manifest to github.com; with only
+    // 'self' here, "Create GitHub App" silently does nothing.
+    expect(d('form-action')).toBe("form-action 'self' https://github.com");
   });
 });

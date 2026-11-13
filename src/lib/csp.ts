@@ -72,7 +72,13 @@ export const KEYSTATIC_CONTENT_SECURITY_POLICY = [
   "frame-src 'none'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  // The setup wizard POSTs a GitHub App manifest to
+  // github.com/settings/apps/new, and sign-in POSTs nothing but is a
+  // navigation GitHub completes. form-action governs the POST, and
+  // with only 'self' the button silently does nothing — the same
+  // failure the Stripe hosts above are commented for, hit again here
+  // 2026-11-13 while running the wizard.
+  "form-action 'self' https://github.com",
   "object-src 'none'",
 ].join('; ');
 
