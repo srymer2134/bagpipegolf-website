@@ -254,9 +254,10 @@ describe('contact address', () => {
 });
 
 describe('both pages were re-dated when the money clauses changed', () => {
-  it('carries the 2026-11-09 revision date', () => {
-    for (const f of [TERMS, PRIVACY]) {
-      expect(read(f), f).toContain('Last updated: <strong>November 9, 2026</strong>.');
-    }
+  // Privacy moved on to 2026-11-12 (processor list: Anthropic, GitHub,
+  // Apple, Google, Cloudflare). A later date is fine; going backwards is not.
+  it('carries the 2026-11-09 revision date (Terms) and a later one (Privacy)', () => {
+    expect(read(TERMS), TERMS).toContain('Last updated: <strong>November 9, 2026</strong>.');
+    expect(read(PRIVACY), PRIVACY).toContain('Last updated: <strong>November 12, 2026</strong>.');
   });
 });
