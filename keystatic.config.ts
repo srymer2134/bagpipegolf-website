@@ -4,13 +4,19 @@
 // JSON file under src/data/. The page imports that file at build
 // time, so nothing is read from disk on the Worker.
 //
-// Pilot scope: the home page hero only. Storage is `local` (edits save
-// to files in this working copy); switching to `github` mode — edits
-// saved as commits — needs a GitHub App on the repo, which Sam approves.
+// Pilot scope: the home page hero only. Storage is `github`: edits are
+// saved as commits on `keystatic/…` draft branches (never straight to
+// main), each with its own preview URL. The first visit to /keystatic
+// walks through creating the GitHub App; its four secrets go in
+// .env.local, never in git.
 import { config, fields, singleton } from '@keystatic/core';
 
 export default config({
-  storage: { kind: 'local' },
+  storage: {
+    kind: 'github',
+    repo: { owner: 'srymer2134', name: 'bagpipegolf-website' },
+    branchPrefix: 'keystatic/',
+  },
   ui: {
     brand: { name: 'Bagpipe Golf' },
   },
