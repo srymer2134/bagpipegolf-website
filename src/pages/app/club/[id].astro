@@ -1,0 +1,78 @@
+---
+// /app/club/<id> — one club's page, and the address every club link
+// points at: the menu entry, the dashboard card, and the "Part of"
+// line on a league that belongs to it.
+//
+// A club is a SUPER-USER feature: many leagues and many events under
+// one plan and up to four admins. It is also entirely optional —
+// leagues and tournaments exist without one, and most always will — so
+// nothing on this page is implied anywhere else in the product.
+//
+// Before this route, a club had no address at all. Buying one 303'd to
+// /app/club and nothing in the site linked back, so the only way to
+// return was the Stripe receipt (Sam, 2026-11-13).
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import ClubPanel from '../../../components/ClubPanel.astro';
+import { loadClubPage, welcomeSteps } from '../../../lib/clubPage';
+import { clubMessage } from '../../../lib/club';
+
+const user = (Astro.locals as App.Locals).user!;
+const { id } = Astro.params;
+
+const { clubs, attachable, loadFailed } = await loadClubPage(Astro);
+const club = clubs.find((c) => c.org_id === id) ?? null;
+
+// Not a member, or no such club: 404 rather than a "you can't see
+// this" page, which would confirm the club exists to anyone guessing.
+if (!loadFailed && !club) return new Response(null, { status: 404 });
+
+const notice = clubMessage(Astro.url.searchParams.get('club'));
+const welcome = club && Astro.url.searchParams.get('welcome') === '1';
+const steps = club ? welcomeSteps(club) : [];
+---
+
+<BaseLayout title={club ? `${club.name} · Bagpipe Golf` : 'Club · Bagpipe Golf'}>
+  <main class="pagewrap pagewrap--narrow">
+    <p class="pagewrap__eyebrow">
+      {clubs.length > 1 ? <a href="/app/club">Clubs</a> : 'Club'}
+    </p>
+    <h1 class="pagewrap__title">{club ? club.name : 'Your club.'}</h1>
+
+    {notice && <p class={`notice ${notice.good ? 'notice--good' : ''}`} role="status">{notice.text}</p>}
+
+    {loadFailed && (
+      <p class="pagewrap__sub">
+        We couldn’t load your club just now. Nothing has changed — try again in a moment.
+      </p>
+    )}
+
+    {welcome && club && (
+      <section class="welcome card">
+        <h2 class="welcome__h">You’re set up. Three things to do.</h2>
+        <ol class="welcome__list">
+          {steps.map((s) => (
+            <li class={s.done ? 'is-done' : ''}>{s.done ? '✓' : '○'} {s.text}</li>
+          ))}
+        </ol>
+        <p class="welcome__fine">
+          This page is in your menu under <strong>My club</strong> whenever you need it.
+        </p>
+      </section>
+    )}
+
+    {club && (
+      <ClubPanel club={club} userId={user.id} attachable={attachable} showName={false} />
+    )}
+  </main>
+</BaseLayout>
+
+<style>
+  .notice { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(180, 83, 9, 0.07); }
+  .notice--good { background: var(--brand-green-pale); }
+  .welcome { margin-top: 10px; background: var(--brand-green-pale); }
+  .welcome__h { margin: 0 0 8px; font-size: 1.0625rem; color: var(--brand-green-dark); }
+  .welcome__list { margin: 0; padding: 0 0 0 2px; list-style: none; display: grid; gap: 6px; }
+  .welcome__list li { color: var(--ink); }
+  .welcome__list .is-done { color: var(--ink-muted); text-decoration: line-through; }
+  .welcome__fine { margin: 10px 0 0; font-size: 0.875rem; color: var(--ink-muted); }
+</style>

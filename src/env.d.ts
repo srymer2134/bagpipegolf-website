@@ -37,5 +37,12 @@ declare namespace App {
   interface Locals extends Runtime {
     session: import('@supabase/supabase-js').Session | null;
     user: import('@supabase/supabase-js').User | null;
+    /**
+     * Clubs the signed-in user is an active member of — [] for the
+     * vast majority, who have none and must see no club navigation.
+     * Populated once per request in middleware so the nav, the
+     * dashboard and a league page can each ask without three queries.
+     */
+    clubs: import('./lib/clubs').ClubMembership[];
   }
 }

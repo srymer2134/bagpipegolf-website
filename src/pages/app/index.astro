@@ -1,4 +1,5 @@
 ---
+import { clubHref } from '../../lib/clubs';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { createSupabaseClient } from '../../lib/supabase';
 import { listBets, formatVsPar, type RoundRow, type BetRow } from '../../lib/queries';
@@ -52,6 +53,12 @@ const playerNames = (b: BetRow) =>
   (b.players ?? [])
     .map((p) => (p?.name as string) || (p?.id as string) || '')
     .filter(Boolean);
+
+// Clubs are optional and most accounts have none. When there is none
+// the club section does not render AT ALL — not an empty state, not an
+// upsell. A player who will never buy a Club plan should not get a
+// club-shaped hole in their dashboard; /pricing is where it is sold.
+const clubs = (Astro.locals as App.Locals).clubs ?? [];
 ---
 
 <BaseLayout title="Dashboard · Bagpipe Golf">
@@ -152,6 +159,24 @@ const playerNames = (b: BetRow) =>
         </div>
       )}
     </section>
+
+    {clubs.length > 0 && (
+      <section class="block">
+        <div class="block__head">
+          <h2 class="block__title">{clubs.length === 1 ? 'Your club' : 'Your clubs'}</h2>
+          {clubs.length > 1 && <a class="block__more" href="/app/club">All clubs →</a>}
+        </div>
+        <div class="grid grid--3">
+          {clubs.map((c) => (
+            <article class="card">
+              <h3>{c.name}</h3>
+              <p>Leagues, admins and the plan that covers them.</p>
+              <a class="btn btn--ghost btn--sm" href={clubHref(c.orgId)}>Open</a>
+            </article>
+          ))}
+        </div>
+      </section>
+    )}
 
     <section class="block">
       <h2 class="block__title">Coming soon</h2>

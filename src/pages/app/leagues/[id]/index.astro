@@ -19,6 +19,7 @@ import { paymentsGate } from '../../../../lib/paymentsGate';
 import LeaguePlanBanner from '../../../../components/LeaguePlanBanner.astro';
 import { leaguePlanBanner, type BillingListResponse } from '../../../../lib/billing';
 import { callRailway } from '../../../../lib/railway';
+import { clubFor, clubHref } from '../../../../lib/clubs';
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
@@ -36,6 +37,10 @@ try {
   console.error('[app/league] load failed', err);
   failed = true;
 }
+
+// The upward half of the club link. A league with no club — the usual
+// case — renders nothing here and looks exactly as it did before.
+const club = clubFor((Astro.locals as App.Locals).clubs ?? [], d?.league.org_id);
 
 const next = d ? nextWeek(d.weeks) : null;
 const last = d ? lastWeek(d.weeks) : null;
@@ -126,7 +131,9 @@ if (payMode !== 'off' && d && id && own && payable) {
 
 <BaseLayout title={d ? `${d.league.name} · Bagpipe Golf` : 'League · Bagpipe Golf'}>
   <main class="pagewrap">
-    <p class="pagewrap__eyebrow">League</p>
+    <p class="pagewrap__eyebrow">
+      {club ? <>League · <a class="eyebrow__club" href={clubHref(club.orgId)}>{club.name}</a></> : 'League'}
+    </p>
     <h1 class="pagewrap__title">{d ? d.league.name : 'League'}</h1>
 
     {!d ? (
@@ -282,4 +289,5 @@ if (payMode !== 'off' && d && id && own && payable) {
   .tbl td { font-variant-numeric: tabular-nums; }
   .small { font-size: 0.78125rem; }
   .muted { color: var(--ink-muted, #4b5b54); }
+  .eyebrow__club { color: var(--brand-green); text-decoration: underline; }
 </style>
