@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CONTENT_SECURITY_POLICY } from './csp';
+import {
+  CONTENT_SECURITY_POLICY,
+  KEYSTATIC_CONTENT_SECURITY_POLICY,
+  cspForPath,
+} from './csp';
 
 const directive = (name: string) =>
   CONTENT_SECURITY_POLICY.split(';').map((d) => d.trim()).find((d) => d.startsWith(name + ' '));
@@ -34,5 +38,38 @@ describe('page CSP form-action', () => {
     expect(directive('frame-ancestors')).toBe("frame-ancestors 'none'");
     expect(directive('object-src')).toBe("object-src 'none'");
     expect(directive('base-uri')).toBe("base-uri 'self'");
+  });
+});
+
+describe('cspForPath', () => {
+  it('serves the site policy on a marketing page', () => {
+    expect(cspForPath('/')).toBe(CONTENT_SECURITY_POLICY);
+    expect(cspForPath('/features')).toBe(CONTENT_SECURITY_POLICY);
+    // A path that merely starts with the same letters is not the admin.
+    expect(cspForPath('/keystatic-notes')).toBe(CONTENT_SECURITY_POLICY);
+  });
+
+  it('serves the admin policy on the Keystatic UI and its API routes', () => {
+    for (const p of ['/keystatic', '/keystatic/collection/posts', '/api/keystatic/github/login']) {
+      expect(cspForPath(p)).toBe(KEYSTATIC_CONTENT_SECURITY_POLICY);
+    }
+  });
+
+  it("gives the admin 'unsafe-eval' and blob: — and keeps them off every other page", () => {
+    // The admin is a React app we don't author; without these it renders blank.
+    expect(KEYSTATIC_CONTENT_SECURITY_POLICY).toContain("'unsafe-eval'");
+    expect(KEYSTATIC_CONTENT_SECURITY_POLICY).toContain('blob:');
+    expect(CONTENT_SECURITY_POLICY).not.toContain("'unsafe-eval'");
+    expect(CONTENT_SECURITY_POLICY).not.toContain('blob:');
+  });
+
+  it('keeps the admin un-framable and script-host-free', () => {
+    const d = (name: string) =>
+      KEYSTATIC_CONTENT_SECURITY_POLICY.split(';').map((x) => x.trim()).find((x) => x.startsWith(name + ' '));
+    expect(d('frame-ancestors')).toBe("frame-ancestors 'none'");
+    expect(d('object-src')).toBe("object-src 'none'");
+    expect(d('script-src')!.split(/\s+/).slice(1).sort()).toEqual(
+      ["'self'", "'unsafe-eval'", "'unsafe-inline'"].sort(),
+    );
   });
 });

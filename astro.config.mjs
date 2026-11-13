@@ -2,6 +2,8 @@
 import { defineConfig } from 'astro/config';
 
 import cloudflare from "@astrojs/cloudflare";
+import react from "@astrojs/react";
+import keystatic from "@keystatic/astro";
 import sentry from "@sentry/astro";
 import sitemap from "@astrojs/sitemap";
 import { sideGames } from "./src/lib/sideGames.ts";
@@ -41,6 +43,20 @@ export default defineConfig({
   output: 'server',
   adapter: cloudflare(),
   integrations: [
+    // Keystatic — the browser CMS at /keystatic, in github mode
+    // (schema + why in keystatic.config.ts, setup in
+    // docs/KEYSTATIC_SETUP.md). The integration injects both of its
+    // own routes — /keystatic/[...params] (the admin UI) and
+    // /api/keystatic/[...params] (OAuth + the GitHub reads/writes) —
+    // so there is nothing in src/pages for it. Both are
+    // `prerender = false`, which `output: 'server'` above already
+    // means for every route.
+    //
+    // react() is Keystatic's renderer, not a choice about the site:
+    // the admin UI is a React app. No marketing page uses React, so
+    // nothing ships to a visitor's browser because of this line.
+    react(),
+    keystatic(),
     // sitemap-index.xml + sitemap-0.xml at build time. With
     // `output: 'server'` the integration sees only routes without
     // params, so the side-game detail pages (`/side-games/[slug]`) are
