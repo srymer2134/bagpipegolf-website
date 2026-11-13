@@ -1,30 +1,10 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { sideGames } from '../lib/sideGames';
-
-const faqs = [
-  {
-    q: 'Do players need to download the app to score?',
-    a: 'No. Players can score on this website via a join code. The app gives the full experience (offline scoring, push notifications) but is optional.',
-  },
-  {
-    q: 'Is GHIN integration live?',
-    a: "Not yet. We're in the USGA approval process for official handicap data. Until that lands, your handicap is entered on your profile and updated by you.",
-  },
-  {
-    q: 'How many side games are supported?',
-    // Derived, never typed: this answer said "30+" while the app had 34.
-    a: `${sideGames.length} — Nassau, Skins, Wolf, Stableford, Hammer, Vegas, Bingo Bango Bongo, Scotch, Sixes and more. Every game settles hole-by-hole and is zero-sum.`,
-  },
-  {
-    q: 'Can I run a multi-day tournament with different formats per round?',
-    a: "Yes. Every round in a multi-day event can be a different format and a different course.",
-  },
-  {
-    q: 'How do players watch a tournament without an account?',
-    a: "Every tournament gets its own public leaderboard page on bagpipegolf.com. Share the link and anyone can follow along live — no sign-in required.",
-  },
-];
+// The questions live in Keystatic now (content/faq/*.json, edited at
+// /keystatic). src/lib/faq.ts reads them at build time and substitutes
+// the {sideGameCount} token, so the side-game number stays derived
+// from the library even though an editor owns the sentence around it.
+import { faqEntries } from '../lib/faq';
 ---
 
 <BaseLayout title="FAQ · Bagpipe Golf">
@@ -37,10 +17,10 @@ const faqs = [
 
     <section class="faqs">
       {
-        faqs.map((f) => (
+        faqEntries.map((f) => (
           <details class="faq">
-            <summary class="faq__q">{f.q}</summary>
-            <p class="faq__a">{f.a}</p>
+            <summary class="faq__q">{f.question}</summary>
+            <p class="faq__a">{f.answer}</p>
           </details>
         ))
       }

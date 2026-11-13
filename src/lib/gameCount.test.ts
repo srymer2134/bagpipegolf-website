@@ -23,13 +23,17 @@ import { describe, expect, it } from 'vitest';
 
 import { sideGames } from './sideGames';
 
-const ROOTS = ['src/pages', 'src/components', 'src/layouts'];
+// content/ is the CMS's half of the copy (Keystatic writes it). It is
+// scanned for the same reason the pages are: the number used to be
+// typed, and moving the sentence into a CMS moves the chance to type
+// it again along with it.
+const ROOTS = ['src/pages', 'src/components', 'src/layouts', 'content'];
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) return walk(p);
-    return /\.(astro|ts|md|mdx)$/.test(p) && !p.endsWith('.test.ts') ? [p] : [];
+    return /\.(astro|ts|md|mdx|json)$/.test(p) && !p.endsWith('.test.ts') ? [p] : [];
   });
 }
 
@@ -42,6 +46,7 @@ describe('site game counts', () => {
   it('scans a real page set (cannot pass vacuously)', () => {
     expect(files.length).toBeGreaterThan(20);
     expect(files).toContain(join('src/pages', 'faq.astro'));
+    expect(files).toContain(join('content/faq', 'how-many-side-games.json'));
   });
 
   it('no page hard-codes a game count', () => {
@@ -59,9 +64,14 @@ describe('site game counts', () => {
   });
 
   it('the FAQ answer is derived from the library', () => {
-    const faq = readFileSync('src/pages/faq.astro', 'utf8');
-    expect(faq).toMatch(/How many side games are supported\?/);
-    expect(faq).toMatch(/a: `\$\{sideGames\.length\} —/);
+    // The copy moved into Keystatic (content/faq/*.json) on 2026-11-13.
+    // The number did not: the answer carries a {sideGameCount} token
+    // that src/lib/faq.ts substitutes at build time, so an editor owns
+    // the sentence and the library still owns the figure.
+    const entry = readFileSync('content/faq/how-many-side-games.json', 'utf8');
+    expect(entry).toMatch(/How many side games are supported\?/);
+    expect(entry).toMatch(/\{sideGameCount\}/);
+    expect(readFileSync('src/lib/faq.ts', 'utf8')).toMatch(/sideGames\.length/);
   });
 
   it("the home page's \"N more\" names only real games", () => {
