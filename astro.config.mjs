@@ -2,6 +2,8 @@
 import { defineConfig } from 'astro/config';
 
 import cloudflare from "@astrojs/cloudflare";
+import react from "@astrojs/react";
+import keystatic from "@keystatic/astro";
 import sentry from "@sentry/astro";
 import sitemap from "@astrojs/sitemap";
 import { sideGames } from "./src/lib/sideGames.ts";
@@ -40,7 +42,36 @@ export default defineConfig({
   // once we want them SEO-snappy.
   output: 'server',
   adapter: cloudflare(),
+  // Vite pre-bundling for the Keystatic admin, dev only.
+  //
+  // The admin UI is a React island loaded straight out of
+  // node_modules, and its dependency chain reaches CommonJS packages
+  // (lodash/debounce is the one that bites). Un-prebundled, Vite serves
+  // those as raw CJS files and the island dies on
+  // "does not provide an export named 'default'" — a blank /keystatic
+  // and nothing but a console error to say why. `npm run build` is
+  // unaffected, because Rollup does the CJS interop itself, so this is
+  // strictly a dev-server fix.
+  vite: {
+    optimizeDeps: {
+      include: ['@keystatic/core/ui'],
+    },
+  },
   integrations: [
+    // Keystatic — the browser CMS at /keystatic, in github mode
+    // (schema + why in keystatic.config.ts, setup in
+    // docs/KEYSTATIC_SETUP.md). The integration injects both of its
+    // own routes — /keystatic/[...params] (the admin UI) and
+    // /api/keystatic/[...params] (OAuth + the GitHub reads/writes) —
+    // so there is nothing in src/pages for it. Both are
+    // `prerender = false`, which `output: 'server'` above already
+    // means for every route.
+    //
+    // react() is Keystatic's renderer, not a choice about the site:
+    // the admin UI is a React app. No marketing page uses React, so
+    // nothing ships to a visitor's browser because of this line.
+    react(),
+    keystatic(),
     // sitemap-index.xml + sitemap-0.xml at build time. With
     // `output: 'server'` the integration sees only routes without
     // params, so the side-game detail pages (`/side-games/[slug]`) are

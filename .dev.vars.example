@@ -31,3 +31,22 @@ SENTRY_ENVIRONMENT=development
 #     payments page 404s: /app/leagues/<id>/payments?fixture=error_payments_disabled
 PAYMENTS_ENABLED=
 PAYMENTS_FIXTURES=
+
+# Keystatic (the browser CMS at /keystatic, github mode).
+#
+# DO NOT FILL THESE IN BY HAND. Keystatic's setup wizard writes the
+# first three into a local `.env` for you on the first GitHub sign-in
+# at http://localhost:4321/keystatic — it creates the GitHub App at
+# the same time, and these are that app's credentials. The fourth is
+# the app's slug, which is public (it ends up in the browser bundle).
+#
+# `.env` is where Astro reads them in dev, so the wizard's own file is
+# enough locally and these four lines are only here as the contract.
+# For the DEPLOYED admin they also have to exist on the Worker (the
+# three secrets) and in Workers Builds (the PUBLIC_ one, which is read
+# at build time — the same trap PUBLIC_SENTRY_DSN documents in
+# astro.config.mjs). See docs/KEYSTATIC_SETUP.md.
+KEYSTATIC_GITHUB_CLIENT_ID=
+KEYSTATIC_GITHUB_CLIENT_SECRET=
+KEYSTATIC_SECRET=
+PUBLIC_KEYSTATIC_GITHUB_APP_SLUG=

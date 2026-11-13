@@ -1,5 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
-import { CONTENT_SECURITY_POLICY } from './lib/csp';
+import { cspForPath } from './lib/csp';
 import { createSupabaseClient } from './lib/supabase';
 import { handleWellKnownRequest } from './lib/wellKnown';
 import { ensureSentryInit, captureServerError } from './lib/sentryServer';
@@ -116,7 +116,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
   // altering it.
   try {
     const res = await next();
-    return withSecurityHeaders(res);
+    return withSecurityHeaders(res, pathname);
   } catch (err) {
     captureServerError(err, {
       path: pathname,
@@ -153,12 +153,14 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
 // report-only CSP with nobody reading the reports is theatre.
 
 
-function withSecurityHeaders(res: Response): Response {
+function withSecurityHeaders(res: Response, pathname: string): Response {
   // Never rewrite a redirect or a response already streaming — the
   // body is consumed by then and re-wrapping can drop the Location.
   const h = new Headers(res.headers);
 
-  h.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  // The admin surface at /keystatic needs a different policy than the
+  // marketing pages — see the note in lib/csp.ts.
+  h.set('Content-Security-Policy', cspForPath(pathname));
 
   h.set('X-Content-Type-Options', 'nosniff');
   h.set('Referrer-Policy', 'strict-origin-when-cross-origin');
