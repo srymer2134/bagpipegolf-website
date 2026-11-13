@@ -100,29 +100,32 @@ The repo is **public**, so anything saved in the admin is public from
 the moment it is saved. A stranger can load `/keystatic` and sign in;
 they will see nothing they can change.
 
-## What is editable right now: nothing
+## What is editable: the FAQ
 
-This is the honest state. The `posts` collection in
-`keystatic.config.ts` is a **placeholder** — it exists so the config is
-valid and the wizard can run. Nothing on bagpipegolf.com reads it,
-which is why it writes to a top-level `content/` directory instead of
-`src/content/` (Astro's content-collections namespace, where its
-presence would imply a wiring that does not exist).
+**bagpipegolf.com/faq** — the whole page. Open
+<https://bagpipegolf.com/keystatic>, sign in with GitHub, click **FAQ**,
+edit or add a question, hit save. Saving commits to `main`, the commit
+triggers a Workers Builds rebuild, and the answer is live a couple of
+minutes later. Nothing reads this repo at request time; the questions
+are baked into the Worker bundle at build.
 
-Every page's copy still lives in its `.astro` file. Making a page
-editable means moving its copy into a Keystatic collection or singleton
-and having the page read from there — a real change to each page, worth
-deciding deliberately rather than doing to all of them at once. The
-first candidates, if the goal is Chris editing marketing copy without a
-deploy:
+Each question is one JSON file in `content/faq/`, with an **Order**
+field (lowest first, ties alphabetical). The file name is the slug and
+renaming it is harmless — nothing links to it.
 
-- the four Phase 0b pages (Home, Features, For Hosts, For Players) —
-  the copy that issue #424 in `fairwayiq-flutter` is an editorial pass
-  over
-- `faq.astro`, which is a list of question/answer pairs and so is the
-  cheapest honest conversion
-- a news/updates collection, which is net-new and needs no page
-  refactor at all
+**One rule for whoever edits it.** Write `{sideGameCount}` instead of
+typing how many side games there are. It renders as the real number,
+read from `src/lib/sideGames.ts`. This is not fussiness: in October the
+FAQ said "30+" while the app had 34, the home page said 30 and a rules
+page said "34+", all because someone typed each one. `gameCount.test.ts`
+fails CI on a typed count, and it scans `content/` as well as the pages,
+so the guard did not weaken when the copy moved into a CMS.
+
+Pages still in code, if you want the next one converted: the four Phase
+0b marketing pages (Home, Features, For Hosts, For Players) are the
+valuable target — they are the copy issue #424 in `fairwayiq-flutter`
+is an editorial pass over. Each conversion is a real change to that
+page, so they are worth doing one at a time rather than in a batch.
 
 ## Known risk, worth knowing before you debug
 
