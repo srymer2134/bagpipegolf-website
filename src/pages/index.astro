@@ -5,11 +5,14 @@ import { sideGames } from '../lib/sideGames';
 import PlanCards from '../components/PlanCards.astro';
 import PromoBar from '../components/PromoBar.astro';
 import StoreBadges from '../components/StoreBadges.astro';
+// Hero text is edited in Keystatic (/keystatic) — see keystatic.config.ts.
+import hero from '../data/home/hero.json';
 
 // The games named in the side-games card. "N more" is the library size
 // minus this list — it said "21 more" after nine names with 34 games.
 const featuredGames = ['Skins', 'Nassau', 'Wolf', 'Vegas', 'Stableford', 'Hammer', 'Bingo Bango Bongo', 'Scotch', 'Sixes'];
 const moreGames = sideGames.length - featuredGames.length;
+const heroIntro = hero.intro.replaceAll('{games}', String(sideGames.length));
 ---
 
 <BaseLayout title="Bagpipe Golf — Play games. Settle scores." ogTitle="Bagpipe Golf">
@@ -18,20 +21,14 @@ const moreGames = sideGames.length - featuredGames.length;
     <section class="hero">
       <div class="hero__inner">
         <img
-          src="/bagpipe-golf-logo.jpg"
-          alt="Bagpipe Golf — the green bagpiper, with the wordmark Bagpipe Golf"
+          src={hero.logo}
+          alt={hero.logoAlt}
           class="hero__logo"
           width="260"
           height="260"
         />
-        <h1 class="hero__title">Play games.<br />Settle scores.</h1>
-        <p class="hero__tagline">
-          The scorecard and side-game engine for buddies trips,
-          tournaments, and everything in between. Customizable trip
-          templates, {sideGames.length} side games, full settlement math, flighted
-          tournaments, a clubhouse-TV kiosk view — built by golfers
-          who got tired of doing skins on a napkin.
-        </p>
+        <h1 class="hero__title">{hero.headlineLine1}<br />{hero.headlineLine2}</h1>
+        <p class="hero__tagline">{heroIntro}</p>
 
         <!-- Launch banner — the app on both stores, with the official
              App Store and Google Play badges. Android went live on

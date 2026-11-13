@@ -1,4 +1,4 @@
-import { config, collection, fields } from '@keystatic/core';
+import { config, collection, fields, singleton } from '@keystatic/core';
 
 // Keystatic — the browser CMS at /keystatic.
 //
@@ -21,15 +21,58 @@ import { config, collection, fields } from '@keystatic/core';
 // bagpipegolf.com reads it yet, which is why it writes to a top-level
 // `content/` directory rather than `src/content/` (Astro's content
 // collections namespace — putting it there would imply a wiring that
-// doesn't exist). The real schema follows once we've settled what
-// actually needs editing without a deploy. See docs/KEYSTATIC_SETUP.md.
+// doesn't exist). See docs/KEYSTATIC_SETUP.md.
+//
+// SINGLETONS are real: each is one block of page copy, stored as a JSON
+// file under src/data/ that its page imports at build time (Chris,
+// 2026-11-13). The first is the home page's top section.
+//
+// DRAFTS FIRST: `branchPrefix` makes branches created in the admin
+// start with `keystatic/`, so an edit can go on its own branch, get a
+// preview URL, and reach main through a PR. It does not stop a save on
+// main; protecting main in GitHub does that.
 export default config({
   storage: {
     kind: 'github',
     repo: 'srymer2134/bagpipegolf-website',
+    branchPrefix: 'keystatic/',
   },
   ui: {
     brand: { name: 'Bagpipe Golf' },
+  },
+  singletons: {
+    homeHero: singleton({
+      label: 'Home page — top section',
+      path: 'src/data/home/hero',
+      format: { data: 'json' },
+      schema: {
+        headlineLine1: fields.text({
+          label: 'Headline, line 1',
+          validation: { isRequired: true },
+        }),
+        headlineLine2: fields.text({
+          label: 'Headline, line 2',
+          validation: { isRequired: true },
+        }),
+        intro: fields.text({
+          label: 'Intro paragraph',
+          description:
+            'Write {games} where the number of side games should appear — it stays current automatically.',
+          multiline: true,
+          validation: { isRequired: true },
+        }),
+        logo: fields.image({
+          label: 'Logo image',
+          directory: 'public/images/home',
+          publicPath: '/images/home/',
+          validation: { isRequired: true },
+        }),
+        logoAlt: fields.text({
+          label: 'Logo description (for screen readers)',
+          validation: { isRequired: true },
+        }),
+      },
+    }),
   },
   collections: {
     posts: collection({
