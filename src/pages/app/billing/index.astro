@@ -24,7 +24,7 @@ import {
   LEAGUE_DIRECTOR_PRICE_COPY,
   billingErrorMessage,
   moveTargets,
-  offersPortal,
+  offersManage,
   offersTrial,
   rowDetail,
   rowState,
@@ -34,6 +34,14 @@ import {
   type OwnedLeague,
 } from '../../../lib/billing';
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
+import {
+  clubBillingChip,
+  clubBillingDetail,
+  clubBillingRows,
+  hasClubPlan,
+} from '../../../lib/clubBilling';
+import { clubHref } from '../../../lib/clubs';
+import type { Club } from '../../../components/ClubPanel.astro';
 import PoweredByStripe from '../../../components/payments/PoweredByStripe.astro';
 import PromoCodeBox from '../../../components/PromoCodeBox.astro';
 import { rememberedPromo } from '../../../lib/promoCode';
@@ -73,7 +81,12 @@ try {
 // Not admitted → this page does not exist for you. A 404 rather than an
 // explanation: there is nothing useful to say to someone who cannot buy it,
 // and "you're not on the list" invites a request we are not ready for.
-if (!loadFailed && state && !state.billing_available) {
+//
+// `manage_available` is the exception, and it matters: someone who has
+// already PAID is never told this page does not exist. A club payer is not
+// on the checkout allowlist, so without this clause the only page that can
+// reach their card 404s at them (api #214).
+if (!loadFailed && state && !state.billing_available && !state.manage_available) {
   return new Response('Not found', { status: 404 });
 }
 
@@ -124,7 +137,27 @@ const nameFor = new Map<string, string>(owned.map((l) => [l.id, l.name]));
 const notice = billingErrorMessage(Astro.url.searchParams.get('billing'));
 const promoPlan = tournamentId ? 'event' : 'league';
 const promoView = await loadPromoView(Astro, promoPlan, rememberedPromo(Astro.cookies));
-const showPortal = offersPortal(rows);
+const showPortal = offersManage(state, rows);
+
+// ── The club plan, when there is one ────────────────────────
+// A club is a super-user feature and most people have none, so this costs
+// nothing for almost everybody: middleware already knows whether the viewer
+// is in any club, and the Railway hop only happens when they are.
+//
+// Needed here because a club subscription is NOT in the entitlements
+// response and structurally cannot be — `billing_get_state` reads
+// league-scoped rows and a club row's `league_id` is NULL.
+let clubs: Club[] = [];
+if (!tournamentId && (locals.clubs ?? []).length > 0) {
+  try {
+    clubs = (await callRailway<{ clubs: Club[] }>(Astro, { method: 'GET', path: '/api/clubs' })).clubs ?? [];
+  } catch {
+    // A dropped club read costs this section, never the league list below.
+    clubs = [];
+  }
+}
+const clubRows = clubBillingRows(clubs);
+const clubPayer = hasClubPlan(clubRows);
 const sorted = [...rows].sort((a, b) =>
   (nameFor.get(a.league_id) ?? a.league_id).localeCompare(nameFor.get(b.league_id) ?? b.league_id),
 );
@@ -188,26 +221,68 @@ const sorted = [...rows].sort((a, b) =>
       </>
     )}
 
+    {!tournamentId && !loadFailed && clubRows.length > 0 && (
+      <section class="clubsec">
+        <h2 class="clubsec__h">Your club</h2>
+        <ul class="billlist">
+          {clubRows.map(({ club, state: cstate }) => (
+            <li class="billlist__row">
+              <div class="billlist__text">
+                <a class="billlist__name" href={clubHref(club.org_id)}>{club.name}</a>
+                <span class={`chip chip--${cstate === 'yours' ? 'active' : cstate === 'unsubscribed' ? 'subscribe' : 'comped'}`}>
+                  {clubBillingChip(cstate)}
+                </span>
+                <span class="billlist__detail">{clubBillingDetail({ club, state: cstate })}</span>
+              </div>
+              {cstate === 'unsubscribed' ? (
+                <a class="btn btn--primary btn--sm" href="/buy/club">Subscribe</a>
+              ) : (
+                <span class="billlist__done" aria-hidden="true">✓</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
     {!tournamentId && !loadFailed && sorted.length === 0 && (
-      <>
-        <p class="pagewrap__sub">
-          A subscription covers one league for twelve months. Create your
-          league first — it takes a minute — and you'll come straight back
-          here to start your free trial or subscribe. Only the person who
-          creates a league can subscribe it.
-        </p>
-        <p class="emptycta">
-          <a class="btn btn--primary" href="/app/leagues/new?then=billing">Create your league</a>
-          <a class="btn btn--ghost" href="/app/leagues">Your leagues</a>
-        </p>
-      </>
+      clubPayer ? (
+        <>
+          <h2 class="clubsec__h">Your leagues</h2>
+          <p class="pagewrap__sub">
+            Your Club plan covers every league you attach to it — there is
+            nothing more to buy per league. Attach one and it is covered the
+            moment it lands.
+          </p>
+          <p class="emptycta">
+            <a class="btn btn--primary" href="/app/leagues/new?then=billing">Create a league</a>
+            <a class="btn btn--ghost" href="/app/club">Your club</a>
+          </p>
+        </>
+      ) : (
+        <>
+          <p class="pagewrap__sub">
+            A subscription covers one league for twelve months. Create your
+            league first — it takes a minute — and you'll come straight back
+            here to start your free trial or subscribe. Only the person who
+            creates a league can subscribe it.
+          </p>
+          <p class="emptycta">
+            <a class="btn btn--primary" href="/app/leagues/new?then=billing">Create your league</a>
+            <a class="btn btn--ghost" href="/app/leagues">Your leagues</a>
+          </p>
+        </>
+      )
     )}
 
     {!tournamentId && !loadFailed && sorted.length > 0 && (
       <>
+        {clubRows.length > 0 && <h2 class="clubsec__h">Your leagues</h2>}
         <p class="pagewrap__sub">
-          {sentencePrice(promoView, 'league', LEAGUE_DIRECTOR_PRICE_COPY)}, per league, renewing annually. This is
-          separate from <a href="/app/payments/setup">card payments</a>, which
+          {clubPayer
+            ? 'Every league attached to your club is covered by its plan. A league outside the club is its own subscription.'
+            : `${sentencePrice(promoView, 'league', LEAGUE_DIRECTOR_PRICE_COPY)}, per league, renewing annually.`}
+          {' '}This is separate from <a href="/app/payments/setup">card payments</a>, which
           is how your <em>members</em> pay <em>you</em>.
         </p>
 
@@ -270,19 +345,29 @@ const sorted = [...rows].sort((a, b) =>
             );
           })}
         </ul>
+      </>
+    )}
 
-        {showPortal && (
-          <form method="POST" action="/api/billing/portal-session" class="portal">
-            <button class="btn btn--ghost btn--sm" type="submit">
-              Manage subscription
-            </button>
-            <span class="portal__hint">
-              Update your card, download invoices, or cancel at the end of the
-              term.
-            </span>
-          </form>
-        )}
+    {/*
+      OUTSIDE the league list on purpose. It used to sit inside it, so a club
+      payer with no leagues of their own — the state a Club buyer starts in —
+      got the "create your league" empty page and no way to reach their card
+      at all (api #214).
+    */}
+    {!tournamentId && !loadFailed && showPortal && (
+      <form method="POST" action="/api/billing/portal-session" class="portal">
+        <button class="btn btn--ghost btn--sm" type="submit">
+          Manage {clubPayer && sorted.length === 0 ? 'your Club plan' : 'subscription'}
+        </button>
+        <span class="portal__hint">
+          Update your card, download invoices, or cancel at the end of the
+          term.
+        </span>
+      </form>
+    )}
 
+    {!tournamentId && !loadFailed && (
+      <>
         <p class="pagewrap__fine">
           Payment is taken by Stripe — card details never reach Bagpipe.
           Applicable sales tax is calculated at checkout.
@@ -295,6 +380,9 @@ const sorted = [...rows].sort((a, b) =>
 
 <style>
   .billlist { list-style: none; margin: 1.25rem 0 0; padding: 0; }
+  .clubsec { margin: 1.25rem 0 0; }
+  .clubsec__h { margin: 1.5rem 0 0; font-size: 1.0625rem; color: var(--brand-green-dark); }
+  .clubsec .billlist { margin-top: 0.5rem; }
   .billlist__row {
     display: flex; align-items: center; justify-content: space-between;
     gap: 1rem; padding: 0.95rem 0;

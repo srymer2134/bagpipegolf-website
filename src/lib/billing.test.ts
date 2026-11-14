@@ -16,6 +16,7 @@ import {
   daysUntil,
   formatPeriodEnd,
   offersPortal,
+  offersManage,
   offersTrial,
   rowDetail,
   rowState,
@@ -291,5 +292,27 @@ describe('leaguePlanBanner — trial countdown on the league page', () => {
   it('daysLeftCopy', () => {
     expect(daysLeftCopy(1)).toBe('1 day');
     expect(daysLeftCopy(12)).toBe('12 days');
+  });
+});
+
+describe('offersManage', () => {
+  const comped = [row({ entitled: true, source: 'comp' })];
+
+  it("prefers the server's answer, which is the only one that knows about clubs", () => {
+    // The live case: one comped league, and a $2,970 club subscription the
+    // league list structurally cannot contain.
+    expect(offersManage({ manage_available: true }, comped)).toBe(true);
+    expect(offersPortal(comped)).toBe(false);
+  });
+
+  it('believes a false as readily as a true', () => {
+    expect(offersManage({ manage_available: false }, [row({ source: 'stripe' })])).toBe(false);
+  });
+
+  it('falls back to the league list while an older API is deployed', () => {
+    // The website and the API ship separately, so the field can be missing.
+    expect(offersManage({}, [row({ source: 'stripe' })])).toBe(true);
+    expect(offersManage({}, comped)).toBe(false);
+    expect(offersManage(null, comped)).toBe(false);
   });
 });
