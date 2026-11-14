@@ -32,7 +32,7 @@ export const CONTENT_SECURITY_POLICY = [
   // link on every click). The routes themselves only ever redirect to
   // Stripe-hosted URLs (isStripeUrl in src/lib/paymentsRoutes.ts).
   // billing.stripe.com is the league subscription's Customer Portal
-  // ("Manage subscription"); missing from this list, the same silent
+  // ("Update card, receipts, or cancel"); missing from this list, the same silent
   // cancel hit that button on 2026-10-24.
   "form-action 'self' https://connect.stripe.com https://checkout.stripe.com https://billing.stripe.com",
   "object-src 'none'",
