@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../lib/railway';
 import { redirect, withQuery } from '../../../lib/paymentsRoutes';
-import { clubCall, clubDone } from '../../../lib/club';
+import { clubBack, clubCall, clubDone } from '../../../lib/club';
 
 // POST /api/clubs/action — every button on /app/club and /app/club/accept.
 //
@@ -10,13 +10,13 @@ import { clubCall, clubDone } from '../../../lib/club';
 // else. The API's SQL functions decide who may do what, acting as the
 // signed-in user (Club plan B2).
 //
-// Always 303 back to /app/club with `?club=<code>`; the back-link is a
-// constant, so this can't be an open redirect. The invite token is never
-// put into that URL.
+// Always 303 back with `?club=<code>` — to that club's own page, or to the
+// page the button was on (`back`, matched against a closed pattern in
+// lib/club.ts, so this can't be an open redirect). The invite token is
+// never put into that URL.
 export const POST: APIRoute = async (ctx) => {
   const locals = ctx.locals as App.Locals;
-  const back = '/app/club';
-  if (!locals.user) return redirect(`/login?next=${encodeURIComponent(back)}`);
+  if (!locals.user) return redirect(`/login?next=${encodeURIComponent('/app/club')}`);
 
   let form: FormData;
   try {
@@ -24,6 +24,10 @@ export const POST: APIRoute = async (ctx) => {
   } catch {
     return new Response('Bad request', { status: 400 });
   }
+
+  // Back to where the button was, not to a constant. `clubBack` matches a
+  // closed pattern, so this cannot become an open redirect.
+  const back = clubBack(form);
 
   const call = clubCall(form, locals.user.id);
   if ('refuse' in call) return redirect(withQuery(back, { club: call.refuse }));

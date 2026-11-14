@@ -1,13 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
+  attachTarget,
   clubBillingChip,
   clubBillingDetail,
   clubBillingRows,
   clubBillingState,
   hasClubPlan,
+  planDate,
 } from './clubBilling';
 import type { Club } from '../components/ClubPanel.astro';
+import type { BillingClubRow } from './billing';
+
+function plan(over: Partial<BillingClubRow> = {}): BillingClubRow {
+  return {
+    org_id: 'club_1',
+    covered: true,
+    source: 'stripe',
+    period_end: '2027-11-13T03:55:01+00:00',
+    cancel_at_period_end: false,
+    ...over,
+  };
+}
 
 function club(over: Partial<Club> = {}): Club {
   return {
@@ -28,6 +42,16 @@ function club(over: Partial<Club> = {}): Club {
 describe('clubBillingState', () => {
   it('is yours when you are the payer', () => {
     expect(clubBillingState(club())).toBe('yours');
+    expect(clubBillingState(club(), plan())).toBe('yours');
+  });
+
+  it('is ending when the payer has cancelled — the state that needs action', () => {
+    expect(clubBillingState(club(), plan({ cancel_at_period_end: true }))).toBe('ending');
+    // Only for the payer: someone else's cancellation is their business, and
+    // `covered` is still the truth until it lapses.
+    expect(
+      clubBillingState(club({ plan_payer: { display_name: 'Casey', me: false } }), plan({ cancel_at_period_end: true })),
+    ).toBe('other-payer');
   });
 
   it('names the other payer rather than claiming it is unpaid', () => {
@@ -98,12 +122,40 @@ describe('the copy', () => {
     ).toContain('another admin');
   });
 
-  it('never prints a renewal date, because no read on this page has one', () => {
-    for (const state of ['yours', 'other-payer', 'comped', 'unsubscribed'] as const) {
-      const line = clubBillingDetail({ club: club(), state });
-      expect(line).not.toMatch(/renew|\d{4}-\d{2}-\d{2}/i);
+  it('every state has a chip, and none of them prints a dollar amount', () => {
+    // No amount, ever: we hold a price id, not a figure, and a club bought
+    // under a promo may renew at a number no price we hold would name.
+    for (const state of ['yours', 'ending', 'other-payer', 'comped', 'unsubscribed'] as const) {
+      const line = clubBillingDetail({ club: club(), state, plan: plan() });
+      expect(line).not.toMatch(/\$/);
       expect(clubBillingChip(state).length).toBeGreaterThan(0);
     }
+  });
+
+  it('leads with the renewal date, which is what the director came for', () => {
+    const line = clubBillingDetail({ club: club(), state: 'yours', plan: plan() });
+    expect(line).toMatch(/^Renews Nov 13, 2027\./);
+  });
+
+  it('a cancelled plan says Ends, and says what is lost', () => {
+    const line = clubBillingDetail({
+      club: club(),
+      state: 'ending',
+      plan: plan({ cancel_at_period_end: true }),
+    });
+    expect(line).toContain('Ends Nov 13, 2027');
+    expect(line).toMatch(/lose cover/);
+    expect(line).not.toMatch(/Renews/);
+  });
+
+  it('says nothing about a date it does not have', () => {
+    // An older API sends no `clubs`, so there is no plan to read. The line
+    // must still make sense rather than printing "Renews undefined".
+    for (const state of ['yours', 'ending', 'comped'] as const) {
+      const line = clubBillingDetail({ club: club(), state, plan: null });
+      expect(line).not.toMatch(/undefined|null|NaN|Invalid/i);
+    }
+    expect(clubBillingDetail({ club: club(), state: 'yours', plan: null })).not.toMatch(/Renews/);
   });
 });
 
@@ -141,5 +193,99 @@ describe('the billing page is wired to all of it', () => {
   it('reads the club only when middleware says there is one', () => {
     expect(page).toMatch(/\(locals\.clubs \?\? \[\]\)\.length > 0/);
     expect(page).toMatch(/path: '\/api\/clubs'/);
+  });
+
+  it('joins the club list to the subscription read, or no date can appear', () => {
+    expect(page).toMatch(/clubBillingRows\(clubs, state\?\.clubs \?\? \[\]\)/);
+  });
+
+  it('offers attach instead of a second subscription, and only when covered', () => {
+    expect(page).toMatch(/state === 'subscribe' && attachTo/);
+    expect(page).toMatch(/name="action" value="attach"/);
+    expect(page).toMatch(/value=\{attachTo\.org_id\}/);
+    // The button sits on /app/billing, so it has to say where to come back
+    // to or the 303 drops the director on the club page.
+    expect(page).toMatch(/name="back" value="\/app\/billing"/);
+    // And the page must be able to show what the action said.
+    expect(page).toMatch(/clubMessage\(Astro\.url\.searchParams\.get\('club'\)\)/);
+  });
+});
+
+describe('the club page is where the plan is managed', () => {
+  const panel = readFileSync(new URL('../components/ClubPanel.astro', import.meta.url), 'utf8');
+  const detail = readFileSync(new URL('../pages/app/club/[id].astro', import.meta.url), 'utf8');
+  const loader = readFileSync(new URL('./clubPage.ts', import.meta.url), 'utf8');
+
+  it('the portal is reachable from the club, not only from Billing', () => {
+    // The old line said "Manage it in Billing →", sending a director to a
+    // page titled "Your league subscription" to do one thing.
+    expect(panel).toMatch(/action="\/api\/billing\/portal-session"/);
+    expect(panel).not.toMatch(/Manage it in Billing/);
+  });
+
+  it('the button names the jobs instead of saying "manage"', () => {
+    expect(panel).toContain('Update card, receipts, or cancel');
+  });
+
+  it('the plan line can say Ends as well as Renews', () => {
+    expect(panel).toMatch(/planEnding/);
+    expect(panel).toMatch(/ends \{planOn\}/);
+    expect(panel).toMatch(/Renews \{planOn\}/);
+  });
+
+  it('and the date actually reaches it', () => {
+    expect(loader).toMatch(/path: '\/api\/billing\/entitlements'/);
+    expect(loader).toMatch(/plans\.set\(row\.org_id, row\)/);
+    expect(detail).toMatch(/plan=\{plans\.get\(club\.org_id\) \?\? null\}/);
+  });
+
+  it('a failed billing read costs the date, not the page', () => {
+    // Everything on a club page — admins, leagues, the public address —
+    // must survive the subscription read being down.
+    const guarded = /try \{[\s\S]*?\/api\/billing\/entitlements[\s\S]*?\} catch \{/.test(loader);
+    expect(guarded).toBe(true);
+  });
+});
+
+describe('planDate', () => {
+  it('carries the year, because a Club plan runs a year', () => {
+    expect(planDate('2027-11-13T03:55:01+00:00')).toBe('Nov 13, 2027');
+  });
+
+  it('is UTC, so the day does not shift by timezone', () => {
+    // 00:30Z is the previous evening in Mountain Time, where Sam is.
+    expect(planDate('2027-01-01T00:30:00+00:00')).toBe('Jan 1, 2027');
+  });
+
+  it('answers null rather than a lie', () => {
+    expect(planDate(null)).toBeNull();
+    expect(planDate(undefined)).toBeNull();
+    expect(planDate('not a date')).toBeNull();
+  });
+});
+
+describe('attachTarget', () => {
+  it('offers a covered club, so an unattached league can join it for free', () => {
+    const rows = clubBillingRows([club()], [plan()]);
+    expect(attachTarget(rows)?.org_id).toBe('club_1');
+  });
+
+  it('a cancelled-but-still-live plan still covers an attachment', () => {
+    const rows = clubBillingRows([club()], [plan({ cancel_at_period_end: true })]);
+    expect(attachTarget(rows)?.org_id).toBe('club_1');
+  });
+
+  it('a comped club counts — coverage is coverage', () => {
+    const rows = clubBillingRows([club({ plan_payer: null })], []);
+    expect(attachTarget(rows)?.org_id).toBe('club_1');
+  });
+
+  it('NEVER offers an uncovered club, which would swap a real plan for a no-op', () => {
+    const rows = clubBillingRows([club({ covered: false })], []);
+    expect(attachTarget(rows)).toBeNull();
+  });
+
+  it('does not offer a club the viewer only owns on paper and nobody pays for', () => {
+    expect(attachTarget([])).toBeNull();
   });
 });

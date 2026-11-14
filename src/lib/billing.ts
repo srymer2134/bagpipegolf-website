@@ -59,6 +59,22 @@ export type BillingListResponse = {
   enforced?: boolean;
   trial?: TrialInfo;
   leagues: BillingLeagueRow[];
+  /**
+   * The clubs this caller pays for (api, from `billing_get_state`'s `clubs`
+   * key, flutter 20261220). Optional: absent from an older API, and absent
+   * is indistinguishable from "no club", which is the right default either
+   * way.
+   */
+  clubs?: BillingClubRow[];
+};
+
+/** One club's plan, as the entitlements response flattens it. */
+export type BillingClubRow = {
+  org_id: string;
+  covered: boolean;
+  source: 'stripe' | 'comp' | null;
+  period_end: string | null;
+  cancel_at_period_end: boolean;
 };
 
 /** What a row's badge should say. */

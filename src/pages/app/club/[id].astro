@@ -21,7 +21,7 @@ const locals = Astro.locals as App.Locals;
 const user = locals.user!;
 const { id } = Astro.params;
 
-const { clubs, attachable, loadFailed } = await loadClubPage(Astro);
+const { clubs, plans, attachable, loadFailed } = await loadClubPage(Astro);
 const club = clubs.find((c) => c.org_id === id) ?? null;
 
 // Not a member, or no such club: 404 rather than a "you can't see
@@ -68,7 +68,7 @@ const steps = club ? welcomeSteps(club) : [];
     )}
 
     {club && (
-      <ClubPanel club={club} userId={user.id} attachable={attachable} publicSlug={publicSlug} showName={false} />
+      <ClubPanel club={club} userId={user.id} attachable={attachable} plan={plans.get(club.org_id) ?? null} publicSlug={publicSlug} showName={false} />
     )}
   </main>
 </BaseLayout>

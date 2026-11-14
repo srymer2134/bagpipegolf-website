@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { clubCall, clubDone, clubMessage } from './club';
+import { clubBack, clubCall, clubDone, clubMessage } from './club';
 
 // Club plan B2 on the website. lib/club.ts is the allowlist between a form
 // post and the API: exactly one call per known action, from checked fields.
@@ -80,10 +80,52 @@ describe('the pages', () => {
     // query string intact so ?welcome=1 and ?club=<code> survive.
     expect(page).toMatch(/clubs\.length === 1/);
     expect(page).toMatch(/Astro\.redirect\(`\$\{clubHref\(clubs\[0\]\.org_id\)\}\$\{search\}`/);
-    expect(readFileSync('src/pages/api/clubs/action.ts', 'utf8')).toMatch(/const back = '\/app\/club'/);
+    // The 303 target is no longer a constant — see `clubBack` below — but
+    // /app/club is still its default and still has to route.
+    expect(readFileSync('src/pages/api/clubs/action.ts', 'utf8')).toMatch(/clubBack\(form\)/);
   });
   it('the action route never puts the token in the redirect', () => {
     const route = readFileSync('src/pages/api/clubs/action.ts', 'utf8');
     expect(route).not.toMatch(/token:/);
+  });
+});
+
+describe('clubBack — where an action returns you', () => {
+  const form = (o: Record<string, string>) => ({ get: (k: string) => o[k] ?? null });
+
+  it('returns to the club the action named, not to a list', () => {
+    // With one club this was invisible (the list forwards). With two it was
+    // wrong: inviting an admin to club B landed you on the list.
+    expect(clubBack(form({ org_id: 'club_abc' }))).toBe('/app/club/club_abc');
+  });
+
+  it('honours a back the button asked for', () => {
+    // /app/billing's "Attach to your club" is the first button that lives
+    // somewhere other than the club page.
+    expect(clubBack(form({ back: '/app/billing', org_id: 'club_abc' }))).toBe('/app/billing');
+    expect(clubBack(form({ back: '/app/club' }))).toBe('/app/club');
+    expect(clubBack(form({ back: '/app/club/club_abc' }))).toBe('/app/club/club_abc');
+  });
+
+  it('falls back to the list when there is nothing to go on', () => {
+    expect(clubBack(form({}))).toBe('/app/club');
+  });
+
+  it('is NOT an open redirect', () => {
+    for (const evil of [
+      'https://evil.example/app/club',
+      '//evil.example',
+      '/app/club/../../logout',
+      '/app/billing?x=1',
+      '/app/billing#x',
+      '/login?next=/app/club',
+      '/app/clubs',
+      '\\evil.example',
+      '/app/club/club_abc/../../..',
+    ]) {
+      expect(clubBack(form({ back: evil })), evil).toBe('/app/club');
+    }
+    // …and an evil `back` does not stop a valid org_id working.
+    expect(clubBack(form({ back: 'https://evil.example', org_id: 'club_abc' }))).toBe('/app/club/club_abc');
   });
 });
