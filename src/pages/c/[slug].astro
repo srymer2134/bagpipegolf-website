@@ -36,14 +36,18 @@ try {
 
   // An org id rather than a slug: send them to the real address once,
   // permanently, so search engines and bookmarks both learn it.
+  //
+  // Through club_slug_for_id (20261219), NOT a read of
+  // `organizations` — that table is members-only, so the first
+  // version of this returned nothing for exactly the anonymous
+  // visitor the redirect exists to serve, and the page 404'd. It
+  // shipped that way because the test asserted this code was here,
+  // not that it worked for a stranger.
   if (!club && looksLikeOrgId(slug)) {
-    const { data: byId } = await supabase
-      .from('organizations')
-      .select('slug')
-      .eq('id', slug)
-      .maybeSingle();
-    const target = (byId as { slug?: string } | null)?.slug;
-    if (target) return Astro.redirect(clubPublicPath(target), 301);
+    const { data: target } = await supabase.rpc('club_slug_for_id', { p_org_id: slug });
+    if (typeof target === 'string' && target) {
+      return Astro.redirect(clubPublicPath(target), 301);
+    }
   }
 } catch (err) {
   console.error('[c/slug] load failed', err);

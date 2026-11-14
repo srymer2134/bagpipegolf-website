@@ -61,4 +61,15 @@ describe('the public page keeps members-only data out', () => {
   it('301s the old id address to the slug', () => {
     expect(page).toMatch(/Astro\.redirect\(clubPublicPath\(target\), 301\)/);
   });
+
+  it('looks the slug up through the RPC, because the table is members-only', () => {
+    // This shipped broken: the first version read `organizations`
+    // directly, which returns nothing to an anonymous visitor, so
+    // /c/<org_id> 404'd for exactly the person the redirect is for.
+    // The test above passed the whole time, because the redirect LINE
+    // was present. Source tests prove what the code says, not that it
+    // works — so this one names the door it has to go through.
+    expect(page).toMatch(/rpc\('club_slug_for_id'/);
+    expect(page).not.toMatch(/from\('organizations'\)/);
+  });
 });
