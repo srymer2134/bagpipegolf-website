@@ -14,12 +14,20 @@ export type ClubMembership = {
   orgId: string;
   name: string;
   role: 'owner' | 'admin' | string;
+  /**
+   * The club's public address at /c/<slug>, or null for a club created
+   * before 20261218 seeded one (none exist, but the column is nullable
+   * so the type says so). Carried here rather than fetched where it is
+   * shown: `club_state` does not return it, and middleware already
+   * reads this row on every page.
+   */
+  slug: string | null;
 };
 
 type MemberRow = {
   org_id: string;
   role: string | null;
-  organizations: { id: string; name: string | null; org_type: string | null } | null;
+  organizations: { id: string; name: string | null; org_type: string | null; slug: string | null } | null;
 };
 
 /**
@@ -38,7 +46,7 @@ export async function loadClubs(
   try {
     const { data, error } = await supabase
       .from('org_members')
-      .select('org_id, role, organizations!inner(id, name, org_type)')
+      .select('org_id, role, organizations!inner(id, name, org_type, slug)')
       .eq('user_id', userId)
       .eq('status', 'active');
     // The embed depends on PostgREST seeing org_members.org_id ->
@@ -55,6 +63,7 @@ export async function loadClubs(
         orgId: r.org_id,
         name: r.organizations?.name?.trim() || 'Your club',
         role: (r.role ?? 'admin') as ClubMembership['role'],
+        slug: r.organizations?.slug ?? null,
       }));
   } catch {
     return [];
@@ -77,10 +86,10 @@ async function loadClubsUnjoined(
     if (ids.length === 0) return [];
     const { data: orgs } = await supabase
       .from('organizations')
-      .select('id, name, org_type')
+      .select('id, name, org_type, slug')
       .in('id', ids);
     const byId = new Map(
-      ((orgs ?? []) as Array<{ id: string; name: string | null; org_type: string | null }>)
+      ((orgs ?? []) as Array<{ id: string; name: string | null; org_type: string | null; slug: string | null }>)
         .map((o) => [o.id, o]),
     );
     return ((rows ?? []) as Array<{ org_id: string; role: string | null }>)
@@ -89,6 +98,7 @@ async function loadClubsUnjoined(
         orgId: r.org_id,
         name: byId.get(r.org_id)?.name?.trim() || 'Your club',
         role: (r.role ?? 'admin') as ClubMembership['role'],
+        slug: byId.get(r.org_id)?.slug ?? null,
       }));
   } catch {
     return [];

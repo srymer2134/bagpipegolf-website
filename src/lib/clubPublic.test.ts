@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { clubPublicPath, looksLikeOrgId } from './clubPublic';
+import { clubPublicPath, looksLikeOrgId, publicClubUrl } from './clubPublic';
 
 describe('clubPublicPath', () => {
   it('sits beside /l/ and /t/, the other share links', () => {
@@ -11,6 +11,46 @@ describe('clubPublicPath', () => {
 
   it('escapes anything a slug should not contain', () => {
     expect(clubPublicPath('a/b')).toBe('/c/a%2Fb');
+  });
+});
+
+describe('publicClubUrl', () => {
+  it('is something a director can read out over the phone', () => {
+    expect(publicClubUrl('pine-valley', 'https://bagpipegolf.com')).toBe(
+      'https://bagpipegolf.com/c/pine-valley',
+    );
+  });
+
+  it('does not double the slash when the origin carries one', () => {
+    expect(publicClubUrl('pine-valley', 'https://bagpipegolf.com/')).toBe(
+      'https://bagpipegolf.com/c/pine-valley',
+    );
+  });
+});
+
+describe('the club hub tells its owner the page exists', () => {
+  // A public page nobody knows about is a page nobody visits. /c/<slug>
+  // went live before anything in the product mentioned it.
+  const panel = readFileSync('src/components/ClubPanel.astro', 'utf8');
+  const page = readFileSync('src/pages/app/club/[id].astro', 'utf8');
+
+  it('shows the address, built from the helper rather than by hand', () => {
+    expect(panel).toMatch(/publicClubUrl\(publicSlug, SITE\.origin\)/);
+    expect(panel).toMatch(/Your club’s public page/);
+  });
+
+  it('shows nothing at all when there is no slug to link to', () => {
+    // Rather than a row whose link 404s.
+    expect(panel).toMatch(/const publicUrl = publicSlug \? /);
+    expect(panel).toMatch(/\{publicUrl && \(/);
+  });
+
+  it('takes the slug from the membership, not from the URL', () => {
+    // `club` comes from club_state, which already authorised the
+    // viewer; Astro.params.id is whatever they typed. Matching on
+    // club.org_id is what stops one club borrowing another's address.
+    expect(page).toMatch(/clubFor\(locals\.clubs \?\? \[\], club\?\.org_id\)/);
+    expect(page).not.toMatch(/clubFor\([^)]*id/);
   });
 });
 

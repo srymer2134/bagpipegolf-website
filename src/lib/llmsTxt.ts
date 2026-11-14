@@ -25,6 +25,7 @@ export const LLMS_KEY_PAGES: ReadonlyArray<[label: string, path: string]> = [
   ['Buddies trips', '/buddies-trips'],
   ['Tournaments', '/tournaments'],
   ['Leagues', '/leagues'],
+  ['Clubs', '/clubs'],
   ['Schools', '/leagues/schools'],
   ['Pricing', '/pricing'],
   ['FAQ', '/faq'],
