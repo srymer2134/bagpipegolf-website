@@ -20,6 +20,7 @@ import LeaguePlanBanner from '../../../../components/LeaguePlanBanner.astro';
 import { leaguePlanBanner, type BillingListResponse } from '../../../../lib/billing';
 import { callRailway } from '../../../../lib/railway';
 import { clubFor, clubHref } from '../../../../lib/clubs';
+import { fetchLeagueTournaments } from '../../../../lib/leagueEvents';
 
 const { id } = Astro.params;
 const user = (Astro.locals as App.Locals).user;
@@ -36,6 +37,25 @@ try {
 } catch (err) {
   console.error('[app/league] load failed', err);
   failed = true;
+}
+
+// The league's own events. An event IS a tournament, and the ids have
+// been on the league row since the model shipped — the overview just
+// never showed them, so a season's events were only visible one tab
+// away under Schedule, and a tournament attached from the app and
+// never bound to a slot was not visible at all.
+let leagueEvents: Awaited<ReturnType<typeof fetchLeagueTournaments>> = [];
+if (d) {
+  try {
+    const supabase = createSupabaseClient({
+      request: Astro.request,
+      cookies: Astro.cookies,
+      locals: Astro.locals as App.Locals,
+    });
+    leagueEvents = await fetchLeagueTournaments(supabase, d.league.event_tournament_ids);
+  } catch (err) {
+    console.error('[app/league] events load failed', err);
+  }
 }
 
 // The upward half of the club link. A league with no club — the usual
@@ -243,6 +263,23 @@ if (payMode !== 'off' && d && id && own && payable) {
           </article>
         </section>
 
+        {leagueEvents.length > 0 && (
+          <section class="lsec">
+            <h2 class="lsec__h">Tournaments in this league</h2>
+            <ul class="evs">
+              {leagueEvents.map((t) => (
+                <li class="evs__row">
+                  <a class="evs__name" href={`/app/tournaments/${t.id}`}>{t.name || 'Event'}</a>
+                  <span class={`chip ${t.completed_at ? '' : 'chip--on'}`}>
+                    {t.completed_at ? 'Finished' : 'Running'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <a class="btn btn--ghost" href={`/app/leagues/${d.league.id}/schedule`}>Season schedule</a>
+          </section>
+        )}
+
         {rows.length > 0 && (
           <section class="lsec">
             <h2 class="lsec__h">Top of the table</h2>
@@ -290,4 +327,9 @@ if (payMode !== 'off' && d && id && own && payable) {
   .small { font-size: 0.78125rem; }
   .muted { color: var(--ink-muted, #4b5b54); }
   .eyebrow__club { color: var(--brand-green); text-decoration: underline; }
+  .evs { list-style: none; margin: 0 0 12px; padding: 0; }
+  .evs__row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .evs__row:last-child { border-bottom: 0; }
+  .evs__name { font-weight: 600; color: var(--brand-green-dark); }
+  .chip--on { color: var(--brand-green); }
 </style>

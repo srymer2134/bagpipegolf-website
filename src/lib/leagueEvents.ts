@@ -427,3 +427,40 @@ export function rsvpSummary(
   if (tally.out) parts.push(`${tally.out} out`);
   return parts.join(' · ');
 }
+
+/**
+ * Every tournament a league runs, named, newest-looking first.
+ *
+ * `fetchBoundTournaments` above answers "which tournament is week 4",
+ * keyed by schedule slot. This answers the simpler question the league
+ * overview asks — "what events does this league have" — which includes
+ * tournaments attached from the app and never bound to a slot, and so
+ * invisible on the schedule page.
+ *
+ * Reads `tournaments_public`, the scrubbed view, for the same reason
+ * fetchBoundTournaments does: a league member is not the tournament's
+ * owner, and the table itself only answers its owner.
+ */
+export async function fetchLeagueTournaments(
+  supabase: SupabaseClient,
+  eventTournamentIds: string[] | null | undefined,
+): Promise<BoundTournament[]> {
+  const ids = [...new Set((eventTournamentIds ?? []).filter(Boolean))];
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase
+    .from('tournaments_public')
+    .select('id, name, user_id, completed_at')
+    .in('id', ids);
+  if (error) {
+    console.error('[fetchLeagueTournaments]', error);
+    return [];
+  }
+  // In progress first — those are the ones a director acts on — then
+  // finished, each group alphabetical so the order never jitters.
+  return ((data ?? []) as BoundTournament[]).sort((a, b) => {
+    const ac = a.completed_at ? 1 : 0;
+    const bc = b.completed_at ? 1 : 0;
+    if (ac !== bc) return ac - bc;
+    return (a.name ?? '').localeCompare(b.name ?? '');
+  });
+}

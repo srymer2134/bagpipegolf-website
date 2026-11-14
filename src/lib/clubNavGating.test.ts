@@ -37,8 +37,11 @@ describe('club navigation is conditional', () => {
     const page = read('src/pages/app/leagues/[id]/index.astro');
     expect(page).toMatch(/clubFor\(/);
     expect(page).toMatch(/\{club \? <>League ·/);
-    // org_id has to survive the query, or `club` is always null.
-    expect(read('src/lib/leaguePortal.ts')).toMatch(/created_at, org_id'\)/);
+    // org_id has to survive the query, or `club` is always null. The
+    // test asks that it is IN the select, not where in the list it
+    // sits — pinning the exact tail broke the moment the next column
+    // was added beside it (event_tournament_ids, same day).
+    expect(read('src/lib/leaguePortal.ts')).toMatch(/\.select\('[^']*\borg_id\b[^']*'\)/);
   });
 
   it('the club page itself says a club is optional', () => {

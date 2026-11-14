@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 import type { LeagueBindingSource } from './leagueEvents';
 import {
@@ -252,5 +254,24 @@ describe('rsvpSummary', () => {
   it('is null when nobody has answered, so no empty row renders', () => {
     expect(rsvpSummary({ in: 0, out: 0 })).toBeNull();
     expect(rsvpSummary(undefined)).toBeNull();
+  });
+});
+
+describe('fetchLeagueTournaments', () => {
+  it('reads the scrubbed view, like every other league-side reader', () => {
+    // A league member is not the tournament's owner, and after
+    // one-run 1.3 the table answers only its owner. Reading
+    // `tournaments` here would show an empty list to everyone but
+    // the person who created each event.
+    const src = readFileSync('src/lib/leagueEvents.ts', 'utf8');
+    const body = src.slice(src.indexOf('export async function fetchLeagueTournaments'));
+    expect(body).toMatch(/from\('tournaments_public'\)/);
+    expect(body).not.toMatch(/from\('tournaments'\)/);
+  });
+
+  it('puts running events before finished ones', () => {
+    const src = readFileSync('src/lib/leagueEvents.ts', 'utf8');
+    const body = src.slice(src.indexOf('export async function fetchLeagueTournaments'));
+    expect(body).toMatch(/completed_at \? 1 : 0/);
   });
 });
