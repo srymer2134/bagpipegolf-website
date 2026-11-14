@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 import { callRailway, RailwayApiError } from '../../../lib/railway';
 import { isStripeUrl, redirect, withQuery } from '../../../lib/paymentsRoutes';
 
-// POST /api/billing/portal-session — "Manage subscription" on /app/billing.
+// POST /api/billing/portal-session — the "Update card, receipts, or cancel"
+// button, on /app/billing and on a club's own page (ClubPanel).
 //
 // Sends the director to Stripe's hosted Billing Portal, which owns card
 // updates, invoices and cancel-at-period-end. We deliberately build none of

@@ -199,6 +199,23 @@ describe('the billing page is wired to all of it', () => {
     expect(page).toMatch(/clubBillingRows\(clubs, state\?\.clubs \?\? \[\]\)/);
   });
 
+  it('the portal button names the jobs rather than saying "manage"', () => {
+    // "Manage subscription" is our word for three of a director's: update a
+    // card, get a receipt, stop paying. A vague button that leaves the site
+    // does not get clicked.
+    expect(page).toContain('Update card, receipts, or cancel');
+    expect(page).not.toMatch(/Manage \{?clubPayer|Manage subscription/);
+  });
+
+  it('a comp is never labelled in a way that scans as unpaid', () => {
+    // On a billing page, beside a plan, "No charge" reads as a problem.
+    expect(page).not.toMatch(/'No charge'/);
+    for (const state of ['yours', 'ending', 'other-payer', 'comped', 'unsubscribed'] as const) {
+      expect(clubBillingChip(state)).not.toMatch(/No charge/);
+    }
+    expect(clubBillingChip('comped')).toBe('Covered');
+  });
+
   it('offers attach instead of a second subscription, and only when covered', () => {
     expect(page).toMatch(/state === 'subscribe' && attachTo/);
     expect(page).toMatch(/name="action" value="attach"/);

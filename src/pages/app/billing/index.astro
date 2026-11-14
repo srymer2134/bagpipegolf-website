@@ -309,7 +309,7 @@ const sorted = [...rows].sort((a, b) =>
                   <span class={`chip chip--${state}`}>
                     {state === 'active' && 'Subscribed'}
                     {state === 'ending' && 'Ending'}
-                    {state === 'comped' && 'No charge'}
+                    {state === 'comped' && 'Covered'}
                     {state === 'trial' && 'Free trial'}
                     {state === 'subscribe' && 'Not subscribed'}
                   </span>
@@ -389,11 +389,11 @@ const sorted = [...rows].sort((a, b) =>
     {!tournamentId && !loadFailed && showPortal && (
       <form method="POST" action="/api/billing/portal-session" class="portal">
         <button class="btn btn--ghost btn--sm" type="submit">
-          Manage {clubPayer && sorted.length === 0 ? 'your Club plan' : 'subscription'}
+          Update card, receipts, or cancel →
         </button>
         <span class="portal__hint">
-          Update your card, download invoices, or cancel at the end of the
-          term.
+          Opens Stripe, where the card was entered. Nothing changes until you
+          confirm it there.
         </span>
       </form>
     )}

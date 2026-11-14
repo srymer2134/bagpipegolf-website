@@ -74,7 +74,10 @@ export function clubBillingChip(state: ClubBillingState): string {
     case 'other-payer':
       return 'Paid by an admin';
     case 'comped':
-      return 'Covered — no charge';
+      // Not "No charge": on a billing page, beside a plan, that scans as
+      // UNPAID rather than as a gift. The detail line carries the "free"
+      // part, where there is room to say it without alarming anyone.
+      return 'Covered';
     case 'unsubscribed':
       return 'Not subscribed';
   }
