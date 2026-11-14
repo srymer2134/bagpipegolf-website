@@ -44,3 +44,14 @@ export function clubPublicPath(slug: string): string {
 export function looksLikeOrgId(segment: string | undefined): boolean {
   return !!segment && /^club_[a-z0-9]+$/i.test(segment);
 }
+
+/**
+ * The club's public page as something a director can read out, paste
+ * into an email, or print on a sign — origin and all.
+ *
+ * Trailing-slash-free and lower-case, because it gets typed by hand as
+ * often as it gets clicked.
+ */
+export function publicClubUrl(slug: string, origin: string): string {
+  return `${origin.replace(/\/+$/, '')}${clubPublicPath(slug)}`;
+}

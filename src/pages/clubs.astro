@@ -1,0 +1,335 @@
+---
+// /clubs — what a Club is, for a golf club that runs more than one thing.
+//
+// This page exists because the Club plan was being sold with no
+// explanation anywhere except a price card. "Unlimited leagues, up to 4
+// admins" is a feature list, not an answer to "what is it".
+//
+// Every claim below is something the product does today. Three things it
+// does NOT do yet are stated as such, on purpose: admins run their own
+// leagues rather than co-editing, dues are collected per league rather
+// than per club, and the public page lists what is running rather than
+// being an editable microsite. A features page that oversells is a
+// support ticket with a delay on it.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PlanCards from '../components/PlanCards.astro';
+import PromoBar from '../components/PromoBar.astro';
+import { buyHref } from '../lib/offer';
+import { visitorPromo } from '../lib/promoCode';
+
+interface Block {
+  title: string;
+  body: string;
+}
+
+// Who actually buys this. Written as the sentence a club manager would
+// use about themselves, not as a market segment.
+const whoFor: Block[] = [
+  {
+    title: 'A club with several leagues',
+    body:
+      'Men’s, women’s, couples, senior, twilight — each with its own night, its own roster and its own standings. One plan covers all of them, however many you add.',
+  },
+  {
+    title: 'A club that also runs events',
+    body:
+      'The member-guest, the club championship, the two-man scramble. Tournaments your admins run are covered too, inside a league or standing on their own, at any field size.',
+  },
+  {
+    title: 'A pro shop with more than one organiser',
+    body:
+      'The head pro, the assistant, the league chair. Up to four of you hold admin seats and each runs their own leagues under the club’s plan.',
+  },
+];
+
+const whatYouGet: Block[] = [
+  {
+    title: 'One plan, every league',
+    body:
+      'Add a league and it is covered the moment you attach it. No per-league subscription to remember, no league that quietly stops working because a renewal lapsed.',
+  },
+  {
+    title: 'Four admin seats',
+    body:
+      'You plus three. Invite them by email; they accept and run their own leagues. Each admin keeps their own leagues today — shared editing of someone else’s league is not built yet.',
+  },
+  {
+    title: 'Every tournament covered',
+    body:
+      'Any tournament an admin runs is covered by the club plan — bound to a league or standalone, and with no cap on the field.',
+  },
+  {
+    title: 'A club page of your own',
+    body:
+      'Your club gets a public address — bagpipegolf.com/c/your-club — listing the leagues you are running, their join codes, and what is on the calendar. Share the link; no sign-in to read it.',
+  },
+  {
+    title: 'Attach and detach, reversibly',
+    body:
+      'A league joins the club, or leaves it, with one button. Nothing is rewritten and no scores move — the club is a roof over leagues that already stand on their own.',
+  },
+  {
+    title: 'Ownership that can change hands',
+    body:
+      'The club chair changes every couple of years. Hand ownership to another admin without rebuilding anything, and the plan keeps paying from the same card.',
+  },
+];
+
+// The question that decides whether someone needs this at all. It is
+// the most useful thing on the page, so it is not buried.
+const notNeeded: Block[] = [
+  {
+    title: 'One league',
+    body:
+      'Buy the League plan. A league runs perfectly well with no club at all, and you can attach it to one later without losing anything.',
+  },
+  {
+    title: 'One tournament a year',
+    body:
+      'Run it free up to 36 players, or buy a single event pass for a bigger field. No subscription.',
+  },
+  {
+    title: 'A group of friends',
+    body:
+      'Side games and casual rounds are free, forever, for every player. Nobody in your group pays to keep score or settle up.',
+  },
+];
+
+const visitorCode = visitorPromo(Astro.url, Astro.cookies);
+---
+
+<BaseLayout
+  title="Clubs · Bagpipe Golf"
+  description="The Club plan for golf clubs running more than one league: one subscription covering unlimited leagues and every tournament, up to four admins, and a public club page."
+>
+  <main class="pagewrap">
+    <p class="pagewrap__eyebrow">Clubs</p>
+    <h1 class="pagewrap__title">One roof over every league you run.</h1>
+    <p class="pagewrap__sub">
+      A Club is for a golf club, pro shop or association running more than one
+      thing: several leagues, a calendar of events, and more than one person
+      organising them. One plan covers all of it, and your club gets a public
+      page people can actually find.
+    </p>
+    <p class="pagewrap__sub">
+      <strong>It is optional.</strong> Leagues and tournaments work on their own
+      and most never belong to a club. This is the tier you reach for when
+      paying for each one separately has stopped making sense.
+    </p>
+
+    <PromoBar />
+
+    <section class="hero-band">
+      <div class="hero-band__grid">
+        <div class="hero-band__cell">
+          <span class="hero-band__num">∞</span>
+          <span class="hero-band__label">Leagues</span>
+        </div>
+        <div class="hero-band__cell">
+          <span class="hero-band__num">4</span>
+          <span class="hero-band__label">Admin seats</span>
+        </div>
+        <div class="hero-band__cell">
+          <span class="hero-band__num">Any</span>
+          <span class="hero-band__label">Field size</span>
+        </div>
+        <div class="hero-band__cell">
+          <span class="hero-band__num">30</span>
+          <span class="hero-band__label">Days free</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>How it fits together</h2>
+        <p class="section-sub">
+          Three levels, and each one stands on its own. A club holds leagues; a
+          league holds its events; an event is a tournament with a leaderboard.
+          You can start at any level and add the one above it later.
+        </p>
+      </div>
+      <ol class="ladder">
+        <li class="ladder__step">
+          <span class="ladder__label">Club</span>
+          <p>
+            Your club. Holds as many leagues as you like, plus one-off events
+            the club runs itself. Up to four admins. <strong>Optional.</strong>
+          </p>
+        </li>
+        <li class="ladder__step">
+          <span class="ladder__label">League</span>
+          <p>
+            A recurring season — weekly format, roster, substitute rules,
+            flighting, playoffs, standings that compute live.
+            <a href="/leagues">See leagues →</a>
+          </p>
+        </li>
+        <li class="ladder__step">
+          <span class="ladder__label">Tournament</span>
+          <p>
+            One event. Gross, net, Stableford, Cup match-points, shotgun
+            pairings, payouts. A league week is one of these.
+            <a href="/tournaments">See tournaments →</a>
+          </p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Who it is for</h2>
+      </div>
+      <div class="grid grid--3">
+        {
+          whoFor.map((b) => (
+            <article class="card">
+              <h3>{b.title}</h3>
+              <p>{b.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>What you get</h2>
+      </div>
+      <div class="grid grid--3">
+        {
+          whatYouGet.map((b) => (
+            <article class="card">
+              <h3>{b.title}</h3>
+              <p>{b.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>When you do not need one</h2>
+        <p class="section-sub">
+          Most people reading this do not. Saying so is cheaper for both of us
+          than a refund.
+        </p>
+      </div>
+      <div class="grid grid--3">
+        {
+          notNeeded.map((b) => (
+            <article class="card card--quiet">
+              <h3>{b.title}</h3>
+              <p>{b.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="plans-section" id="pricing">
+      <h2>What it costs</h2>
+      <p class="plans-section__sub">
+        Players never pay — only the person organising. One Club plan covers
+        every league and every event under it, and starts with 30 days free, no
+        card.
+      </p>
+      <PlanCards only={['league', 'club']} variant="compact" />
+      <p class="plans-section__more"><a href="/pricing">Full pricing and how we compare →</a></p>
+    </section>
+
+    <section class="cta">
+      <h2>Run the whole calendar from one place.</h2>
+      <p>
+        Set the club up, attach the leagues you already run, invite your admins.
+        Nothing you have built moves.
+      </p>
+      <div class="cta__row">
+        <a class="btn btn--primary" href={buyHref('club', undefined, visitorCode)}>
+          Start your club — 30 days free
+        </a>
+        <a class="btn btn--ghost" href="/leagues">Leagues first &rarr;</a>
+      </div>
+      <p class="cta__alt">
+        Questions about a club with an unusual shape?
+        {' '}<a href="mailto:hello@bagpipegolf.com?subject=Club%20plan">Email us</a>.
+      </p>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .section { margin-top: 44px; }
+  .section-head { margin-bottom: 16px; }
+  .section-head h2 { margin: 0 0 6px; }
+  .section-sub { margin: 0; color: var(--ink-muted); max-width: 62ch; }
+  .card h3 {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    margin: 0 0 6px;
+  }
+  .card p { margin: 0; color: var(--ink-muted); font-size: 0.9375rem; }
+  .card--quiet { background: var(--paper-tint); }
+  .hero-band {
+    background: linear-gradient(180deg, var(--brand-green-pale) 0%, #fff 100%);
+    border: 1px solid rgba(26, 92, 56, 0.15);
+    border-radius: 18px;
+    padding: 26px 28px;
+    margin: 18px 0 8px;
+  }
+  .hero-band__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .hero-band__cell { display: grid; gap: 2px; text-align: center; }
+  .hero-band__num {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+    line-height: 1.1;
+  }
+  .hero-band__label {
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    font-weight: 700;
+  }
+  @media (max-width: 720px) {
+    .hero-band__grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .ladder { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .ladder__step {
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--brand-green);
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: #fff;
+  }
+  .ladder__step p { margin: 4px 0 0; color: var(--ink-muted); font-size: 0.9375rem; }
+  .ladder__label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 800;
+    color: var(--brand-green-dark);
+  }
+  .plans-section { margin-top: 48px; }
+  .plans-section h2 { margin: 0 0 6px; }
+  .plans-section__sub { margin: 0 0 18px; color: var(--ink-muted); max-width: 62ch; }
+  .plans-section__more { margin: 14px 0 0; font-weight: 700; }
+  .cta {
+    margin-top: 48px;
+    padding: 28px;
+    border-radius: 18px;
+    background: var(--brand-green-pale);
+    border: 1px solid rgba(26, 92, 56, 0.15);
+  }
+  .cta h2 { margin: 0 0 6px; }
+  .cta p { margin: 0 0 14px; color: var(--ink-muted); max-width: 60ch; }
+  .cta__row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .cta__alt { margin: 14px 0 0; font-size: 0.9375rem; }
+</style>

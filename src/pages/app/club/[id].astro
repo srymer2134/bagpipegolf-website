@@ -15,8 +15,10 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import ClubPanel from '../../../components/ClubPanel.astro';
 import { loadClubPage, welcomeSteps } from '../../../lib/clubPage';
 import { clubMessage } from '../../../lib/club';
+import { clubFor } from '../../../lib/clubs';
 
-const user = (Astro.locals as App.Locals).user!;
+const locals = Astro.locals as App.Locals;
+const user = locals.user!;
 const { id } = Astro.params;
 
 const { clubs, attachable, loadFailed } = await loadClubPage(Astro);
@@ -25,6 +27,11 @@ const club = clubs.find((c) => c.org_id === id) ?? null;
 // Not a member, or no such club: 404 rather than a "you can't see
 // this" page, which would confirm the club exists to anyone guessing.
 if (!loadFailed && !club) return new Response(null, { status: 404 });
+
+// The slug lives on the membership row middleware already read, not in
+// `club_state`. Matching on org_id rather than trusting the URL means a
+// club the viewer is not in cannot borrow another club's address.
+const publicSlug = clubFor(locals.clubs ?? [], club?.org_id)?.slug ?? null;
 
 const notice = clubMessage(Astro.url.searchParams.get('club'));
 const welcome = club && Astro.url.searchParams.get('welcome') === '1';
@@ -61,7 +68,7 @@ const steps = club ? welcomeSteps(club) : [];
     )}
 
     {club && (
-      <ClubPanel club={club} userId={user.id} attachable={attachable} showName={false} />
+      <ClubPanel club={club} userId={user.id} attachable={attachable} publicSlug={publicSlug} showName={false} />
     )}
   </main>
 </BaseLayout>

@@ -9,6 +9,10 @@
 //
 // Every button posts to /api/clubs/action, which authorises as the
 // signed-in user and 303s back. Nothing here charges anyone.
+import { clubPublicPath, publicClubUrl } from '../lib/clubPublic';
+
+const SITE = Astro.site ?? new URL('https://bagpipegolf.com');
+
 export type Member = {
   user_id: string;
   role: 'owner' | 'admin';
@@ -53,13 +57,20 @@ export type Club = {
 interface Props {
   club: Club;
   userId: string;
+  /**
+   * The club's slug, for the public-page line. Comes from
+   * `Astro.locals.clubs` rather than `club_state`, which does not
+   * return it. Null means no public address to show, and the whole
+   * row disappears rather than linking somewhere that 404s.
+   */
+  publicSlug?: string | null;
   /** The viewer's leagues that are in no club yet — what "Attach" offers. */
   attachable: Array<{ id: string; name: string | null }>;
   /** Heading level: h2 in a list, h2 on its own page with the name as h1. */
   showName?: boolean;
 }
 
-const { club: c, userId, attachable, showName = true } = Astro.props;
+const { club: c, userId, attachable, publicSlug = null, showName = true } = Astro.props;
 
 // A club runs events two ways: through its leagues, and directly for a
 // one-off like a member-guest. club_state unions both (20261217), so
@@ -67,6 +78,16 @@ const { club: c, userId, attachable, showName = true } = Astro.props;
 // is which — the league name is shown when there is one.
 const events = c.events ?? [];
 const leagueName = new Map(c.leagues.map((l) => [l.league_id, l.name || l.league_id]));
+
+// The club's public page. A director had no way of knowing their club
+// HAD an address — /c/<slug> went live before anything in the product
+// mentioned it, which makes a page nobody can find.
+//
+// The hint below is the same rule /c/<slug> enforces for itself: an
+// empty club page is `noindex`, so saying it is "live" with nothing on
+// it would be a half-truth.
+const publicUrl = publicSlug ? publicClubUrl(publicSlug, SITE.origin) : null;
+const hasPublicContent = c.leagues.length > 0 || events.length > 0;
 
 const day = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
@@ -89,6 +110,23 @@ const day = (iso: string) =>
       Leagues in the club are covered once it has a plan.
       {' '}<a href="/buy/club">Buy the Club plan or start a free trial →</a>
     </p>
+  )}
+
+  {publicUrl && (
+    <div class="pub">
+      <div class="pub__body">
+        <span class="pub__label">Your club’s public page</span>
+        <a class="pub__url" href={clubPublicPath(publicSlug!)}>{publicUrl}</a>
+        <span class="pub__hint">
+          {hasPublicContent
+            ? 'Share it anywhere. Your leagues, their join codes and your events — nothing about your members or your billing.'
+            : 'It is live, and deliberately kept out of Google until a league or an event is on it.'}
+        </span>
+      </div>
+      <button class="btn btn--ghost btn--sm pub__copy" type="button" data-copy-url={publicUrl} hidden>
+        Copy link
+      </button>
+    </div>
   )}
 
   <h3 class="club__h">Admins <span class="club__count">{c.seats_used} of {c.seats_max} seats</span></h3>
@@ -257,4 +295,40 @@ const day = (iso: string) =>
   .danger summary { cursor: pointer; color: var(--error); font-weight: 600; }
   .check { display: flex; gap: 8px; align-items: center; }
   .pagewrap__fine { margin: 0; font-size: 0.875rem; color: var(--ink-muted); }
+  .pub {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    flex-wrap: wrap; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--paper-tint);
+  }
+  .pub__body { display: grid; gap: 2px; min-width: 0; }
+  .pub__label { font-size: 0.875rem; font-weight: 700; color: var(--brand-green-dark); }
+  .pub__url { font-weight: 600; word-break: break-all; }
+  .pub__hint { font-size: 0.8125rem; color: var(--ink-muted); }
+  .pub__copy { flex: 0 0 auto; }
 </style>
+
+<script>
+  // Progressive: the URL above is a real link and works with no JS at
+  // all. The button only appears once this has run and the clipboard
+  // API is actually there, so a director is never shown a control that
+  // silently does nothing.
+  (() => {
+    if (!navigator.clipboard) return;
+    for (const btn of document.querySelectorAll('[data-copy-url]')) {
+      const url = btn.getAttribute('data-copy-url');
+      if (!url) continue;
+      btn.hidden = false;
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(url);
+          const was = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(() => { btn.textContent = was; }, 1600);
+        } catch {
+          // Denied permission or an insecure origin. The link is still
+          // right there to copy by hand.
+        }
+      });
+    }
+  })();
+</script>

@@ -27,14 +27,16 @@ function fakeSupabase(result: { data?: unknown; error?: unknown } | Error) {
 const clubRow = (over: Record<string, unknown> = {}) => ({
   org_id: 'club_1',
   role: 'owner',
-  organizations: { id: 'club_1', name: 'Pine Valley', org_type: 'club' },
+  organizations: { id: 'club_1', name: 'Pine Valley', org_type: 'club', slug: 'pine-valley' },
   ...over,
 });
 
 describe('loadClubs', () => {
   it('returns the clubs a member belongs to', async () => {
     const clubs = await loadClubs(fakeSupabase({ data: [clubRow()] }), 'u1');
-    expect(clubs).toEqual([{ orgId: 'club_1', name: 'Pine Valley', role: 'owner' }]);
+    expect(clubs).toEqual([
+      { orgId: 'club_1', name: 'Pine Valley', role: 'owner', slug: 'pine-valley' },
+    ]);
   });
 
   it('ignores orgs that are not clubs', async () => {
@@ -63,7 +65,7 @@ describe('loadClubs', () => {
 });
 
 describe('clubFor', () => {
-  const clubs = [{ orgId: 'club_1', name: 'Pine Valley', role: 'owner' }];
+  const clubs = [{ orgId: 'club_1', name: 'Pine Valley', role: 'owner', slug: 'pine-valley' }];
 
   it('is null for a league in no club — the normal case', () => {
     expect(clubFor(clubs, null)).toBeNull();
@@ -101,7 +103,7 @@ describe('loadClubs when the embed fails', () => {
           ? { error: { message: 'could not find a relationship' } }
           : table === 'org_members'
             ? { data: [{ org_id: 'club_1', role: 'admin' }] }
-            : { data: [{ id: 'club_1', name: 'Pine Valley', org_type: 'club' }] };
+            : { data: [{ id: 'club_1', name: 'Pine Valley', org_type: 'club', slug: 'pine-valley' }] };
         const thenable = {
           select: () => thenable,
           eq: () => thenable,
@@ -112,7 +114,9 @@ describe('loadClubs when the embed fails', () => {
       },
     } as never;
     return loadClubs(supabase, 'u1').then((clubs) => {
-      expect(clubs).toEqual([{ orgId: 'club_1', name: 'Pine Valley', role: 'admin' }]);
+      expect(clubs).toEqual([
+        { orgId: 'club_1', name: 'Pine Valley', role: 'admin', slug: 'pine-valley' },
+      ]);
       expect(calls).toEqual(['org_members', 'org_members', 'organizations']);
     });
   });
