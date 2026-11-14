@@ -35,12 +35,14 @@ import {
 } from '../../../lib/billing';
 import { supabaseFor, type RouteCtx } from '../../../lib/paymentsRoutes';
 import {
+  attachTarget,
   clubBillingChip,
   clubBillingDetail,
   clubBillingRows,
   hasClubPlan,
 } from '../../../lib/clubBilling';
 import { clubHref } from '../../../lib/clubs';
+import { clubMessage } from '../../../lib/club';
 import type { Club } from '../../../components/ClubPanel.astro';
 import PoweredByStripe from '../../../components/payments/PoweredByStripe.astro';
 import PromoCodeBox from '../../../components/PromoCodeBox.astro';
@@ -156,8 +158,15 @@ if (!tournamentId && (locals.clubs ?? []).length > 0) {
     clubs = [];
   }
 }
-const clubRows = clubBillingRows(clubs);
+const clubRows = clubBillingRows(clubs, state?.clubs ?? []);
 const clubPayer = hasClubPlan(clubRows);
+// A covered club means an unattached league can join it for free, which is
+// the honest action on a league this page would otherwise try to sell a
+// second subscription for.
+const attachTo = attachTarget(clubRows);
+// /api/clubs/action 303s back here with ?club=<code> when the attach button
+// below is used, so this page has to be able to read that notice.
+const clubNotice = clubMessage(Astro.url.searchParams.get('club'));
 const sorted = [...rows].sort((a, b) =>
   (nameFor.get(a.league_id) ?? a.league_id).localeCompare(nameFor.get(b.league_id) ?? b.league_id),
 );
@@ -169,6 +178,9 @@ const sorted = [...rows].sort((a, b) =>
     <h1 class="pagewrap__title">{tournamentId ? 'Your tournament pass.' : 'Your league subscription.'}</h1>
 
     {notice && <p class="notice" role="status">{notice}</p>}
+    {clubNotice && (
+      <p class={`notice ${clubNotice.good ? 'notice--good' : ''}`} role="status">{clubNotice.text}</p>
+    )}
 
     {!loadFailed && <PromoCodeBox plan={promoPlan} view={promoView} />}
 
@@ -318,7 +330,27 @@ const sorted = [...rows].sort((a, b) =>
                     </form>
                   );
                 })()}
-                {state === 'subscribe' || state === 'trial' ? (
+                {state === 'subscribe' && attachTo ? (
+                  /*
+                    Their club already covers every league in it, so selling
+                    this league its own $2,140 plan is selling a second thing
+                    they do not need — on the page they came to in order to
+                    check what they had already bought. Attaching is free to
+                    them and makes the club worth more.
+                  */
+                  <div class="billlist__actions">
+                    <form method="POST" action="/api/clubs/action" class="attach">
+                      <input type="hidden" name="action" value="attach" />
+                      <input type="hidden" name="org_id" value={attachTo.org_id} />
+                      <input type="hidden" name="league_id" value={row.league_id} />
+                      <input type="hidden" name="back" value="/app/billing" />
+                      <button class="btn btn--primary btn--sm" type="submit">
+                        Attach to {attachTo.name}
+                      </button>
+                      <span class="attach__hint">Covered by your Club plan — no extra charge.</span>
+                    </form>
+                  </div>
+                ) : state === 'subscribe' || state === 'trial' ? (
                   <div class="billlist__actions">
                     {offersTrial(billingState, row) && (
                       <form method="POST" action="/api/billing/trial">
@@ -381,6 +413,8 @@ const sorted = [...rows].sort((a, b) =>
 <style>
   .billlist { list-style: none; margin: 1.25rem 0 0; padding: 0; }
   .clubsec { margin: 1.25rem 0 0; }
+  .attach { display: grid; gap: 4px; justify-items: end; margin: 0; }
+  .attach__hint { font-size: 0.8125rem; color: var(--ink-muted); }
   .clubsec__h { margin: 1.5rem 0 0; font-size: 1.0625rem; color: var(--brand-green-dark); }
   .clubsec .billlist { margin-top: 0.5rem; }
   .billlist__row {

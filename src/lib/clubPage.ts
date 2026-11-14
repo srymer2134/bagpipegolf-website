@@ -1,9 +1,21 @@
 import { callRailway } from './railway';
 import { supabaseFor, type RouteCtx } from './paymentsRoutes';
 import type { Club } from '../components/ClubPanel.astro';
+import type { BillingClubRow, BillingListResponse } from './billing';
 
 export type ClubPageData = {
   clubs: Club[];
+  /**
+   * Each club's subscription, by org_id — the renewal date and whether it is
+   * going to renew. `club_state` does not know this; `billing_get_state`'s
+   * `clubs` key does (flutter 20261220). Carried here so the club page can
+   * answer "when am I charged again" where the director already is, instead
+   * of sending them to a page titled "Your league subscription" to find out.
+   *
+   * Empty when the API has not deployed the key yet, or when the read fails.
+   * The plan line then renders exactly as it did before, without a date.
+   */
+  plans: Map<string, BillingClubRow>;
   /** The viewer's leagues in no club yet — what "Attach my league" offers. */
   attachable: Array<{ id: string; name: string | null }>;
   loadFailed: boolean;
@@ -36,6 +48,21 @@ export async function loadClubPage(astro: {
     loadFailed = true;
   }
 
+  // Billing is a second, independent read: a club page must not break
+  // because the subscription read did. Only asked for when there is a club.
+  const plans = new Map<string, BillingClubRow>();
+  if (clubs.length > 0) {
+    try {
+      const state = await callRailway<BillingListResponse>(astro as never, {
+        method: 'GET',
+        path: '/api/billing/entitlements',
+      });
+      for (const row of state.clubs ?? []) plans.set(row.org_id, row);
+    } catch {
+      // No date shown. The page, and every control on it, still works.
+    }
+  }
+
   let attachable: ClubPageData['attachable'] = [];
   try {
     const userId = (astro.locals as { user?: { id?: string } }).user?.id;
@@ -54,7 +81,7 @@ export async function loadClubPage(astro: {
     // A failed league read costs the "Attach" control, not the page.
   }
 
-  return { clubs, attachable, loadFailed };
+  return { clubs, plans, attachable, loadFailed };
 }
 
 /**

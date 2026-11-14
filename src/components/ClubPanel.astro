@@ -10,6 +10,8 @@
 // Every button posts to /api/clubs/action, which authorises as the
 // signed-in user and 303s back. Nothing here charges anyone.
 import { clubPublicPath, publicClubUrl } from '../lib/clubPublic';
+import { planDate } from '../lib/clubBilling';
+import type { BillingClubRow } from '../lib/billing';
 
 const SITE = Astro.site ?? new URL('https://bagpipegolf.com');
 
@@ -64,13 +66,20 @@ interface Props {
    * row disappears rather than linking somewhere that 404s.
    */
   publicSlug?: string | null;
+  /**
+   * This club's subscription, when the billing read had one. Gives the plan
+   * line its renewal date and puts the Stripe portal HERE, beside the plan
+   * it concerns — rather than sending the payer to /app/billing, a page
+   * titled "Your league subscription", to do one thing.
+   */
+  plan?: BillingClubRow | null;
   /** The viewer's leagues that are in no club yet — what "Attach" offers. */
   attachable: Array<{ id: string; name: string | null }>;
   /** Heading level: h2 in a list, h2 on its own page with the name as h1. */
   showName?: boolean;
 }
 
-const { club: c, userId, attachable, publicSlug = null, showName = true } = Astro.props;
+const { club: c, userId, attachable, plan = null, publicSlug = null, showName = true } = Astro.props;
 
 // A club runs events two ways: through its leagues, and directly for a
 // one-off like a member-guest. club_state unions both (20261217), so
@@ -87,6 +96,13 @@ const leagueName = new Map(c.leagues.map((l) => [l.league_id, l.name || l.league
 // empty club page is `noindex`, so saying it is "live" with nothing on
 // it would be a half-truth.
 const publicUrl = publicSlug ? publicClubUrl(publicSlug, SITE.origin) : null;
+
+// The plan's own facts, for the payer. "Ends" vs "Renews" is the difference
+// a director most needs to see, and it is the one thing a hosted portal
+// cannot tell them until they have already clicked through to it.
+const iPay = c.covered && c.plan_payer?.me === true;
+const planOn = planDate(plan?.period_end);
+const planEnding = plan?.cancel_at_period_end === true;
 const hasPublicContent = c.leagues.length > 0 || events.length > 0;
 
 const day = (iso: string) =>
@@ -98,12 +114,35 @@ const day = (iso: string) =>
     {showName && <h2 class="club__name">{c.name}</h2>}
     <span class={`chip ${c.covered ? 'chip--on' : 'chip--off'}`}>{c.covered ? 'Plan active' : 'No plan yet'}</span>
   </div>
-  {c.covered && c.plan_payer && (
+  {c.covered && c.plan_payer && !iPay && (
     <p class="club__payer">
-      {c.plan_payer.me
-        ? <>You pay for this club’s plan. <a href="/app/billing">Manage it in Billing →</a></>
-        : `${c.plan_payer.display_name || 'Another admin'} pays for this club’s plan.`}
+      {`${c.plan_payer.display_name || 'Another admin'} pays for this club’s plan.`}
     </p>
+  )}
+  {iPay && (
+    <div class="plan">
+      <p class="club__payer">
+        You pay for this club’s plan.
+        {planEnding && planOn && <> It <strong>ends {planOn}</strong>, and every league in the club loses cover that day.</>}
+        {planEnding && !planOn && <> It is set to end at the end of the term, and the leagues in it lose cover then.</>}
+        {!planEnding && planOn && <> Renews {planOn}.</>}
+      </p>
+      {/*
+        The portal lives HERE, next to the plan, not behind a hop to a page
+        called "Your league subscription". The label names the three jobs a
+        director actually has instead of saying "manage" — a vague button
+        that leaves the site does not get clicked.
+      */}
+      <form method="POST" action="/api/billing/portal-session" class="plan__act">
+        <button class="btn btn--ghost btn--sm" type="submit">
+          Update card, receipts, or cancel →
+        </button>
+      </form>
+      <p class="plan__fine">
+        Opens Stripe, where the card was entered. Full history in
+        {' '}<a href="/app/billing">Billing</a>.
+      </p>
+    </div>
   )}
   {!c.covered && c.role === 'owner' && (
     <p class="club__plan">
@@ -295,6 +334,9 @@ const day = (iso: string) =>
   .danger summary { cursor: pointer; color: var(--error); font-weight: 600; }
   .check { display: flex; gap: 8px; align-items: center; }
   .pagewrap__fine { margin: 0; font-size: 0.875rem; color: var(--ink-muted); }
+  .plan { display: grid; gap: 8px; justify-items: start; }
+  .plan__act { margin: 0; }
+  .plan__fine { margin: 0; font-size: 0.8125rem; color: var(--ink-muted); }
   .pub {
     display: flex; justify-content: space-between; align-items: center; gap: 12px;
     flex-wrap: wrap; padding: 12px 14px; border-radius: 10px;

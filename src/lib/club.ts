@@ -106,6 +106,30 @@ export function clubCall(
 }
 
 /** The sentence /app/club shows for `?club=<code>`. Never the raw code. */
+/**
+ * Where /api/clubs/action sends the browser afterwards.
+ *
+ * It used to be the constant '/app/club', which was invisible while anyone
+ * had exactly one club — the list page forwards straight to it — and wrong
+ * the moment they had two: inviting an admin to club B landed you on the
+ * list. It is also wrong for any button that lives somewhere else, which
+ * /app/billing's "Attach to your club" now does.
+ *
+ * STILL NOT AN OPEN REDIRECT. The caller's `back` is matched against a
+ * closed pattern — /app/billing, /app/club, /app/club/<id> — and anything
+ * else is discarded rather than followed. With no `back`, an action that
+ * names an org returns to THAT club's page, which is the fix for the
+ * two-club case.
+ */
+const BACK_OK = /^\/app\/(billing|club(\/[A-Za-z0-9_-]{1,128})?)$/;
+
+export function clubBack(form: { get(k: string): unknown }): string {
+  const asked = field(form, 'back');
+  if (BACK_OK.test(asked)) return asked;
+  const org = field(form, 'org_id');
+  return ID.test(org) ? `/app/club/${encodeURIComponent(org)}` : '/app/club';
+}
+
 export function clubMessage(code: string | null | undefined): { text: string; good: boolean } | null {
   if (!code) return null;
   const good: Record<string, string> = {
