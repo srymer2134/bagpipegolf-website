@@ -21,6 +21,16 @@ interface Props {
    *  preview headline (a side-game page sharing as "Wolf golf game:
    *  rules…" is far more useful than sharing as "Bagpipe Golf"). */
   ogTitle?: string;
+  /** Keep this page out of search while it has nothing worth finding.
+   *
+   *  Added for the public club page (/c/<slug>, 20261218): a club that
+   *  has just bought a plan and published nothing is a near-empty
+   *  page, and a hundred of those drag on the whole domain's quality.
+   *  `follow` stays on, so the links it does carry still count.
+   *
+   *  Use it for thin-by-nature pages only. A page that is merely new
+   *  should be indexed. */
+  noindex?: boolean;
   // Pages that ship their own full-bleed chrome (the landing hero today)
   // can opt out of the standard nav + footer. Default false = standard chrome.
   bare?: boolean;
@@ -28,6 +38,7 @@ interface Props {
 
 const {
   title,
+  noindex = false,
   ogTitle,
   description = "Bagpipe Golf — the on-course caddie, scorecard, and side-game engine for golfers and tournament directors.",
   bare = false,
@@ -80,6 +91,7 @@ const withGtm = gtmAllowedPath(Astro.url.pathname);
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <link rel="canonical" href={pageUrl} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
     <meta property="og:url" content={pageUrl} />
     <meta property="og:image" content={shareImage} />
     <meta property="og:image:width" content="1200" />
