@@ -4,6 +4,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { createSupabaseClient } from '../../lib/supabase';
 import { listBets, formatVsPar, type RoundRow, type BetRow } from '../../lib/queries';
 import { loadRoundsForDisplay } from '../../lib/spineRounds';
+import { myLeagues, type MyLeague } from '../../lib/leaguePortal';
 import {
   listMyTournaments,
   isCompleted,
@@ -21,19 +22,25 @@ const supabase = createSupabaseClient({
 let recentRounds: RoundRow[] = [];
 let activeBets: BetRow[] = [];
 let allTournaments: TournamentRow[] = [];
+let myLeagueRows: MyLeague[] = [];
 let loadError: string | null = null;
 try {
   // Recent rounds come from the spine merged with the legacy table —
   // reading `public.rounds` alone showed nothing newer than
   // 2026-09-10. See lib/spineRounds.ts.
-  const [recent, bets, tournaments] = await Promise.all([
+  const [recent, bets, tournaments, leagues] = await Promise.all([
     loadRoundsForDisplay(Astro, supabase, { limit: 4 }),
     listBets(supabase, { limit: 6, activeOnly: true }),
     listMyTournaments(supabase, { limit: 6 }),
+    // The dashboard is meant to show everything you are part of on one
+    // page, and leagues were the one thing missing from it: reachable
+    // from the Manage shelf, never shown (Sam, 2026-11-13).
+    user?.id ? myLeagues(supabase, user.id) : Promise.resolve([]),
   ]);
   recentRounds = recent.rows;
   activeBets = bets;
   allTournaments = tournaments;
+  myLeagueRows = leagues;
 } catch (err: any) {
   loadError = err?.message ?? 'Could not load dashboard.';
 }
@@ -59,6 +66,10 @@ const playerNames = (b: BetRow) =>
 // upsell. A player who will never buy a Club plan should not get a
 // club-shaped hole in their dashboard; /pricing is where it is sold.
 const clubs = (Astro.locals as App.Locals).clubs ?? [];
+
+// Seasons still running. A finished league belongs in its own list,
+// not on a dashboard that answers "what is live right now".
+const activeLeagues = myLeagueRows.filter((l) => !l.completed_at).slice(0, 6);
 ---
 
 <BaseLayout title="Dashboard · Bagpipe Golf">
@@ -159,6 +170,27 @@ const clubs = (Astro.locals as App.Locals).clubs ?? [];
         </div>
       )}
     </section>
+
+    {activeLeagues.length > 0 && (
+      <section class="block">
+        <header class="block__head">
+          <h2 class="block__title">Your leagues</h2>
+          <a class="block__more" href="/app/leagues">All leagues →</a>
+        </header>
+        <div class="grid grid--3">
+          {activeLeagues.map((l) => (
+            <article class="card">
+              <h3>{l.name}</h3>
+              <p>
+                {l.role === 'commissioner' ? 'You run this league' : 'You play in this league'}
+                {l.member_count ? ` · ${l.member_count} member${l.member_count === 1 ? '' : 's'}` : ''}
+              </p>
+              <a class="btn btn--ghost btn--sm" href={`/app/leagues/${l.id}`}>Open</a>
+            </article>
+          ))}
+        </div>
+      </section>
+    )}
 
     {clubs.length > 0 && (
       <section class="block">

@@ -86,6 +86,13 @@ export type MyLeague = {
    * not change when it joins one, only who pays for it.
    */
   org_id: string | null;
+  /**
+   * The tournaments this league runs. An event IS a tournament — the
+   * ids have been stored here since the league model shipped, and the
+   * overview never showed them, so a director could run a season and
+   * see no sign of its events on the league's own front page.
+   */
+  event_tournament_ids: string[];
   role: LeagueRole;
   /**
    * May this viewer open the Coach Dashboard? True for the owner, a
@@ -217,7 +224,7 @@ export async function myLeagues(
 
   const { data: rows, error: lErr } = await supabase
     .from('leagues')
-    .select('id, name, description, points_model, week_format, completed_at, page_visibility, user_id, created_at, org_id')
+    .select('id, name, description, points_model, week_format, completed_at, page_visibility, user_id, created_at, org_id, event_tournament_ids')
     .in('id', ids)
     .order('created_at', { ascending: false });
   if (lErr) throw lErr;
@@ -241,6 +248,7 @@ export async function myLeagues(
     completed_at: (r.completed_at as string | null) ?? null,
     page_visibility: (r.page_visibility as string | null) ?? 'public',
     org_id: (r.org_id as string | null) ?? null,
+    event_tournament_ids: ((r.event_tournament_ids as string[] | null) ?? []).filter(Boolean),
     // Director if you own the row, or your membership says so (a
     // co-director). Everyone else is a member — including rows whose
     // raw role is 'player'.
