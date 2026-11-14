@@ -23,6 +23,14 @@ export type ClubLeague = {
   mine: boolean;
   covered: boolean;
 };
+export type ClubEvent = {
+  tournament_id: string;
+  name: string | null;
+  course_name: string | null;
+  completed: boolean;
+  /** The league it runs under, or null for a standalone club event. */
+  league_id: string | null;
+};
 export type Club = {
   org_id: string;
   name: string;
@@ -34,6 +42,12 @@ export type Club = {
   members: Member[];
   invites: Invite[];
   leagues: ClubLeague[];
+  /**
+   * Optional on purpose: club_state only returns this once 20261217 is
+   * applied. Before that the section simply does not render, rather
+   * than the page breaking on a key that isn't there yet.
+   */
+  events?: ClubEvent[];
 };
 
 interface Props {
@@ -46,6 +60,13 @@ interface Props {
 }
 
 const { club: c, userId, attachable, showName = true } = Astro.props;
+
+// A club runs events two ways: through its leagues, and directly for a
+// one-off like a member-guest. club_state unions both (20261217), so
+// this list is the whole picture without the page having to know which
+// is which — the league name is shown when there is one.
+const events = c.events ?? [];
+const leagueName = new Map(c.leagues.map((l) => [l.league_id, l.name || l.league_id]));
 
 const day = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
@@ -161,6 +182,34 @@ const day = (iso: string) =>
     </form>
   )}
   <p class="pagewrap__fine">Each admin adds and runs their own leagues.</p>
+
+  {c.events !== undefined && (
+    <>
+      <h3 class="club__h">Events</h3>
+      {events.length === 0 && (
+        <p class="club__empty">
+          No events yet. Anything your leagues run shows up here, and so does a
+          one-off the club runs on its own.
+        </p>
+      )}
+      <ul class="rows">
+        {events.map((e) => (
+          <li class="row">
+            <span>
+              <strong><a href={`/app/tournaments/${e.tournament_id}`}>{e.name || 'Event'}</a></strong>
+              <span class="row__sub">
+                {e.league_id ? leagueName.get(e.league_id) ?? 'A club league' : 'Club event'}
+                {e.course_name ? ` · ${e.course_name}` : ''}
+              </span>
+            </span>
+            <span class={`chip ${e.completed ? 'chip--off' : 'chip--on'}`}>
+              {e.completed ? 'Finished' : 'Running'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  )}
 
   {c.role === 'owner' && c.members.length === 1 && (
     <details class="danger">
