@@ -1,0 +1,154 @@
+---
+// /c/<slug> — a club's public page. No sign-in, no account, nothing
+// here that a member's page would show.
+//
+// This is the club's shop window: who they are, what is running, how
+// to get in. A club is a SUPER-USER feature — several leagues and
+// several events under one roof — and this is the one page that shows
+// that from the outside.
+//
+// Everything on it comes from `club_public(slug)`, a definer function
+// that decides for itself what a stranger may see (20261218).
+// `organizations` itself stays members-only, so there is no table read
+// here to get wrong: no members, no admins, no emails, no seats, no
+// billing, and no league that has not set itself public.
+//
+// The id still works. /c/<org_id> 301s here, because links were made
+// before slugs existed and a club page that 404s is worse than an ugly
+// URL.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { createSupabaseClient } from '../../lib/supabase';
+import { clubPublicPath, looksLikeOrgId, type PublicClub } from '../../lib/clubPublic';
+
+const { slug } = Astro.params;
+
+let club: PublicClub | null = null;
+let failed = false;
+try {
+  const supabase = createSupabaseClient({
+    request: Astro.request,
+    cookies: Astro.cookies,
+    locals: Astro.locals as App.Locals,
+  });
+  const { data, error } = await supabase.rpc('club_public', { p_slug: slug });
+  if (error) throw error;
+  club = (data as PublicClub | null) ?? null;
+
+  // An org id rather than a slug: send them to the real address once,
+  // permanently, so search engines and bookmarks both learn it.
+  if (!club && looksLikeOrgId(slug)) {
+    const { data: byId } = await supabase
+      .from('organizations')
+      .select('slug')
+      .eq('id', slug)
+      .maybeSingle();
+    const target = (byId as { slug?: string } | null)?.slug;
+    if (target) return Astro.redirect(clubPublicPath(target), 301);
+  }
+} catch (err) {
+  console.error('[c/slug] load failed', err);
+  failed = true;
+}
+
+if (!failed && !club) return new Response(null, { status: 404 });
+
+const leagues = club?.leagues ?? [];
+const events = club?.events ?? [];
+const running = events.filter((e) => !e.completed);
+
+// Nothing public yet is a real state — a club that has just bought a
+// plan. It gets its address and its name, and it stays out of search
+// until there is something on it worth finding. A thin page indexed a
+// hundred times over is a drag on the whole domain.
+const hasPublicContent = leagues.length > 0 || events.length > 0;
+---
+
+<BaseLayout
+  title={club ? `${club.name} · Bagpipe Golf` : 'Club · Bagpipe Golf'}
+  description={club
+    ? `${club.name} runs ${leagues.length || 'its'} ${leagues.length === 1 ? 'league' : 'leagues'} on Bagpipe Golf.`
+    : undefined}
+  noindex={!hasPublicContent}
+>
+  <main class="pagewrap pagewrap--narrow">
+    {failed ? (
+      <>
+        <h1 class="pagewrap__title">Club</h1>
+        <p class="pagewrap__sub">
+          We couldn’t load this club just now. Try again in a moment.
+        </p>
+      </>
+    ) : (
+      <>
+        <p class="pagewrap__eyebrow">Club</p>
+        <h1 class="pagewrap__title">{club!.name}</h1>
+
+        {!hasPublicContent && (
+          <p class="pagewrap__sub">
+            This club hasn’t published a league yet. Check back, or ask them for
+            a join code.
+          </p>
+        )}
+
+        {leagues.length > 0 && (
+          <section class="csec">
+            <h2 class="csec__h">Leagues</h2>
+            <ul class="rows">
+              {leagues.map((l) => (
+                <li class="row">
+                  <a class="row__name" href={`/l/${l.league_id}`}>{l.name || 'League'}</a>
+                  {l.join_code && <span class="code">Join code <strong>{l.join_code}</strong></span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {running.length > 0 && (
+          <section class="csec">
+            <h2 class="csec__h">Running now</h2>
+            <ul class="rows">
+              {running.map((e) => (
+                <li class="row">
+                  <a class="row__name" href={`/t/${e.tournament_id}`}>{e.name || 'Event'}</a>
+                  {e.course_name && <span class="row__sub">{e.course_name}</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {events.length > running.length && (
+          <section class="csec">
+            <h2 class="csec__h">Recent events</h2>
+            <ul class="rows">
+              {events.filter((e) => e.completed).slice(0, 10).map((e) => (
+                <li class="row">
+                  <a class="row__name" href={`/t/${e.tournament_id}`}>{e.name || 'Event'}</a>
+                  {e.course_name && <span class="row__sub">{e.course_name}</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <p class="pagewrap__fine">
+          Scoring and standings for this club run on
+          {' '}<a href="/">Bagpipe Golf</a>.
+        </p>
+      </>
+    )}
+  </main>
+</BaseLayout>
+
+<style>
+  .csec { margin-top: 22px; }
+  .csec__h { margin: 0 0 8px; font-size: 1.0625rem; color: var(--brand-green-dark); }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .row:last-child { border-bottom: 0; }
+  .row__name { font-weight: 600; color: var(--brand-green-dark); }
+  .row__sub { font-size: 0.875rem; color: var(--ink-muted); }
+  .code { font-size: 0.875rem; color: var(--ink-muted); }
+  .pagewrap__fine { margin: 24px 0 0; font-size: 0.875rem; color: var(--ink-muted); }
+</style>
