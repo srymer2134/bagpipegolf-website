@@ -46,6 +46,14 @@ export type TrialInfo = {
 
 export type BillingListResponse = {
   billing_available: boolean;
+  /**
+   * May this caller reach the Stripe portal? Answered by the server from
+   * whether a Stripe customer exists for them, which is the portal route's
+   * own precondition (api #214). Optional because the website and the API
+   * deploy independently: an older API omits it and `offersManage` falls
+   * back to reading the league list, which is what this page did before.
+   */
+  manage_available?: boolean;
   gate: 'off' | 'allowlist' | 'on';
   /** Is the gate refusing anything for this director yet? */
   enforced?: boolean;
@@ -211,6 +219,26 @@ export function billingErrorMessage(code: string | null | undefined): string | n
  */
 export function offersPortal(leagues: BillingLeagueRow[]): boolean {
   return leagues.some((l) => l.source === 'stripe');
+}
+
+/**
+ * The gate the page actually uses.
+ *
+ * `offersPortal` can only ever see LEAGUE subscriptions, and that is not a
+ * limitation of the request — a club subscription has `league_id` NULL, so no
+ * league-shaped read can contain it. Live on 2026-11-13 that left the payer
+ * of an active $2,970 Club plan with no way to update a card, take an invoice
+ * or cancel, while their one league showed as comped.
+ *
+ * So prefer the server's own answer, and keep the old inference only for the
+ * window where this page is deployed ahead of the API.
+ */
+export function offersManage(
+  state: Pick<BillingListResponse, 'manage_available'> | null,
+  leagues: BillingLeagueRow[],
+): boolean {
+  if (typeof state?.manage_available === 'boolean') return state.manage_available;
+  return offersPortal(leagues);
 }
 
 /**
