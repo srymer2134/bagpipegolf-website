@@ -58,3 +58,14 @@ describe('club navigation is conditional', () => {
     }
   });
 });
+
+describe('the dashboard says what it means', () => {
+  it('does not label shipped features "coming soon"', () => {
+    // It said that from the site's first commit (2026-06-09) until
+    // 2026-11-13, above four links that all answer 200.
+    const dash = readFileSync('src/pages/app/index.astro', 'utf8');
+    const copy = dash.replace(/<!--[\s\S]*?-->/g, '');
+    expect(copy).not.toMatch(/Coming soon/i);
+    expect(copy).toMatch(/<h2 class="block__title">Manage<\/h2>/);
+  });
+});
