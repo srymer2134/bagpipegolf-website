@@ -179,7 +179,15 @@ const clubs = (Astro.locals as App.Locals).clubs ?? [];
     )}
 
     <section class="block">
-      <h2 class="block__title">Coming soon</h2>
+      <!-- "Coming soon" until 2026-11-13, which it had said since the
+           site's first commit (b0517a8, 2026-06-09, the auth shell).
+           Every card under it has shipped — /app/tournaments,
+           /app/leagues, /app/payments/setup and /app/profile all
+           answer 200 — so the heading was promising four things that
+           had already arrived, directly below a paid Club card. This
+           block is a navigation shelf: the sections above show your
+           data, this one is the rest of the product one click away. -->
+      <h2 class="block__title">Manage</h2>
       <div class="grid grid--3">
         <article class="card">
           <h3>Tournaments</h3>
