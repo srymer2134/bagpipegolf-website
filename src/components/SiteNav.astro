@@ -1,4 +1,5 @@
 ---
+import { clubHref } from '../lib/clubs';
 // Top navigation. Two layers:
 //   - Primary horizontal links on the left (key CTAs).
 //   - A "Menu" disclosure on the right that opens a grouped sitemap
@@ -7,6 +8,11 @@
 // populated by src/middleware.ts.
 
 const user = Astro.locals.user ?? null;
+// Clubs are optional and most users have none, so this is almost
+// always empty and the menu is unchanged. Rendering a Club entry for
+// someone who has no club would advertise a $2,970 plan from inside
+// their own navigation; /pricing is where that belongs.
+const clubs = Astro.locals.clubs ?? [];
 const isSignedIn = !!user;
 const pathname = new URL(Astro.request.url).pathname;
 
@@ -85,6 +91,11 @@ const menuGroups: NavGroup[] = isSignedIn
           { href: '/app/side-games', label: 'My games' },
           { href: '/app/tournaments', label: 'My tournaments' },
           { href: '/app/leagues', label: 'My leagues' },
+          ...(clubs.length === 1
+            ? [{ href: clubHref(clubs[0].orgId), label: 'My club' }]
+            : clubs.length > 1
+              ? [{ href: '/app/club', label: 'My clubs' }]
+              : []),
           { href: '/app/profile', label: 'Profile' },
         ],
       },

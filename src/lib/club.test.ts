@@ -66,10 +66,21 @@ describe('the pages', () => {
     const route = readFileSync('src/pages/api/clubs/action.ts', 'utf8');
     expect(route).toMatch(/data\?\.plan_payer === locals\.user\.id/);
   });
-  it('the club page says who pays', () => {
+  it('the club panel says who pays', () => {
+    // Moved out of /app/club into ClubPanel.astro on 2026-11-13, when a
+    // club gained an address of its own (/app/club/<id>) and the list
+    // and the detail page started sharing one set of markup.
+    const panel = readFileSync('src/components/ClubPanel.astro', 'utf8');
+    expect(panel).toContain('You pay for this club’s plan.');
+    expect(panel).toContain('pays for this club’s plan.');
+  });
+  it('/app/club still answers, because every club link and 303 lands there', () => {
     const page = readFileSync('src/pages/app/club/index.astro', 'utf8');
-    expect(page).toContain('You pay for this club’s plan.');
-    expect(page).toContain('pays for this club’s plan.');
+    // It routes now: one club goes straight to its own page, with the
+    // query string intact so ?welcome=1 and ?club=<code> survive.
+    expect(page).toMatch(/clubs\.length === 1/);
+    expect(page).toMatch(/Astro\.redirect\(`\$\{clubHref\(clubs\[0\]\.org_id\)\}\$\{search\}`/);
+    expect(readFileSync('src/pages/api/clubs/action.ts', 'utf8')).toMatch(/const back = '\/app\/club'/);
   });
   it('the action route never puts the token in the redirect', () => {
     const route = readFileSync('src/pages/api/clubs/action.ts', 'utf8');

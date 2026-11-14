@@ -1,6 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { cspForPath } from './lib/csp';
 import { createSupabaseClient } from './lib/supabase';
+import { loadClubs } from './lib/clubs';
 import { handleWellKnownRequest } from './lib/wellKnown';
 import { ensureSentryInit, captureServerError } from './lib/sentryServer';
 import { rememberPromo } from './lib/promoCode';
@@ -63,6 +64,11 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
 
   let session: App.Locals['session'] = null;
   let user: App.Locals['user'] = null;
+  // A club is optional and rare, so this is almost always []. It is
+  // read here rather than per-page because three surfaces need the
+  // same answer (nav, dashboard, a league's "part of" line) and a
+  // signed-in page render should not ask three times.
+  let clubs: App.Locals['clubs'] = [];
 
   try {
     const supabase = createSupabaseClient({
@@ -75,6 +81,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     if (user) {
       const { data: sessionData } = await supabase.auth.getSession();
       session = sessionData.session ?? null;
+      clubs = await loadClubs(supabase, user.id);
     }
   } catch (err) {
     console.error('[middleware] supabase init failed', err);
@@ -90,6 +97,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
 
   locals.session = session;
   locals.user = user;
+  locals.clubs = clubs;
 
   // Before any redirect below: a signed-in director following the email's
   // `/signup?promo=` link is bounced to /app, and the code must survive that.

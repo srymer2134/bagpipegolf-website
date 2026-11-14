@@ -79,6 +79,13 @@ export type MyLeague = {
   week_format: string | null;
   completed_at: string | null;
   page_visibility: string | null;
+  /**
+   * The club this league belongs to, or null — which is the normal
+   * case and always will be (8 of 10 on dev, 2026-11-13). Read only to
+   * render the upward "Part of <club>" link; a league's behaviour does
+   * not change when it joins one, only who pays for it.
+   */
+  org_id: string | null;
   role: LeagueRole;
   /**
    * May this viewer open the Coach Dashboard? True for the owner, a
@@ -210,7 +217,7 @@ export async function myLeagues(
 
   const { data: rows, error: lErr } = await supabase
     .from('leagues')
-    .select('id, name, description, points_model, week_format, completed_at, page_visibility, user_id, created_at')
+    .select('id, name, description, points_model, week_format, completed_at, page_visibility, user_id, created_at, org_id')
     .in('id', ids)
     .order('created_at', { ascending: false });
   if (lErr) throw lErr;
@@ -233,6 +240,7 @@ export async function myLeagues(
     week_format: (r.week_format as string | null) ?? null,
     completed_at: (r.completed_at as string | null) ?? null,
     page_visibility: (r.page_visibility as string | null) ?? 'public',
+    org_id: (r.org_id as string | null) ?? null,
     // Director if you own the row, or your membership says so (a
     // co-director). Everyone else is a member — including rows whose
     // raw role is 'player'.
